@@ -1,0 +1,23 @@
+{
+  "name": "lexiroot",
+  "version": "0.0.1",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "api:dev": "pnpm --filter @lexiroot/api start:dev",
+    "admin:dev": "pnpm --filter @lexiroot/admin dev",
+    "mobile:dev": "pnpm --filter @lexiroot/mobile start",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,cjs,jsx,json,md,css,html,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,cjs,jsx,json,md,css,html,yml,yaml}\"",
+    "lint": "pnpm -r --parallel lint",
+    "typecheck": "pnpm -r --parallel typecheck"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3"
+  }
+}

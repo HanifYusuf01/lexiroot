@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: lexiroot_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lexiroot
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: lexiroot
+    ports:
+      - '5432:5432'
+    volumes:
+      - lexiroot_pg:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: lexiroot_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@lexiroot.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - '5050:80'
+    depends_on:
+      - postgres
+
+volumes:
+  lexiroot_pg:

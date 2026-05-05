@@ -1,0 +1,204 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import {
+  ACTIVE_WINDOW_DAYS,
+  type CountryCode,
+  type LanguageCode,
+  type LearningLevel,
+  type LearningReason,
+} from '@lexiroot/shared';
+import { User } from './entities/user.entity';
+import { ListUsersQueryDto } from './dto/list-users-query.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+
+interface CreateUserInput {
+  email: string;
+  displayName: string;
+  passwordHash: string;
+  language?: LanguageCode | null;
+  level?: LearningLevel | null;
+  learningReason?: LearningReason | null;
+  country?: CountryCode | null;
+  phone?: string | null;
+  avatarUrl?: string | null;
+}
+
+export interface PublicUser {
+  id: string;
+  email: string;
+  displayName: string;
+  role: 'user' | 'admin';
+  emailVerifiedAt: Date | null;
+  language: LanguageCode | null;
+  level: LearningLevel | null;
+  learningReason: LearningReason | null;
+  country: CountryCode | null;
+  phone: string | null;
+  avatarUrl: string | null;
+  xp: number;
+  currentStreakDays: number;
+  lessonsCompleted: number;
+  lastActiveAt: Date | null;
+  isActive: boolean;
+  createdAt: Date;
+}
+
+export interface PaginatedUsers {
+  items: PublicUser[];
+  page: number;
+  limit: number;
+  total: number;
+}
+
+export interface UserStats {
+  total: number;
+  active: number;
+  inactive: number;
+}
+
+function activeCutoff(): Date {
+  const d = new Date();
+  d.setDate(d.getDate() - ACTIVE_WINDOW_DAYS);
+  return d;
+}
+
+function isActive(lastActiveAt: Date | null): boolean {
+  if (!lastActiveAt) return false;
+  return lastActiveAt.getTime() >= activeCutoff().getTime();
+}
+
+function toPublic(u: User): PublicUser {
+  return {
+    id: u.id,
+    email: u.email,
+    displayName: u.displayName,
+    role: u.role,
+    emailVerifiedAt: u.emailVerifiedAt,
+    language: u.language,
+    level: u.level,
+    learningReason: u.learningReason,
+    country: u.country,
+    phone: u.phone,
+    avatarUrl: u.avatarUrl,
+    xp: u.xp,
+    currentStreakDays: u.currentStreakDays,
+    lessonsCompleted: u.lessonsCompleted,
+    lastActiveAt: u.lastActiveAt,
+    isActive: isActive(u.lastActiveAt),
+    createdAt: u.createdAt,
+  };
+}
+
+@Injectable()
+export class UsersService {
+  constructor(
+    @InjectRepository(User)
+    private readonly users: Repository<User>,
+  ) {}
+
+  findByEmail(email: string): Promise<User | null> {
+    return this.users.findOne({ where: { email: email.toLowerCase() } });
+  }
+
+  findById(id: string): Promise<User | null> {
+    return this.users.findOne({ where: { id } });
+  }
+
+  findByPasswordResetToken(token: string): Promise<User | null> {
+    return this.users.findOne({ where: { passwordResetToken: token } });
+  }
+
+  create(data: CreateUserInput): Promise<User> {
+    const user = this.users.create({
+      email: data.email.toLowerCase(),
+      displayName: data.displayName,
+      passwordHash: data.passwordHash,
+      language: data.language ?? null,
+      level: data.level ?? null,
+      learningReason: data.learningReason ?? null,
+      country: data.country ?? null,
+      phone: data.phone ?? null,
+      lastActiveAt: new Date(),
+    });
+    return this.users.save(user);
+  }
+
+  async update(id: string, data: Partial<User>): Promise<void> {
+    await this.users.update(id, data);
+  }
+
+  async touchActivity(id: string): Promise<void> {
+    await this.users.update(id, { lastActiveAt: new Date() });
+  }
+
+  async paginate(query: ListUsersQueryDto): Promise<PaginatedUsers> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const cutoff = activeCutoff();
+    const qb = this.users.createQueryBuilder('user');
+    if (query.search) {
+      qb.andWhere('(LOWER(user.email) LIKE :s OR LOWER(user.display_name) LIKE :s)', {
+        s: `%${query.search.toLowerCase()}%`,
+      });
+    }
+    if (query.status === 'active') {
+      qb.andWhere('user.last_active_at IS NOT NULL AND user.last_active_at >= :cutoff', {
+        cutoff,
+      });
+    } else if (query.status === 'inactive') {
+      qb.andWhere('(user.last_active_at IS NULL OR user.last_active_at < :cutoff)', {
+        cutoff,
+      });
+    }
+    const [rows, total] = await qb
+      .orderBy('user.created_at', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      items: rows.map(toPublic),
+      page,
+      limit,
+      total,
+    };
+  }
+
+  async stats(): Promise<UserStats> {
+    const cutoff = activeCutoff();
+    const [total, active] = await Promise.all([
+      this.users.count(),
+      this.users
+        .createQueryBuilder('user')
+        .where('user.last_active_at IS NOT NULL AND user.last_active_at >= :cutoff', { cutoff })
+        .getCount(),
+    ]);
+    return { total, active, inactive: total - active };
+  }
+
+  async getPublicById(id: string): Promise<PublicUser> {
+    const user = await this.users.findOne({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+    return toPublic(user);
+  }
+
+  async adminUpdate(id: string, dto: UpdateUserDto): Promise<PublicUser> {
+    const user = await this.users.findOne({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+    if (dto.displayName !== undefined) user.displayName = dto.displayName;
+    if (dto.role !== undefined) user.role = dto.role;
+    if (dto.emailVerified !== undefined) {
+      user.emailVerifiedAt = dto.emailVerified ? (user.emailVerifiedAt ?? new Date()) : null;
+    }
+    if (dto.language !== undefined) user.language = dto.language;
+    if (dto.level !== undefined) user.level = dto.level;
+    await this.users.save(user);
+    return toPublic(user);
+  }
+
+  async remove(id: string): Promise<void> {
+    const result = await this.users.delete(id);
+    if (!result.affected) throw new NotFoundException('User not found');
+  }
+}
