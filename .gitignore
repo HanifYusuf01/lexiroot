@@ -11,3 +11,6 @@ build
 coverage
 .turbo
 *.tsbuildinfo
+
+# Local-only project notes for Claude Code (never push)
+CLAUDE.md

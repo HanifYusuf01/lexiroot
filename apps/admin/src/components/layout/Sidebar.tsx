@@ -32,9 +32,7 @@ function NavItem({ to, label, end, expandable }: NavItemDef) {
     <li className="flex items-center gap-6">
       <span
         aria-hidden
-        className={`h-15 w-2 rounded-r-sm transition ${
-          isActive ? 'bg-primary' : 'bg-transparent'
-        }`}
+        className={`h-15 w-2 rounded-r-sm transition ${isActive ? 'bg-primary' : 'bg-transparent'}`}
       />
       <NavLink
         to={to}
@@ -54,7 +52,7 @@ function NavItem({ to, label, end, expandable }: NavItemDef) {
 
 export function Sidebar({ onClose }: SidebarProps = {}) {
   return (
-    <aside className="flex h-screen w-72 flex-col border-r border-border bg-white">
+    <aside className="flex h-full w-72 flex-col border-r border-border bg-white">
       <div className="flex items-center justify-between px-8 pt-8 pb-10">
         <h1 className="font-display text-2xl font-extrabold text-neutral">LexiRoot</h1>
         {onClose ? (
@@ -69,15 +67,16 @@ export function Sidebar({ onClose }: SidebarProps = {}) {
         ) : null}
       </div>
 
-      <nav className="flex-1 overflow-y-auto pr-4">
+      <nav className="flex-1 pr-4">
         <ul className="flex flex-col gap-3">
           {NAV.map((item) => (
             <NavItem key={item.to} {...item} />
           ))}
         </ul>
       </nav>
-
-      <SidebarProfile />
+      <div className=''>
+        <SidebarProfile />
+      </div>
     </aside>
   );
 }

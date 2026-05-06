@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LogoutModal } from '../../src/components/ui/LogoutModal';
 import { SettingsRow } from '../../src/components/ui/SettingsRow';
@@ -39,7 +39,7 @@ export default function ProfileTab() {
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={22} color={colors.primary} />
           </Pressable>
-          <View style={styles.userInfo}>
+          <View style={styles.userRow}>
             <UserAvatar name={user?.displayName} avatarUrl={user?.avatarUrl} size={44} />
             <View style={styles.userText}>
               <Text style={styles.userName} numberOfLines={1}>
@@ -49,10 +49,10 @@ export default function ProfileTab() {
                 {user?.email ?? ''}
               </Text>
             </View>
+            <Pressable onPress={() => router.push('/edit')} hitSlop={12} style={styles.editBtn}>
+              <MaterialCommunityIcons name="account-edit" size={22} color={colors.primary} />
+            </Pressable>
           </View>
-          <Pressable onPress={() => router.push('/edit')} hitSlop={12} style={styles.editBtn}>
-            <Ionicons name="person-circle-outline" size={22} color={colors.primary} />
-          </Pressable>
         </View>
 
         <View style={styles.section}>
@@ -134,13 +134,11 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
   },
   userBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     paddingBottom: spacing.lg,
     backgroundColor: colors.primarySofter,
+    gap: spacing.md,
   },
   backBtn: {
     width: 32,
@@ -154,8 +152,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  userInfo: {
-    flex: 1,
+  userRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
