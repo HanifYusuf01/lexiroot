@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
+import { PasswordField } from '../components/ui/PasswordField';
 import { TextField } from '../components/ui/TextField';
 import { useLoginMutation } from '../services/authApi';
 import { useAppDispatch } from '../store/hooks';
@@ -33,7 +34,6 @@ export function LoginPage() {
           ...result.user,
           emailVerifiedAt: result.user.emailVerifiedAt ?? null,
           country: result.user.country ?? null,
-          phone: result.user.phone ?? null,
         },
       };
       adminAuthStorage.set(stored);
@@ -61,11 +61,11 @@ export function LoginPage() {
             error={error}
             autoFocus
           />
-          <TextField
-            type="password"
+          <PasswordField
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
           />
           <Button type="submit" loading={isLoading}>
             Log in

@@ -24,6 +24,7 @@ export class UpdateMeDto {
   @IsString()
   @MinLength(2)
   @MaxLength(80)
+  @Matches(/^[^\d]+$/, { message: 'Full name cannot contain numbers' })
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   displayName?: string;
 
@@ -47,12 +48,6 @@ export class UpdateMeDto {
   @IsOptional()
   @IsIn(COUNTRY_CODES as readonly string[])
   country?: CountryCode;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(32)
-  @Matches(/^\+\d{6,20}$/, { message: 'phone must be in international format (e.g. +2348012345678)' })
-  phone?: string;
 
   @IsOptional()
   @IsString()

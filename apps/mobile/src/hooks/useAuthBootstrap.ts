@@ -12,11 +12,10 @@ export function useAuthBootstrap(): void {
       const stored = await authStorage.get();
       if (cancelled) return;
       if (stored) {
-        // Normalize older stored sessions that predate country/phone fields.
+        // Normalize older stored sessions that predate newer profile fields.
         const user = {
           ...stored.user,
           country: stored.user.country ?? null,
-          phone: stored.user.phone ?? null,
           avatarUrl: stored.user.avatarUrl ?? null,
         };
         dispatch(setCredentials({ token: stored.token, user }));

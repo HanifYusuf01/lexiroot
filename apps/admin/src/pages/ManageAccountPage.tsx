@@ -6,7 +6,6 @@ import { Avatar } from '../components/ui/Avatar';
 import { Button } from '../components/ui/Button';
 import { Checkbox } from '../components/ui/Checkbox';
 import { CountrySelect } from '../components/ui/CountrySelect';
-import { PhoneInput } from '../components/ui/PhoneInput';
 import { SectionCard } from '../components/ui/SectionCard';
 import { TextField } from '../components/ui/TextField';
 import { useSignAvatarUploadMutation, useUpdateMeMutation } from '../services/authApi';
@@ -14,7 +13,6 @@ import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { setCredentials } from '../store/slices/authSlice';
 import { adminAuthStorage } from '../utils/storage';
 import { uploadAvatarToCloudinary } from '../utils/cloudinary';
-import { composePhone, splitPhone } from '../utils/phone';
 
 interface EmailPrefs {
   securityAlerts: boolean;
@@ -24,7 +22,6 @@ interface EmailPrefs {
 interface FormErrors {
   displayName?: string;
   email?: string;
-  phone?: string;
   general?: string;
 }
 
@@ -40,13 +37,10 @@ export function ManageAccountPage() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const initialCountry: CountryCode = user?.country ?? DEFAULT_COUNTRY;
-  const initialPhone = splitPhone(user?.phone, initialCountry);
 
   const [fullName, setFullName] = useState(user?.displayName ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
   const [country, setCountry] = useState<CountryCode>(initialCountry);
-  const [phoneCountry, setPhoneCountry] = useState<CountryCode>(initialPhone.country);
-  const [phoneDigits, setPhoneDigits] = useState(initialPhone.digits);
   const [prefs, setPrefs] = useState<EmailPrefs>({
     securityAlerts: false,
     weeklyReports: true,
@@ -59,11 +53,7 @@ export function ManageAccountPage() {
     if (!user) return;
     setFullName(user.displayName);
     setEmail(user.email);
-    const c = user.country ?? DEFAULT_COUNTRY;
-    setCountry(c);
-    const split = splitPhone(user.phone, c);
-    setPhoneCountry(split.country);
-    setPhoneDigits(split.digits);
+    setCountry(user.country ?? DEFAULT_COUNTRY);
   }, [user]);
 
   async function handleSave(e: FormEvent) {
@@ -71,7 +61,6 @@ export function ManageAccountPage() {
     const next: FormErrors = {};
     if (fullName.trim().length < 2) next.displayName = 'Please enter your full name';
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) next.email = 'Please enter a valid email address';
-    if (phoneDigits.length > 0 && phoneDigits.length < 6) next.phone = 'Phone number is too short';
     if (Object.keys(next).length > 0) {
       setErrors(next);
       return;
@@ -82,7 +71,6 @@ export function ManageAccountPage() {
         displayName: fullName.trim(),
         email: email.trim().toLowerCase(),
         country,
-        phone: phoneDigits.length > 0 ? composePhone(phoneCountry, phoneDigits) : undefined,
       }).unwrap();
       if (token) {
         adminAuthStorage.set({ token, user: result });
@@ -102,7 +90,6 @@ export function ManageAccountPage() {
           const lower = m.toLowerCase();
           if (lower.includes('email')) fieldErrors.email = m;
           else if (lower.includes('displayname')) fieldErrors.displayName = m;
-          else if (lower.includes('phone')) fieldErrors.phone = m;
         });
         setErrors(fieldErrors);
       } else {
@@ -162,14 +149,6 @@ export function ManageAccountPage() {
                 error={errors.email}
               />
               <CountrySelect label="Country" value={country} onChange={setCountry} />
-              <PhoneInput
-                label="Phone Number"
-                country={phoneCountry}
-                digits={phoneDigits}
-                onChangeCountry={setPhoneCountry}
-                onChangeDigits={setPhoneDigits}
-                error={errors.phone}
-              />
               {errors.general ? (
                 <p className="text-xs font-medium text-error">{errors.general}</p>
               ) : null}

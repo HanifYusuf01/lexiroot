@@ -43,7 +43,7 @@ export function ChangePasswordPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 ">
       <PageHeader
         title="Change Password"
         subtitle="Update your Password to keep your account secure."

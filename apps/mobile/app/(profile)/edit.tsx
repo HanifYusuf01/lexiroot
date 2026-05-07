@@ -19,6 +19,8 @@ interface FieldErrors {
   general?: string;
 }
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
 export default function EditProfileScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
@@ -56,7 +58,6 @@ export default function EditProfileScreen() {
       ...next,
       emailVerifiedAt: next.emailVerifiedAt ?? null,
       country: next.country ?? null,
-      phone: next.phone ?? null,
       avatarUrl: next.avatarUrl ?? null,
     };
     authStorage.set({ token, user: stored });
@@ -68,7 +69,8 @@ export default function EditProfileScreen() {
     const trimmedName = name.trim();
     const trimmedEmail = email.trim().toLowerCase();
     if (trimmedName.length < 2) next.name = 'Please enter your full name';
-    if (!/^\S+@\S+\.\S+$/.test(trimmedEmail)) next.email = 'Please enter a valid email address';
+    else if (/\d/.test(trimmedName)) next.name = 'Full name cannot contain numbers';
+    if (!EMAIL_PATTERN.test(trimmedEmail)) next.email = 'Please enter a valid email address';
     if (Object.keys(next).length > 0) {
       setErrors(next);
       return;
@@ -94,7 +96,7 @@ export default function EditProfileScreen() {
         msg.forEach((m) => {
           const lower = m.toLowerCase();
           if (lower.includes('email')) fieldErrors.email = m;
-          else if (lower.includes('displayname')) fieldErrors.name = m;
+          else if (lower.includes('displayname') || lower.includes('full name')) fieldErrors.name = m;
         });
         setErrors(fieldErrors);
       } else {

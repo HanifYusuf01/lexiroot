@@ -1,12 +1,21 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { COUNTRIES, type CountryCode } from '@lexiroot/shared';
 import { Button } from '../../src/components/ui/Button';
-import { PhoneField } from '../../src/components/ui/PhoneField';
+import { CountryPickerModal } from '../../src/components/ui/CountryPickerModal';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
 import { TextField } from '../../src/components/ui/TextField';
-import { colors, fonts, spacing } from '../../src/constants/theme';
+import { colors, fonts, radius, spacing } from '../../src/constants/theme';
 import { useSignupMutation } from '../../src/services/authApi';
 import { authStorage } from '../../src/services/secureStorage';
 import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
@@ -15,24 +24,28 @@ import { toBackendLevel } from '../../src/store/slices/onboardingSlice';
 
 const PASSWORD_HELPER =
   'Password must be at least 8 characters long and include 1 capital letter and one symbol.';
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 interface FormErrors {
   name?: string;
   email?: string;
   password?: string;
-  phone?: string;
 }
 
-function validate(name: string, email: string, password: string, digits: string): FormErrors {
+function validate(name: string, email: string, password: string): FormErrors {
   const errors: FormErrors = {};
-  if (name.trim().length < 2) errors.name = 'Please enter your full name';
-  if (!/^\S+@\S+\.\S+$/.test(email.trim())) errors.email = 'Please enter a valid email address';
+  const trimmedName = name.trim();
+  if (trimmedName.length < 2) {
+    errors.name = 'Please enter your full name';
+  } else if (/\d/.test(trimmedName)) {
+    errors.name = 'Full name cannot contain numbers';
+  }
+  if (!EMAIL_PATTERN.test(email.trim())) errors.email = 'Please enter a valid email address';
   const passwordValid =
     password.length >= 8 &&
     /[A-Z]/.test(password) &&
     /[!@#$%^&*(),.?":{}|<>_+\-=[\]\\/`~;']/.test(password);
   if (!passwordValid) errors.password = PASSWORD_HELPER;
-  if (digits.length < 6) errors.phone = 'Please enter a valid phone number';
   return errors;
 }
 
@@ -46,17 +59,17 @@ export default function EmailSignup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [country, setCountry] = useState<CountryCode>('NG');
-  const [phoneDigits, setPhoneDigits] = useState('');
+  const [countryPickerOpen, setCountryPickerOpen] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const countryInfo = COUNTRIES[country];
 
   async function handleSubmit() {
-    const v = validate(name, email, password, phoneDigits);
+    const v = validate(name, email, password);
     if (Object.keys(v).length > 0) {
       setErrors(v);
       return;
     }
     setErrors({});
-    const phone = `${COUNTRIES[country].dialCode}${phoneDigits}`;
     try {
       const result = await signup({
         email: email.trim().toLowerCase(),
@@ -66,7 +79,6 @@ export default function EmailSignup() {
         level: onboarding.level ? toBackendLevel(onboarding.level) : undefined,
         reason: onboarding.reason ?? undefined,
         country,
-        phone,
       }).unwrap();
       const stored = {
         token: result.token,
@@ -74,13 +86,12 @@ export default function EmailSignup() {
           ...result.user,
           emailVerifiedAt: result.user.emailVerifiedAt ?? null,
           country: result.user.country ?? null,
-          phone: result.user.phone ?? null,
           avatarUrl: result.user.avatarUrl ?? null,
         },
       };
       await authStorage.set(stored);
       dispatch(setCredentials(stored));
-      router.replace('/intro');
+      router.replace({ pathname: '/check-email', params: { email: result.user.email } });
     } catch (err) {
       const e = err as { status?: number; data?: { message?: string | string[] } };
       if (e.status === 409) {
@@ -94,8 +105,7 @@ export default function EmailSignup() {
           const lower = m.toLowerCase();
           if (lower.includes('email')) next.email = m;
           else if (lower.includes('password')) next.password = m;
-          else if (lower.includes('displayname')) next.name = m;
-          else if (lower.includes('phone')) next.phone = m;
+          else if (lower.includes('displayname') || lower.includes('full name')) next.name = m;
         });
         setErrors(next);
       } else {
@@ -131,13 +141,19 @@ export default function EmailSignup() {
               autoCapitalize="none"
               keyboardType="email-address"
             />
-            <PhoneField
-              country={country}
-              digits={phoneDigits}
-              onChangeCountry={setCountry}
-              onChangeDigits={setPhoneDigits}
-              error={errors.phone}
-            />
+            <Pressable
+              onPress={() => setCountryPickerOpen(true)}
+              style={({ pressed }) => [styles.countryField, pressed && styles.countryFieldPressed]}
+            >
+              <Text style={styles.countryFlag}>{countryInfo.flag}</Text>
+              <View style={styles.countryTextWrap}>
+                <Text style={styles.countryLabel}>Country</Text>
+                <Text style={styles.countryName} numberOfLines={1}>
+                  {countryInfo.name}
+                </Text>
+              </View>
+              <Ionicons name="chevron-down" size={18} color={colors.neutralVariant} />
+            </Pressable>
             <TextField
               placeholder="Password"
               value={password}
@@ -154,6 +170,12 @@ export default function EmailSignup() {
             By continuing, you agree to our Terms & Privacy Policy.
           </Text>
         </View>
+        <CountryPickerModal
+          visible={countryPickerOpen}
+          selected={country}
+          onSelect={setCountry}
+          onClose={() => setCountryPickerOpen(false)}
+        />
       </KeyboardAvoidingView>
     </ScreenContainer>
   );
@@ -169,6 +191,37 @@ const styles = StyleSheet.create({
   },
   fields: {
     gap: spacing.md,
+  },
+  countryField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    height: 56,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.md,
+  },
+  countryFieldPressed: {
+    backgroundColor: colors.neutralSoft,
+  },
+  countryFlag: {
+    fontSize: 22,
+  },
+  countryTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  countryLabel: {
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    color: colors.neutralVariant,
+  },
+  countryName: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.neutral,
   },
   footer: {
     gap: spacing.sm,

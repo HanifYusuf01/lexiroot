@@ -8,7 +8,6 @@ export interface AdminUser {
   role: 'user' | 'admin';
   emailVerifiedAt: string | null;
   country: CountryCode | null;
-  phone: string | null;
   avatarUrl: string | null;
 }
 

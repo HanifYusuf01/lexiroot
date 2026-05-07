@@ -9,11 +9,9 @@ export function useAuthBootstrap(): void {
   useEffect(() => {
     const stored = adminAuthStorage.get();
     if (stored && stored.user.role === 'admin') {
-      // Normalize older stored sessions that predate country/phone fields.
       const user = {
         ...stored.user,
         country: stored.user.country ?? null,
-        phone: stored.user.phone ?? null,
       };
       dispatch(setCredentials({ token: stored.token, user }));
     } else if (stored) {

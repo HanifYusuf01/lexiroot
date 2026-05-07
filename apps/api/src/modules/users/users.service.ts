@@ -20,8 +20,9 @@ interface CreateUserInput {
   level?: LearningLevel | null;
   learningReason?: LearningReason | null;
   country?: CountryCode | null;
-  phone?: string | null;
   avatarUrl?: string | null;
+  emailVerificationToken?: string | null;
+  emailVerificationExpiresAt?: Date | null;
 }
 
 export interface PublicUser {
@@ -34,7 +35,6 @@ export interface PublicUser {
   level: LearningLevel | null;
   learningReason: LearningReason | null;
   country: CountryCode | null;
-  phone: string | null;
   avatarUrl: string | null;
   xp: number;
   currentStreakDays: number;
@@ -79,7 +79,6 @@ function toPublic(u: User): PublicUser {
     level: u.level,
     learningReason: u.learningReason,
     country: u.country,
-    phone: u.phone,
     avatarUrl: u.avatarUrl,
     xp: u.xp,
     currentStreakDays: u.currentStreakDays,
@@ -109,6 +108,10 @@ export class UsersService {
     return this.users.findOne({ where: { passwordResetToken: token } });
   }
 
+  findByEmailVerificationToken(token: string): Promise<User | null> {
+    return this.users.findOne({ where: { emailVerificationToken: token } });
+  }
+
   create(data: CreateUserInput): Promise<User> {
     const user = this.users.create({
       email: data.email.toLowerCase(),
@@ -118,7 +121,8 @@ export class UsersService {
       level: data.level ?? null,
       learningReason: data.learningReason ?? null,
       country: data.country ?? null,
-      phone: data.phone ?? null,
+      emailVerificationToken: data.emailVerificationToken ?? null,
+      emailVerificationExpiresAt: data.emailVerificationExpiresAt ?? null,
       lastActiveAt: new Date(),
     });
     return this.users.save(user);

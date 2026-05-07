@@ -11,7 +11,6 @@ export interface UserRow {
   level: LearningLevel | null;
   learningReason: LearningReason | null;
   country: CountryCode | null;
-  phone: string | null;
   xp: number;
   currentStreakDays: number;
   lessonsCompleted: number;

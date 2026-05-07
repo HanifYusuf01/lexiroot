@@ -9,7 +9,6 @@ export interface StoredAuthUser {
   displayName: string;
   emailVerifiedAt: string | null;
   country: CountryCode | null;
-  phone: string | null;
   avatarUrl: string | null;
 }
 

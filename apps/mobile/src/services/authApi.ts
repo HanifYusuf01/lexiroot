@@ -20,7 +20,6 @@ interface SignupBody {
   level?: LearningLevel;
   reason?: LearningReason;
   country?: CountryCode;
-  phone?: string;
 }
 
 interface UpdateMeBody {
@@ -61,6 +60,12 @@ export const authApi = api.injectEndpoints({
     login: build.mutation<AuthResponse, LoginBody>({
       query: (body) => ({ url: '/auth/login', method: 'POST', body }),
     }),
+    verifyEmail: build.mutation<AuthResponse, { token: string }>({
+      query: (body) => ({ url: '/auth/verify-email', method: 'POST', body }),
+    }),
+    resendVerification: build.mutation<void, { email: string }>({
+      query: (body) => ({ url: '/auth/resend-verification', method: 'POST', body }),
+    }),
     requestPasswordReset: build.mutation<void, { email: string }>({
       query: (body) => ({ url: '/auth/request-password-reset', method: 'POST', body }),
     }),
@@ -87,6 +92,8 @@ export const authApi = api.injectEndpoints({
 export const {
   useSignupMutation,
   useLoginMutation,
+  useVerifyEmailMutation,
+  useResendVerificationMutation,
   useRequestPasswordResetMutation,
   useResetPasswordMutation,
   useMeQuery,

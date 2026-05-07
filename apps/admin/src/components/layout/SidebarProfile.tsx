@@ -64,7 +64,7 @@ export function SidebarProfile() {
                     <button
                       type="button"
                       onClick={() => handleItemClick(item)}
-                      className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold transition hover:bg-neutral-soft ${
+                      className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold transition hover:bg-hover hover:text-primary ${
                         item.danger ? 'text-primary' : 'text-neutral'
                       }`}
                     >

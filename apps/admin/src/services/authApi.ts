@@ -11,7 +11,6 @@ export interface UpdateMeBody {
   displayName?: string;
   email?: string;
   country?: CountryCode;
-  phone?: string;
   avatarUrl?: string;
 }
 

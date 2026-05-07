@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: fonts.extrabold,
-    fontSize: 38,
+    fontSize: 32,
     lineHeight: 36,
     color: colors.primary,
     textAlign: 'center',

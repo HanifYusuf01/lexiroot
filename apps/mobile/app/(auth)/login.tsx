@@ -10,6 +10,13 @@ import { authStorage } from '../../src/services/secureStorage';
 import { useAppDispatch } from '../../src/store/hooks';
 import { setCredentials } from '../../src/store/slices/authSlice';
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+interface FormErrors {
+  email?: string;
+  password?: string;
+}
+
 export default function Login() {
   const router = useRouter();
   const dispatch = useAppDispatch();
@@ -17,14 +24,17 @@ export default function Login() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | undefined>(undefined);
+  const [errors, setErrors] = useState<FormErrors>({});
 
   async function handleSubmit() {
-    if (!email.trim() || !password) {
-      setError('Please enter your email and password');
+    const next: FormErrors = {};
+    if (!EMAIL_PATTERN.test(email.trim())) next.email = 'Please enter a valid email address';
+    if (!password) next.password = 'Please enter your password';
+    if (Object.keys(next).length > 0) {
+      setErrors(next);
       return;
     }
-    setError(undefined);
+    setErrors({});
     try {
       const result = await login({
         email: email.trim().toLowerCase(),
@@ -36,7 +46,6 @@ export default function Login() {
           ...result.user,
           emailVerifiedAt: result.user.emailVerifiedAt ?? null,
           country: result.user.country ?? null,
-          phone: result.user.phone ?? null,
           avatarUrl: result.user.avatarUrl ?? null,
         },
       };
@@ -46,9 +55,11 @@ export default function Login() {
     } catch (err) {
       const e = err as { status?: number };
       if (e.status === 401) {
-        setError('Invalid email or password');
+        setErrors({ password: 'Invalid email or password' });
+      } else if (e.status === 403) {
+        router.replace({ pathname: '/check-email', params: { email: email.trim().toLowerCase() } });
       } else {
-        setError('Something went wrong. Please try again.');
+        setErrors({ password: 'Something went wrong. Please try again.' });
       }
     }
   }
@@ -68,7 +79,7 @@ export default function Login() {
               placeholder="Email Address"
               value={email}
               onChangeText={setEmail}
-              error={error}
+              error={errors.email}
               autoCapitalize="none"
               keyboardType="email-address"
             />
@@ -76,6 +87,7 @@ export default function Login() {
               placeholder="Password"
               value={password}
               onChangeText={setPassword}
+              error={errors.password}
               isPassword
             />
           </View>
