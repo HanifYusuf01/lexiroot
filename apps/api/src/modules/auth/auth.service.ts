@@ -5,14 +5,16 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
 import { UsersService } from '../users/users.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import type { CountryCode } from '@lexiroot/shared';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ChangePendingEmailDto } from './dto/change-pending-email.dto';
 import { LoginDto } from './dto/login.dto';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
@@ -21,12 +23,13 @@ import { SignupDto } from './dto/signup.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { EmailService } from './email.service';
+import { PendingSignup } from './entities/pending-signup.entity';
+import { PendingSignupsService } from './pending-signups.service';
 
 const BCRYPT_ROUNDS = 12;
 const RESET_TOKEN_BYTES = 32;
 const RESET_TOKEN_TTL_MS = 1000 * 60 * 60;
-const EMAIL_VERIFICATION_TOKEN_BYTES = 32;
-const EMAIL_VERIFICATION_TTL_MS = 1000 * 60 * 60 * 24;
+const EMAIL_VERIFICATION_TTL_MS = 1000 * 60 * 15;
 
 export interface AuthResponse {
   token: string;
@@ -38,6 +41,9 @@ export interface AuthResponse {
     emailVerifiedAt: Date | null;
     country: CountryCode | null;
     avatarUrl: string | null;
+    xp: number;
+    currentStreakDays: number;
+    lessonsCompleted: number;
   };
 }
 
@@ -45,35 +51,37 @@ export interface AuthResponse {
 export class AuthService {
   constructor(
     private readonly users: UsersService,
+    private readonly pendingSignups: PendingSignupsService,
     private readonly jwt: JwtService,
-    private readonly config: ConfigService,
     private readonly email: EmailService,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
-  async signup(dto: SignupDto): Promise<AuthResponse> {
-    const existing = await this.users.findByEmail(dto.email);
-    if (existing) {
+  async signup(dto: SignupDto): Promise<{ email: string }> {
+    const email = dto.email.toLowerCase();
+    const existingUser = await this.users.findByEmail(email);
+    if (existingUser) {
       throw new ConflictException('Email already in use');
     }
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
     const verification = this.createEmailVerification();
-    const user = await this.users.create({
-      email: dto.email,
-      displayName: dto.displayName,
+    await this.pendingSignups.upsert({
+      email,
       passwordHash,
+      displayName: dto.displayName,
       language: dto.language ?? null,
       level: dto.level ?? null,
       learningReason: dto.reason ?? null,
       country: dto.country ?? null,
-      emailVerificationToken: verification.token,
-      emailVerificationExpiresAt: verification.expiresAt,
+      code: verification.code,
+      expiresAt: verification.expiresAt,
     });
     await this.email.sendVerificationEmail({
-      email: user.email,
-      displayName: user.displayName,
-      verificationUrl: this.buildEmailVerificationUrl(verification.token),
+      email,
+      displayName: dto.displayName,
+      code: verification.code,
     });
-    return this.toAuthResponse(user);
+    return { email };
   }
 
   async login(dto: LoginDto): Promise<AuthResponse> {
@@ -90,41 +98,84 @@ export class AuthService {
   }
 
   async verifyEmail(dto: VerifyEmailDto): Promise<AuthResponse> {
-    const user = await this.users.findByEmailVerificationToken(dto.token);
-    if (
-      !user ||
-      !user.emailVerificationExpiresAt ||
-      user.emailVerificationExpiresAt.getTime() < Date.now()
-    ) {
-      throw new BadRequestException('Invalid or expired verification token');
+    const email = dto.email.toLowerCase();
+    const pending = await this.pendingSignups.findByEmailAndCode(email, dto.code);
+    if (!pending || pending.expiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('Invalid or expired verification code');
     }
 
-    user.emailVerifiedAt = user.emailVerifiedAt ?? new Date();
-    user.emailVerificationToken = null;
-    user.emailVerificationExpiresAt = null;
-    await this.users.update(user.id, {
-      emailVerifiedAt: user.emailVerifiedAt,
-      emailVerificationToken: null,
-      emailVerificationExpiresAt: null,
+    const existingUser = await this.users.findByEmail(email);
+    if (existingUser) {
+      await this.pendingSignups.deleteById(pending.id);
+      throw new ConflictException('Email already in use');
+    }
+
+    const user = await this.dataSource.transaction(async (manager) => {
+      const created = await this.users.create({
+        email: pending.email,
+        displayName: pending.displayName,
+        passwordHash: pending.passwordHash,
+        language: pending.language,
+        level: pending.level,
+        learningReason: pending.learningReason,
+        country: pending.country,
+        emailVerifiedAt: new Date(),
+      });
+      await manager.delete(PendingSignup, { id: pending.id });
+      return created;
     });
+
     return this.toAuthResponse(user);
   }
 
   async resendVerification(dto: ResendVerificationDto): Promise<void> {
-    const user = await this.users.findByEmail(dto.email);
-    if (!user || user.emailVerifiedAt) {
-      return;
-    }
+    const email = dto.email.toLowerCase();
+    const pending = await this.pendingSignups.findByEmail(email);
+    if (!pending) return;
     const verification = this.createEmailVerification();
-    await this.users.update(user.id, {
-      emailVerificationToken: verification.token,
-      emailVerificationExpiresAt: verification.expiresAt,
-    });
+    pending.code = verification.code;
+    pending.expiresAt = verification.expiresAt;
+    await this.pendingSignups.save(pending);
     await this.email.sendVerificationEmail({
-      email: user.email,
-      displayName: user.displayName,
-      verificationUrl: this.buildEmailVerificationUrl(verification.token),
+      email: pending.email,
+      displayName: pending.displayName,
+      code: verification.code,
     });
+  }
+
+  async changePendingEmail(dto: ChangePendingEmailDto): Promise<{ email: string }> {
+    const currentEmail = dto.currentEmail.toLowerCase();
+    const newEmail = dto.newEmail.toLowerCase();
+    if (currentEmail === newEmail) {
+      throw new BadRequestException('New email must be different');
+    }
+    const pending = await this.pendingSignups.findByEmail(currentEmail);
+    if (!pending) {
+      throw new BadRequestException('No pending signup found for that email');
+    }
+    if (!(await bcrypt.compare(dto.password, pending.passwordHash))) {
+      throw new UnauthorizedException('Incorrect password');
+    }
+    const existingUser = await this.users.findByEmail(newEmail);
+    if (existingUser) {
+      throw new ConflictException('Email already in use');
+    }
+    const existingPending = await this.pendingSignups.findByEmail(newEmail);
+    if (existingPending && existingPending.id !== pending.id) {
+      throw new ConflictException('Email already in use');
+    }
+
+    const verification = this.createEmailVerification();
+    pending.email = newEmail;
+    pending.code = verification.code;
+    pending.expiresAt = verification.expiresAt;
+    await this.pendingSignups.save(pending);
+    await this.email.sendVerificationEmail({
+      email: newEmail,
+      displayName: pending.displayName,
+      code: verification.code,
+    });
+    return { email: newEmail };
   }
 
   async requestPasswordReset(dto: RequestPasswordResetDto): Promise<void> {
@@ -176,15 +227,7 @@ export class AuthService {
         throw new ConflictException('Email already in use');
       }
       user.email = dto.email;
-      const verification = this.createEmailVerification();
       user.emailVerifiedAt = null;
-      user.emailVerificationToken = verification.token;
-      user.emailVerificationExpiresAt = verification.expiresAt;
-      await this.email.sendVerificationEmail({
-        email: user.email,
-        displayName: user.displayName,
-        verificationUrl: this.buildEmailVerificationUrl(verification.token),
-      });
     }
     if (dto.displayName !== undefined) user.displayName = dto.displayName;
     if (dto.language !== undefined) user.language = dto.language;
@@ -202,8 +245,6 @@ export class AuthService {
       learningReason: user.learningReason,
       country: user.country,
       avatarUrl: user.avatarUrl,
-      emailVerificationToken: user.emailVerificationToken,
-      emailVerificationExpiresAt: user.emailVerificationExpiresAt,
     });
     return this.toMePayload(user);
   }
@@ -220,6 +261,9 @@ export class AuthService {
       learningReason: user.learningReason,
       country: user.country,
       avatarUrl: user.avatarUrl,
+      xp: user.xp,
+      currentStreakDays: user.currentStreakDays,
+      lessonsCompleted: user.lessonsCompleted,
     };
   }
 
@@ -235,20 +279,17 @@ export class AuthService {
         emailVerifiedAt: user.emailVerifiedAt,
         country: user.country,
         avatarUrl: user.avatarUrl,
+        xp: user.xp,
+        currentStreakDays: user.currentStreakDays,
+        lessonsCompleted: user.lessonsCompleted,
       },
     };
   }
 
-  private createEmailVerification(): { token: string; expiresAt: Date } {
+  private createEmailVerification(): { code: string; expiresAt: Date } {
     return {
-      token: randomBytes(EMAIL_VERIFICATION_TOKEN_BYTES).toString('hex'),
+      code: randomInt(0, 1_000_000).toString().padStart(6, '0'),
       expiresAt: new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS),
     };
-  }
-
-  private buildEmailVerificationUrl(token: string): string {
-    const baseUrl = this.config.get<string>('MOBILE_APP_URL') ?? 'lexiroot://verify-email';
-    const separator = baseUrl.includes('?') ? '&' : '?';
-    return `${baseUrl}${separator}token=${encodeURIComponent(token)}`;
   }
 }

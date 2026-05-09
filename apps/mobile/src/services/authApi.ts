@@ -12,6 +12,14 @@ interface AuthResponse {
   user: AuthUser;
 }
 
+interface SignupResponse {
+  email: string;
+}
+
+interface ChangePendingEmailResponse {
+  email: string;
+}
+
 interface SignupBody {
   email: string;
   displayName: string;
@@ -20,6 +28,17 @@ interface SignupBody {
   level?: LearningLevel;
   reason?: LearningReason;
   country?: CountryCode;
+}
+
+interface VerifyEmailBody {
+  email: string;
+  code: string;
+}
+
+interface ChangePendingEmailBody {
+  currentEmail: string;
+  newEmail: string;
+  password: string;
 }
 
 interface UpdateMeBody {
@@ -54,17 +73,20 @@ interface LoginBody {
 
 export const authApi = api.injectEndpoints({
   endpoints: (build) => ({
-    signup: build.mutation<AuthResponse, SignupBody>({
+    signup: build.mutation<SignupResponse, SignupBody>({
       query: (body) => ({ url: '/auth/signup', method: 'POST', body }),
     }),
     login: build.mutation<AuthResponse, LoginBody>({
       query: (body) => ({ url: '/auth/login', method: 'POST', body }),
     }),
-    verifyEmail: build.mutation<AuthResponse, { token: string }>({
+    verifyEmail: build.mutation<AuthResponse, VerifyEmailBody>({
       query: (body) => ({ url: '/auth/verify-email', method: 'POST', body }),
     }),
     resendVerification: build.mutation<void, { email: string }>({
       query: (body) => ({ url: '/auth/resend-verification', method: 'POST', body }),
+    }),
+    changePendingEmail: build.mutation<ChangePendingEmailResponse, ChangePendingEmailBody>({
+      query: (body) => ({ url: '/auth/change-pending-email', method: 'POST', body }),
     }),
     requestPasswordReset: build.mutation<void, { email: string }>({
       query: (body) => ({ url: '/auth/request-password-reset', method: 'POST', body }),
@@ -94,6 +116,7 @@ export const {
   useLoginMutation,
   useVerifyEmailMutation,
   useResendVerificationMutation,
+  useChangePendingEmailMutation,
   useRequestPasswordResetMutation,
   useResetPasswordMutation,
   useMeQuery,

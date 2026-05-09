@@ -1,5 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type {
+  CountryCode,
   LanguageCode,
   LearningLevel as BackendLearningLevel,
   LearningReason,
@@ -26,6 +27,7 @@ interface OnboardingState {
   reason: LearningReason | null;
   level: LearningLevel | null;
   language: LearningLanguage | null;
+  country: CountryCode | null;
   completed: boolean;
 }
 
@@ -33,6 +35,7 @@ const initialState: OnboardingState = {
   reason: null,
   level: null,
   language: null,
+  country: null,
   completed: false,
 };
 
@@ -49,6 +52,9 @@ const onboardingSlice = createSlice({
     setLanguage(state, action: PayloadAction<LearningLanguage>) {
       state.language = action.payload;
     },
+    setCountry(state, action: PayloadAction<CountryCode>) {
+      state.country = action.payload;
+    },
     completeOnboarding(state) {
       state.completed = true;
     },
@@ -58,6 +64,12 @@ const onboardingSlice = createSlice({
   },
 });
 
-export const { setReason, setLevel, setLanguage, completeOnboarding, resetOnboarding } =
-  onboardingSlice.actions;
+export const {
+  setReason,
+  setLevel,
+  setLanguage,
+  setCountry,
+  completeOnboarding,
+  resetOnboarding,
+} = onboardingSlice.actions;
 export default onboardingSlice.reducer;

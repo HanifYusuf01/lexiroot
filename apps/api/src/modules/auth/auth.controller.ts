@@ -11,6 +11,7 @@ import {
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ChangePendingEmailDto } from './dto/change-pending-email.dto';
 import { LoginDto } from './dto/login.dto';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
@@ -46,6 +47,12 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async resendVerification(@Body() dto: ResendVerificationDto): Promise<void> {
     await this.auth.resendVerification(dto);
+  }
+
+  @Post('change-pending-email')
+  @HttpCode(HttpStatus.OK)
+  changePendingEmail(@Body() dto: ChangePendingEmailDto) {
+    return this.auth.changePendingEmail(dto);
   }
 
   @Post('request-password-reset')

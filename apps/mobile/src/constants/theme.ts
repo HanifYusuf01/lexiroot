@@ -4,6 +4,7 @@ export const colors = {
   primarySoft: '#FCEBE6',
   primarySofter: '#FDF7F7',
   primaryBorder: '#F3B2A5',
+  chatBubbleUser: '#EC8C79',
   secondary: '#814231',
   border: '#E5E5E5',
   tertiary: '#BF9828',

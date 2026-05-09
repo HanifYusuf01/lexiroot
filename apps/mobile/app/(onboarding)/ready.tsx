@@ -20,6 +20,7 @@ export default function ReadyScreen() {
         language: onboarding.language ?? undefined,
         level: onboarding.level ? toBackendLevel(onboarding.level) : undefined,
         reason: onboarding.reason ?? undefined,
+        country: onboarding.country ?? undefined,
       }).unwrap();
     } catch {
       /* don't block the user from starting if the save fails — they can resume later */

@@ -59,7 +59,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radius.sm,
   },
   bubbleUser: {
-    borderColor: colors.primaryBorder,
+    backgroundColor: colors.chatBubbleUser,
+    borderColor: colors.chatBubbleUser,
     borderTopRightRadius: radius.sm,
   },
   text: {
@@ -92,5 +93,6 @@ const styles = StyleSheet.create({
   },
   tailUser: {
     right: 12,
+    borderTopColor: colors.chatBubbleUser,
   },
 });

@@ -37,15 +37,6 @@ export class User {
   @Column({ name: 'email_verified_at', type: 'timestamptz', nullable: true })
   emailVerifiedAt!: Date | null;
 
-  @Exclude()
-  @Index()
-  @Column({ name: 'email_verification_token', type: 'varchar', length: 128, nullable: true })
-  emailVerificationToken!: string | null;
-
-  @Exclude()
-  @Column({ name: 'email_verification_expires_at', type: 'timestamptz', nullable: true })
-  emailVerificationExpiresAt!: Date | null;
-
   @Column({ type: 'varchar', length: 2, nullable: true })
   language!: LanguageCode | null;
 

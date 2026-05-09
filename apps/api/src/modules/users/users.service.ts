@@ -21,8 +21,7 @@ interface CreateUserInput {
   learningReason?: LearningReason | null;
   country?: CountryCode | null;
   avatarUrl?: string | null;
-  emailVerificationToken?: string | null;
-  emailVerificationExpiresAt?: Date | null;
+  emailVerifiedAt?: Date | null;
 }
 
 export interface PublicUser {
@@ -108,10 +107,6 @@ export class UsersService {
     return this.users.findOne({ where: { passwordResetToken: token } });
   }
 
-  findByEmailVerificationToken(token: string): Promise<User | null> {
-    return this.users.findOne({ where: { emailVerificationToken: token } });
-  }
-
   create(data: CreateUserInput): Promise<User> {
     const user = this.users.create({
       email: data.email.toLowerCase(),
@@ -121,8 +116,7 @@ export class UsersService {
       level: data.level ?? null,
       learningReason: data.learningReason ?? null,
       country: data.country ?? null,
-      emailVerificationToken: data.emailVerificationToken ?? null,
-      emailVerificationExpiresAt: data.emailVerificationExpiresAt ?? null,
+      emailVerifiedAt: data.emailVerifiedAt ?? null,
       lastActiveAt: new Date(),
     });
     return this.users.save(user);

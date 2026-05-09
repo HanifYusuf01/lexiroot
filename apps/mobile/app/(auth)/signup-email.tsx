@@ -2,24 +2,20 @@ import { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { COUNTRIES, type CountryCode } from '@lexiroot/shared';
 import { Button } from '../../src/components/ui/Button';
-import { CountryPickerModal } from '../../src/components/ui/CountryPickerModal';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
 import { TextField } from '../../src/components/ui/TextField';
-import { colors, fonts, radius, spacing } from '../../src/constants/theme';
+import { colors, fonts, spacing } from '../../src/constants/theme';
 import { useSignupMutation } from '../../src/services/authApi';
-import { authStorage } from '../../src/services/secureStorage';
+import { pendingSignupStorage } from '../../src/services/secureStorage';
 import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
-import { setCredentials } from '../../src/store/slices/authSlice';
+import { setPendingEmail } from '../../src/store/slices/authSlice';
 import { toBackendLevel } from '../../src/store/slices/onboardingSlice';
 
 const PASSWORD_HELPER =
@@ -58,10 +54,7 @@ export default function EmailSignup() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [country, setCountry] = useState<CountryCode>('NG');
-  const [countryPickerOpen, setCountryPickerOpen] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
-  const countryInfo = COUNTRIES[country];
 
   async function handleSubmit() {
     const v = validate(name, email, password);
@@ -78,20 +71,11 @@ export default function EmailSignup() {
         language: onboarding.language ?? undefined,
         level: onboarding.level ? toBackendLevel(onboarding.level) : undefined,
         reason: onboarding.reason ?? undefined,
-        country,
+        country: onboarding.country ?? undefined,
       }).unwrap();
-      const stored = {
-        token: result.token,
-        user: {
-          ...result.user,
-          emailVerifiedAt: result.user.emailVerifiedAt ?? null,
-          country: result.user.country ?? null,
-          avatarUrl: result.user.avatarUrl ?? null,
-        },
-      };
-      await authStorage.set(stored);
-      dispatch(setCredentials(stored));
-      router.replace({ pathname: '/check-email', params: { email: result.user.email } });
+      await pendingSignupStorage.set(result.email);
+      dispatch(setPendingEmail(result.email));
+      router.replace({ pathname: '/check-email', params: { email: result.email } });
     } catch (err) {
       const e = err as { status?: number; data?: { message?: string | string[] } };
       if (e.status === 409) {
@@ -141,19 +125,6 @@ export default function EmailSignup() {
               autoCapitalize="none"
               keyboardType="email-address"
             />
-            <Pressable
-              onPress={() => setCountryPickerOpen(true)}
-              style={({ pressed }) => [styles.countryField, pressed && styles.countryFieldPressed]}
-            >
-              <Text style={styles.countryFlag}>{countryInfo.flag}</Text>
-              <View style={styles.countryTextWrap}>
-                <Text style={styles.countryLabel}>Country</Text>
-                <Text style={styles.countryName} numberOfLines={1}>
-                  {countryInfo.name}
-                </Text>
-              </View>
-              <Ionicons name="chevron-down" size={18} color={colors.neutralVariant} />
-            </Pressable>
             <TextField
               placeholder="Password"
               value={password}
@@ -170,12 +141,6 @@ export default function EmailSignup() {
             By continuing, you agree to our Terms & Privacy Policy.
           </Text>
         </View>
-        <CountryPickerModal
-          visible={countryPickerOpen}
-          selected={country}
-          onSelect={setCountry}
-          onClose={() => setCountryPickerOpen(false)}
-        />
       </KeyboardAvoidingView>
     </ScreenContainer>
   );
@@ -191,37 +156,6 @@ const styles = StyleSheet.create({
   },
   fields: {
     gap: spacing.md,
-  },
-  countryField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    height: 56,
-    borderRadius: radius.lg,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.white,
-    paddingHorizontal: spacing.md,
-  },
-  countryFieldPressed: {
-    backgroundColor: colors.neutralSoft,
-  },
-  countryFlag: {
-    fontSize: 22,
-  },
-  countryTextWrap: {
-    flex: 1,
-    minWidth: 0,
-  },
-  countryLabel: {
-    fontFamily: fonts.medium,
-    fontSize: 11,
-    color: colors.neutralVariant,
-  },
-  countryName: {
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    color: colors.neutral,
   },
   footer: {
     gap: spacing.sm,

@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 interface SendVerificationEmailInput {
   email: string;
   displayName: string;
-  verificationUrl: string;
+  code: string;
 }
 
 @Injectable()
@@ -18,7 +18,7 @@ export class EmailService {
     const from = this.config.get<string>('EMAIL_FROM') ?? 'LexiRoot <onboarding@resend.dev>';
 
     if (!apiKey) {
-      this.logger.log(`Email verification link for ${input.email}: ${input.verificationUrl}`);
+      this.logger.log(`Email verification code for ${input.email}: ${input.code}`);
       return;
     }
 
@@ -31,8 +31,8 @@ export class EmailService {
       body: JSON.stringify({
         from,
         to: input.email,
-        subject: 'Confirm your LexiRoot email',
-        html: this.renderVerificationHtml(input.displayName, input.verificationUrl),
+        subject: 'Your LexiRoot verification code',
+        html: this.renderVerificationHtml(input.displayName, input.code),
       }),
     });
 
@@ -42,20 +42,20 @@ export class EmailService {
     }
   }
 
-  private renderVerificationHtml(displayName: string, verificationUrl: string): string {
+  private renderVerificationHtml(displayName: string, code: string): string {
     const safeName = escapeHtml(displayName);
+    const safeCode = escapeHtml(code);
     return `
-      <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #222;">
-        <h1 style="font-size: 24px;">Confirm your email</h1>
+      <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #222; max-width: 480px;">
+        <h1 style="font-size: 24px; color: #e84f38;">Confirm your email</h1>
         <p>Hi ${safeName},</p>
-        <p>Open this link to confirm your LexiRoot account:</p>
-        <p>
-          <a href="${verificationUrl}" style="display: inline-block; padding: 12px 18px; background: #e84f38; color: #fff; text-decoration: none; border-radius: 8px;">
-            Confirm email
-          </a>
+        <p>Use this 6-digit code in the LexiRoot app to confirm your email address:</p>
+        <p style="margin: 24px 0;">
+          <span style="display: inline-block; padding: 16px 24px; background: #f6f1ee; color: #222; font-size: 28px; font-weight: 700; letter-spacing: 8px; border-radius: 12px; font-family: 'Menlo', 'Consolas', monospace;">
+            ${safeCode}
+          </span>
         </p>
-        <p>If the button does not work, copy and paste this link:</p>
-        <p style="word-break: break-all;">${verificationUrl}</p>
+        <p style="font-size: 13px; color: #666;">This code expires in 15 minutes. If you did not request this, you can ignore this email.</p>
       </div>
     `;
   }
