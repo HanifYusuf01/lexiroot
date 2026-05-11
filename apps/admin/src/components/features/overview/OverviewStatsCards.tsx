@@ -4,8 +4,8 @@ import { StatCard } from '../../ui/StatCard';
 import { formatNumber } from '../../../utils/format';
 
 interface OverviewStats {
-  totalUsers: number;
-  activeUsers: number;
+  totalUsers?: number;
+  activeUsers?: number;
   lessonsCompleted: number;
   xpEarned: number;
 }

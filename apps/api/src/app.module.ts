@@ -4,7 +4,11 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LastActiveInterceptor } from './common/interceptors/last-active.interceptor';
 import { AuthModule } from './modules/auth/auth.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { ExercisesModule } from './modules/exercises/exercises.module';
 import { FeedbackModule } from './modules/feedback/feedback.module';
+import { LessonEntriesModule } from './modules/lesson-entries/lesson-entries.module';
+import { LessonsModule } from './modules/lessons/lessons.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { UsersModule } from './modules/users/users.module';
@@ -25,6 +29,10 @@ import { UsersModule } from './modules/users/users.module';
     }),
     UsersModule,
     AuthModule,
+    CategoriesModule,
+    LessonsModule,
+    ExercisesModule,
+    LessonEntriesModule,
     SettingsModule,
     FeedbackModule,
     UploadsModule,

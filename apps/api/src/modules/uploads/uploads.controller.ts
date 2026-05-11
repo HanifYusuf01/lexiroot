@@ -1,4 +1,6 @@
 import { Controller, Post, UseGuards } from '@nestjs/common';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { User } from '../users/entities/user.entity';
@@ -12,5 +14,19 @@ export class UploadsController {
   @Post('avatar/signature')
   signAvatarUpload(@CurrentUser() user: User) {
     return this.uploads.signAvatarUpload(user.id);
+  }
+
+  @Post('lesson-audio/signature')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  signLessonAudioUpload() {
+    return this.uploads.signLessonMediaUpload('audio');
+  }
+
+  @Post('lesson-image/signature')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  signLessonImageUpload() {
+    return this.uploads.signLessonMediaUpload('image');
   }
 }

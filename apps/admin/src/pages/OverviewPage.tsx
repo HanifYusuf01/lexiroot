@@ -8,6 +8,7 @@ import { OverviewStatsCards } from '../components/features/overview/OverviewStat
 import { RecentUsersCard } from '../components/features/overview/RecentUsersCard';
 import { TopLanguagesChart } from '../components/features/overview/TopLanguagesChart';
 import { UserActivityChart } from '../components/features/overview/UserActivityChart';
+import { useGetUserStatsQuery } from '../services/usersApi';
 import { useAppSelector } from '../store/hooks';
 
 // Mock data — replaced by real endpoints in a later slice.
@@ -62,9 +63,7 @@ const LESSONS = [
   },
 ];
 
-const STATS = {
-  totalUsers: 24689,
-  activeUsers: 10293,
+const OVERVIEW_STATS_FALLBACK = {
   lessonsCompleted: 89000,
   xpEarned: 2040,
 };
@@ -82,6 +81,14 @@ export function OverviewPage() {
   const firstName = user?.displayName?.split(' ')[0] ?? '';
   const [search, setSearch] = useState('');
   const [range, setRange] = useState<DateRange>(defaultRange);
+  const { data: userStats, isLoading: userStatsLoading } = useGetUserStatsQuery();
+
+  const stats = {
+    totalUsers: userStats?.total,
+    activeUsers: userStats?.active,
+    lessonsCompleted: OVERVIEW_STATS_FALLBACK.lessonsCompleted,
+    xpEarned: OVERVIEW_STATS_FALLBACK.xpEarned,
+  };
 
   return (
     <div className="space-y-6">
@@ -96,7 +103,7 @@ export function OverviewPage() {
         }
       />
 
-      <OverviewStatsCards stats={STATS} />
+      <OverviewStatsCards stats={stats} loading={userStatsLoading} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">

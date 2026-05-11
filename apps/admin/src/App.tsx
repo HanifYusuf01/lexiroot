@@ -6,6 +6,8 @@ import { PageHeader } from './components/layout/PageHeader';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { ActivityLogPage } from './pages/ActivityLogPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
+import { LessonEditorPage } from './pages/LessonEditorPage';
+import { LessonsPage } from './pages/LessonsPage';
 import { LoginPage } from './pages/LoginPage';
 import { ManageAccountPage } from './pages/ManageAccountPage';
 import { OverviewPage } from './pages/OverviewPage';
@@ -38,7 +40,9 @@ export function App() {
         <Route element={<AdminLayout />}>
           <Route path="/" element={<OverviewPage />} />
           <Route path="/users" element={<UsersPage />} />
-          <Route path="/lessons" element={<ComingSoon title="Lessons" />} />
+          <Route path="/lessons" element={<LessonsPage />} />
+          <Route path="/lessons/new" element={<LessonEditorPage />} />
+          <Route path="/lessons/:id/edit" element={<LessonEditorPage />} />
           <Route path="/analytics" element={<ComingSoon title="Analytics" />} />
           <Route path="/cultural-content" element={<ComingSoon title="Cultural Content" />} />
           <Route path="/gamification" element={<ComingSoon title="Gamification" />} />
