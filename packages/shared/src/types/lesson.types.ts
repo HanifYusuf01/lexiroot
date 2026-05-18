@@ -1,13 +1,20 @@
 import type { LanguageCode, LearningLevel } from '../constants';
 
-export const LESSON_TYPES = ['sentence', 'vocabulary', 'exercise', 'alphabets-recognition'] as const;
+export const LESSON_TYPES = [
+  'letters-numbers',
+  'vocabulary',
+  'recognition',
+  'sentence',
+  'exercise',
+] as const;
 export type LessonType = (typeof LESSON_TYPES)[number];
 
 export const LESSON_TYPE_LABELS: Record<LessonType, string> = {
-  sentence: 'Sentence',
+  'letters-numbers': 'Letters & Numbers',
   vocabulary: 'Vocabulary',
+  recognition: 'Recognition',
+  sentence: 'Sentence',
   exercise: 'Exercise',
-  'alphabets-recognition': 'Alphabets & Recognition',
 };
 
 export const LESSON_STATUSES = ['draft', 'published', 'archived'] as const;
@@ -28,14 +35,6 @@ export const DURATION_BUCKETS = [
 ] as const;
 export type DurationBucket = (typeof DURATION_BUCKETS)[number];
 
-export interface Category {
-  id: string;
-  name: string;
-  slug: string;
-  sortOrder: number;
-  createdAt: string;
-}
-
 export interface RecognitionPromptMeta {
   audioUrl: string;
   instruction: string;
@@ -48,8 +47,10 @@ export interface LessonMeta {
 export interface Lesson {
   id: string;
   language: LanguageCode;
-  level: LearningLevel;
-  categoryId: string;
+  /** Difficulty tier — beginner / intermediate / advanced. */
+  tier: LearningLevel;
+  /** Numeric position within a tier (admin-defined: 1, 2, 3, …). */
+  level: number;
   title: string;
   slug: string;
   shortDescription: string;

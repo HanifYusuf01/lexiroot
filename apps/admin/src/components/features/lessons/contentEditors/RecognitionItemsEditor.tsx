@@ -6,6 +6,7 @@ import type {
 } from '@lexiroot/shared';
 import { AudioRecorder } from './AudioRecorder';
 import { InlineImageCell } from './InlineImageCell';
+import { YorubaInput } from '../../../ui/YorubaInput';
 
 interface Props {
   prompt: RecognitionPromptMeta;
@@ -31,8 +32,10 @@ export function RecognitionItemsEditor({
     ]);
   }
   function patch(index: number, next: Partial<RecognitionItemPayload>) {
+    const existing = items[index];
+    if (!existing) return;
     const copy = items.slice();
-    copy[index] = { ...copy[index], payload: { ...copy[index].payload, ...next } };
+    copy[index] = { ...existing, payload: { ...existing.payload, ...next } };
     onItemsChange(copy);
   }
   function remove(index: number) {
@@ -99,12 +102,11 @@ export function RecognitionItemsEditor({
               {items.map((row, i) => (
                 <tr key={i} className="border-t border-border">
                   <td className="px-3 py-2 align-middle">
-                    <input
-                      type="text"
+                    <YorubaInput
                       value={row.payload.word}
-                      onChange={(e) => patch(i, { word: e.target.value })}
-                      placeholder="Iwe"
-                      className="w-full bg-transparent text-sm text-neutral outline-none placeholder:text-neutral-variant"
+                      onChange={(v) => patch(i, { word: v })}
+                      placeholder="Ìwé"
+                      inputClassName="h-8 w-full bg-transparent text-sm text-neutral outline-none placeholder:text-neutral-variant"
                     />
                   </td>
                   <td className="px-3 py-2 align-middle">

@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from 'lucide-react';
 import type { LessonEntryInput, SentenceEntryPayload } from '@lexiroot/shared';
 import { AudioRecorder } from './AudioRecorder';
+import { YorubaInput } from '../../../ui/YorubaInput';
 
 interface Props {
   value: LessonEntryInput<'sentence'>[];
@@ -19,8 +20,10 @@ export function SentenceEditor({ value, onChange }: Props) {
     ]);
   }
   function patch(index: number, next: Partial<SentenceEntryPayload>) {
+    const existing = value[index];
+    if (!existing) return;
     const copy = value.slice();
-    copy[index] = { ...copy[index], payload: { ...copy[index].payload, ...next } };
+    copy[index] = { ...existing, payload: { ...existing.payload, ...next } };
     onChange(copy);
   }
   function remove(index: number) {
@@ -67,12 +70,11 @@ export function SentenceEditor({ value, onChange }: Props) {
             {value.map((row, i) => (
               <tr key={i} className="border-t border-border">
                 <td className="px-3 py-2 align-middle">
-                  <input
-                    type="text"
+                  <YorubaInput
                     value={row.payload.sentence}
-                    onChange={(e) => patch(i, { sentence: e.target.value })}
+                    onChange={(v) => patch(i, { sentence: v })}
                     placeholder="Ẹ kàárọ̀, báwo ni?"
-                    className="w-full bg-transparent text-sm text-neutral outline-none placeholder:text-neutral-variant"
+                    inputClassName="h-8 w-full bg-transparent text-sm text-neutral outline-none placeholder:text-neutral-variant"
                   />
                 </td>
                 <td className="px-3 py-2 align-middle">

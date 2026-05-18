@@ -12,8 +12,8 @@ import {
 
 interface Props {
   language: LanguageCode;
-  level: LearningLevel;
-  categoryName: string | null;
+  tier: LearningLevel;
+  level: number;
   type: LessonType;
   speechRequired: boolean;
   estimatedDuration: DurationBucket | null;
@@ -23,8 +23,8 @@ interface Props {
 
 export function LessonSummaryCard({
   language,
+  tier,
   level,
-  categoryName,
   type,
   speechRequired,
   estimatedDuration,
@@ -32,12 +32,12 @@ export function LessonSummaryCard({
   status,
 }: Props) {
   return (
-    <aside className="rounded-2xl border-1 border-primary-border bg-[#FEFBFB] p-6 lg:sticky lg:top-6 h-[420px]">
+    <aside className="rounded-2xl border border-primary bg-[#FEFBFB] p-6 lg:sticky lg:top-6 h-[420px]">
       <h3 className="mb-6 font-display text-lg font-extrabold text-neutral">Lesson Summary</h3>
       <dl className="space-y-5 text-sm">
         <Row label="Language" value={LANGUAGE_LABELS[language]} />
-        <Row label="Level" value={LEARNING_LEVEL_LABELS[level]} />
-        <Row label="Category" value={categoryName ?? '—'} />
+        <Row label="Tier" value={LEARNING_LEVEL_LABELS[tier]} />
+        <Row label="Level" value={`Level ${level}`} />
         <Row label="Lesson Type" value={LESSON_TYPE_LABELS[type]} />
         <Row label="Speech Required" value={speechRequired ? 'Yes' : 'No'} />
         <Row label="Estimated Duration" value={estimatedDuration ?? '—'} />
@@ -71,7 +71,7 @@ function StatusPill({ status }: { status: LessonStatus }) {
         : 'border-border bg-neutral-soft text-neutral-variant';
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${classes}`}
+      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold  ${classes}`}
     >
       {LESSON_STATUS_LABELS[status]}
     </span>

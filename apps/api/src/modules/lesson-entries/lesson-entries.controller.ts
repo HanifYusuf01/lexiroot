@@ -14,8 +14,7 @@ import { LessonEntriesService } from './lesson-entries.service';
 import { ReplaceLessonEntriesDto } from './dto/replace-lesson-entries.dto';
 
 @Controller('lessons/:lessonId/entries')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('admin')
+@UseGuards(JwtAuthGuard)
 export class LessonEntriesController {
   constructor(private readonly entries: LessonEntriesService) {}
 
@@ -25,6 +24,8 @@ export class LessonEntriesController {
   }
 
   @Put()
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   replace(
     @Param('lessonId', new ParseUUIDPipe()) lessonId: string,
     @Body() dto: ReplaceLessonEntriesDto,

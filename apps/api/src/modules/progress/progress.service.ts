@@ -1,0 +1,115 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
+import { Lesson } from '../lessons/entities/lesson.entity';
+import { User } from '../users/entities/user.entity';
+import { LessonCompletion } from './entities/lesson-completion.entity';
+
+export interface ProgressSummary {
+  streak: number;
+  totalXp: number;
+  lessonsCompleted: number;
+  completedLessonIds: string[];
+}
+
+function isSameUtcDay(a: Date, b: Date): boolean {
+  return (
+    a.getUTCFullYear() === b.getUTCFullYear() &&
+    a.getUTCMonth() === b.getUTCMonth() &&
+    a.getUTCDate() === b.getUTCDate()
+  );
+}
+
+function isPrevUtcDay(prev: Date, today: Date): boolean {
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const diff = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()) -
+    Date.UTC(prev.getUTCFullYear(), prev.getUTCMonth(), prev.getUTCDate());
+  return diff === oneDayMs;
+}
+
+@Injectable()
+export class ProgressService {
+  constructor(
+    @InjectRepository(LessonCompletion)
+    private readonly completions: Repository<LessonCompletion>,
+    @InjectRepository(Lesson)
+    private readonly lessons: Repository<Lesson>,
+    @InjectRepository(User)
+    private readonly users: Repository<User>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
+  ) {}
+
+  async summary(userId: string): Promise<ProgressSummary> {
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    const rows = await this.completions.find({
+      where: { userId },
+      select: ['lessonId'],
+    });
+    return {
+      streak: user.currentStreakDays ?? 0,
+      totalXp: user.xp ?? 0,
+      lessonsCompleted: user.lessonsCompleted ?? 0,
+      completedLessonIds: rows.map((r) => r.lessonId),
+    };
+  }
+
+  async completeLesson(
+    userId: string,
+    lessonId: string,
+    correctCount: number,
+    totalCount: number,
+  ): Promise<{ completion: LessonCompletion; xpAwarded: number; streak: number; totalXp: number }> {
+    if (totalCount > 0 && correctCount > totalCount) {
+      throw new BadRequestException('correctCount cannot exceed totalCount');
+    }
+    const lesson = await this.lessons.findOne({ where: { id: lessonId } });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+
+    return this.dataSource.transaction(async (manager) => {
+      const existing = await manager
+        .getRepository(LessonCompletion)
+        .findOne({ where: { userId, lessonId } });
+
+      const xpAwarded = existing ? 0 : lesson.xpReward ?? 0;
+      const completion = existing
+        ? await manager.getRepository(LessonCompletion).save({
+            ...existing,
+            correctCount,
+            totalCount,
+          })
+        : await manager.getRepository(LessonCompletion).save({
+            userId,
+            lessonId,
+            correctCount,
+            totalCount,
+            xpEarned: xpAwarded,
+          });
+
+      const user = await manager.getRepository(User).findOne({ where: { id: userId } });
+      if (!user) throw new NotFoundException('User not found');
+
+      const now = new Date();
+      const last = user.lastActiveAt ? new Date(user.lastActiveAt) : null;
+      let streak = user.currentStreakDays ?? 0;
+      if (!last) {
+        streak = 1;
+      } else if (isSameUtcDay(last, now)) {
+        // same day — no change
+      } else if (isPrevUtcDay(last, now)) {
+        streak = streak + 1;
+      } else {
+        streak = 1;
+      }
+
+      user.xp = (user.xp ?? 0) + xpAwarded;
+      user.currentStreakDays = streak;
+      if (!existing) user.lessonsCompleted = (user.lessonsCompleted ?? 0) + 1;
+      user.lastActiveAt = now;
+      await manager.getRepository(User).save(user);
+
+      return { completion, xpAwarded, streak, totalXp: user.xp };
+    });
+  }
+}

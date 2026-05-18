@@ -150,7 +150,7 @@ export class UsersService {
       });
     }
     const [rows, total] = await qb
-      .orderBy('user.created_at', 'DESC')
+      .orderBy('user.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();

@@ -11,8 +11,8 @@ import type {
 export interface LessonRow {
   id: string;
   language: LanguageCode;
-  level: LearningLevel;
-  category: { id: string; name: string; slug: string } | null;
+  tier: LearningLevel;
+  level: number;
   title: string;
   slug: string;
   shortDescription: string;
@@ -48,14 +48,15 @@ export interface ListLessonsArgs {
   limit?: number;
   search?: string;
   language?: LanguageCode;
-  level?: LearningLevel;
+  tier?: LearningLevel;
+  level?: number;
   status?: LessonStatus;
 }
 
 export interface CreateLessonBody {
   language: LanguageCode;
-  level: LearningLevel;
-  categoryId: string;
+  tier: LearningLevel;
+  level: number;
   title: string;
   shortDescription?: string;
   estimatedDuration?: DurationBucket;

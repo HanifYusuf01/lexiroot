@@ -45,3 +45,59 @@ export const fonts = {
   bold: 'Nunito_700Bold',
   extrabold: 'Nunito_800ExtraBold',
 } as const;
+
+export type SkillKey = 'listen-select' | 'vocabulary' | 'sentence' | 'recognition';
+
+export interface SkillTheme {
+  key: SkillKey;
+  title: string;
+  level: number;
+  main: string;
+  border: string;
+  soft: string;
+  softer: string;
+  on: string;
+}
+
+export const skillThemes: Record<SkillKey, SkillTheme> = {
+  'listen-select': {
+    key: 'listen-select',
+    title: 'Listen & Select',
+    level: 1,
+    main: '#E35336',
+    border: '#F3B2A5',
+    soft: '#FCEBE6',
+    softer: '#FDF7F7',
+    on: '#FFFFFF',
+  },
+  vocabulary: {
+    key: 'vocabulary',
+    title: 'Vocabulary',
+    level: 4,
+    main: '#79D9EC',
+    border: '#79D9EC',
+    soft: '#E9F9FC',
+    softer: '#F4FCFE',
+    on: '#FFFFFF',
+  },
+  sentence: {
+    key: 'sentence',
+    title: 'Sentence',
+    level: 6,
+    main: '#C7AA05',
+    border: '#E3CE5C',
+    soft: '#FBF5D2',
+    softer: '#FDFAE6',
+    on: '#FFFFFF',
+  },
+  recognition: {
+    key: 'recognition',
+    title: 'Recognition',
+    level: 8,
+    main: '#18B452',
+    border: '#A5F3C2',
+    soft: '#E6F8EC',
+    softer: '#F1FBF4',
+    on: '#FFFFFF',
+  },
+} as const;

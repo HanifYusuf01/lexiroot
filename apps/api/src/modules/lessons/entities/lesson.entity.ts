@@ -15,7 +15,6 @@ import type {
   LessonType,
 } from '@lexiroot/shared';
 import type { LanguageCode, LearningLevel } from '@lexiroot/shared';
-import { Category } from '../../categories/entities/category.entity';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('lessons')
@@ -29,15 +28,11 @@ export class Lesson {
 
   @Index()
   @Column({ type: 'varchar', length: 20 })
-  level!: LearningLevel;
+  tier!: LearningLevel;
 
   @Index()
-  @Column({ name: 'category_id', type: 'uuid' })
-  categoryId!: string;
-
-  @ManyToOne(() => Category, { onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'category_id' })
-  category!: Category;
+  @Column({ type: 'int', default: 1 })
+  level!: number;
 
   @Column({ type: 'varchar', length: 200 })
   title!: string;

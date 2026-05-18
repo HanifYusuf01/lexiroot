@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
-  LANGUAGE_LABELS,
   LEARNING_LEVEL_LABELS,
   LESSON_STATUS_LABELS,
+  LESSON_TYPE_LABELS,
   type LanguageCode,
   type LearningLevel,
   type LessonStatus,
@@ -54,11 +54,11 @@ export function LessonsPage() {
   const [searchInput, setSearchInput] = useState('');
   const debouncedSearch = useDebounce(searchInput.trim(), 400);
   const [language, setLanguage] = useState<LanguageCode | undefined>(undefined);
-  const [level, setLevel] = useState<LearningLevel | undefined>(undefined);
+  const [tier, setTier] = useState<LearningLevel | undefined>(undefined);
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, language, level, tab]);
+  }, [debouncedSearch, language, tier, tab]);
 
   const status = useMemo<LessonStatus | undefined>(() => {
     if (tab === 'all') return undefined;
@@ -70,7 +70,7 @@ export function LessonsPage() {
     limit: PAGE_SIZE,
     search: debouncedSearch || undefined,
     language,
-    level,
+    tier,
     status,
   });
 
@@ -86,9 +86,9 @@ export function LessonsPage() {
             <LessonSearchPopover value={searchInput} onChange={setSearchInput} />
             <LessonFilterMenu
               language={language}
-              level={level}
+              tier={tier}
               onLanguageChange={setLanguage}
-              onLevelChange={setLevel}
+              onTierChange={setTier}
             />
             <Link
               to="/lessons/new"
@@ -131,9 +131,9 @@ export function LessonsPage() {
           <TableHead>
             <tr>
               <TableHeaderCell>Lesson</TableHeaderCell>
-              <TableHeaderCell>Language</TableHeaderCell>
+              <TableHeaderCell>Tier</TableHeaderCell>
               <TableHeaderCell>Level</TableHeaderCell>
-              <TableHeaderCell>Category</TableHeaderCell>
+              <TableHeaderCell>Type</TableHeaderCell>
               <TableHeaderCell>Status</TableHeaderCell>
               <TableHeaderCell>XP Reward</TableHeaderCell>
               <TableHeaderCell>Created At</TableHeaderCell>
@@ -191,9 +191,9 @@ function LessonRowItem({ lesson }: { lesson: LessonRow }) {
           </div>
         </div>
       </TableCell>
-      <TableCell className="text-neutral-variant">{LANGUAGE_LABELS[lesson.language]}</TableCell>
-      <TableCell className="text-neutral-variant">{LEARNING_LEVEL_LABELS[lesson.level]}</TableCell>
-      <TableCell className="text-neutral-variant">{lesson.category?.name ?? '—'}</TableCell>
+      <TableCell className="text-neutral-variant">{LEARNING_LEVEL_LABELS[lesson.tier]}</TableCell>
+      <TableCell className="text-neutral-variant">Level {lesson.level}</TableCell>
+      <TableCell className="text-neutral-variant">{LESSON_TYPE_LABELS[lesson.type]}</TableCell>
       <TableCell>{statusBadge(lesson.status)}</TableCell>
       <TableCell className="text-neutral-variant">{lesson.xpReward} XP</TableCell>
       <TableCell className="text-neutral-variant">{formatDate(lesson.createdAt)}</TableCell>

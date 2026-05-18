@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from 'lucide-react';
 import type { LessonEntryInput, VocabularyEntryPayload } from '@lexiroot/shared';
 import { AudioRecorder } from './AudioRecorder';
+import { YorubaInput } from '../../../ui/YorubaInput';
 
 interface Props {
   value: LessonEntryInput<'vocabulary'>[];
@@ -9,11 +10,6 @@ interface Props {
 
 function blankPayload(): VocabularyEntryPayload {
   return { word: '', meaning: '', audioUrl: '', exampleSentence: '' };
-}
-
-function newId() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
-  return `vocab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export function VocabularyEditor({ value, onChange }: Props) {
@@ -28,8 +24,10 @@ export function VocabularyEditor({ value, onChange }: Props) {
     ]);
   }
   function patch(index: number, next: Partial<VocabularyEntryPayload>) {
+    const existing = value[index];
+    if (!existing) return;
     const copy = value.slice();
-    copy[index] = { ...copy[index], payload: { ...copy[index].payload, ...next } };
+    copy[index] = { ...existing, payload: { ...existing.payload, ...next } };
     onChange(copy);
   }
   function remove(index: number) {
@@ -73,12 +71,13 @@ export function VocabularyEditor({ value, onChange }: Props) {
               </tr>
             ) : null}
             {value.map((row, i) => (
-              <tr key={row.id ?? `new-${i}-${newId()}`} className="border-t border-border">
+              <tr key={row.id ?? i} className="border-t border-border">
                 <Td>
-                  <CellInput
+                  <YorubaInput
                     value={row.payload.word}
                     onChange={(v) => patch(i, { word: v })}
-                    placeholder="E kaaro"
+                    placeholder="Ẹ káàrọ̀"
+                    inputClassName="h-8 w-full rounded-md bg-transparent text-sm text-neutral outline-none placeholder:text-neutral-variant"
                   />
                 </Td>
                 <Td>
@@ -96,10 +95,11 @@ export function VocabularyEditor({ value, onChange }: Props) {
                   />
                 </Td>
                 <Td>
-                  <CellInput
+                  <YorubaInput
                     value={row.payload.exampleSentence}
                     onChange={(v) => patch(i, { exampleSentence: v })}
-                    placeholder="E kaaro o!"
+                    placeholder="Ẹ káàrọ̀ o!"
+                    inputClassName="h-8 w-full rounded-md bg-transparent text-sm text-neutral outline-none placeholder:text-neutral-variant"
                   />
                 </Td>
                 <Td className="text-right">

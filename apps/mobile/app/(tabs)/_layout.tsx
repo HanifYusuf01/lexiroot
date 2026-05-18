@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Text } from 'react-native';
 import { colors, fonts } from '../../src/constants/theme';
 
@@ -42,23 +42,19 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="lessons"
+        name="practice"
         options={{
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'book' : 'book-outline'} size={24} color={color} />
           ),
-          tabBarLabel: (props) => <TabLabel {...props} label="Lessons" />,
+          tabBarLabel: (props) => <TabLabel {...props} label="Practice" />,
         }}
       />
       <Tabs.Screen
         name="games"
         options={{
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'extension-puzzle' : 'extension-puzzle-outline'}
-              size={24}
-              color={color}
-            />
+          tabBarIcon: ({ color }) => (
+            <MaterialCommunityIcons name="drama-masks" size={26} color={color} />
           ),
           tabBarLabel: (props) => <TabLabel {...props} label="Games" />,
         }}
@@ -72,6 +68,7 @@ export default function TabsLayout() {
           tabBarLabel: (props) => <TabLabel {...props} label="Profile" />,
         }}
       />
+      <Tabs.Screen name="lessons" options={{ href: null }} />
     </Tabs>
   );
 }

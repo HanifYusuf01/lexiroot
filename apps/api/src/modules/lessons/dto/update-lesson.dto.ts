@@ -5,7 +5,6 @@ import {
   IsObject,
   IsOptional,
   IsString,
-  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -33,11 +32,13 @@ export class UpdateLessonDto {
 
   @IsOptional()
   @IsIn(LEARNING_LEVELS as readonly string[])
-  level?: LearningLevel;
+  tier?: LearningLevel;
 
   @IsOptional()
-  @IsUUID()
-  categoryId?: string;
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  level?: number;
 
   @IsOptional()
   @IsString()

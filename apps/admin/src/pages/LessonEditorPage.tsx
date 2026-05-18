@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, Eye } from 'lucide-react';
 import {
   DURATION_BUCKETS,
-  LANGUAGE_CODES,
   LANGUAGE_LABELS,
   LEARNING_LEVELS,
   LEARNING_LEVEL_LABELS,
@@ -21,7 +20,6 @@ import {
   type LessonType,
   type RecognitionPromptMeta,
 } from '@lexiroot/shared';
-import { useListCategoriesQuery } from '../services/categoriesApi';
 import {
   useCreateLessonMutation,
   useGetLessonQuery,
@@ -39,7 +37,8 @@ import { LessonSummaryCard } from '../components/features/lessons/LessonSummaryC
 import { ExerciseContentEditor } from '../components/features/lessons/exerciseEditor/ExerciseContentEditor';
 import { VocabularyEditor } from '../components/features/lessons/contentEditors/VocabularyEditor';
 import { SentenceEditor } from '../components/features/lessons/contentEditors/SentenceEditor';
-import { AlphabetsRecognitionEditor } from '../components/features/lessons/contentEditors/AlphabetsRecognitionEditor';
+import { LettersNumbersEditor } from '../components/features/lessons/contentEditors/LettersNumbersEditor';
+import { RecognitionItemsEditor } from '../components/features/lessons/contentEditors/RecognitionItemsEditor';
 
 const EMPTY_RECOGNITION_PROMPT: RecognitionPromptMeta = { audioUrl: '', instruction: '' };
 
@@ -47,8 +46,8 @@ const DESCRIPTION_MAX = 200;
 
 interface FormState {
   language: LanguageCode;
-  level: LearningLevel;
-  categoryId: string;
+  tier: LearningLevel;
+  level: number;
   title: string;
   shortDescription: string;
   estimatedDuration: DurationBucket | '';
@@ -63,14 +62,14 @@ interface FormState {
 interface FieldErrors {
   title?: string;
   shortDescription?: string;
-  categoryId?: string;
+  level?: string;
   general?: string;
 }
 
 const DEFAULT_FORM: FormState = {
   language: 'yo',
-  level: 'beginner',
-  categoryId: '',
+  tier: 'beginner',
+  level: 1,
   title: '',
   shortDescription: '',
   estimatedDuration: '3-5 minutes',
@@ -86,7 +85,6 @@ export function LessonEditorPage() {
   const { id } = useParams<{ id?: string }>();
   const isEditing = !!id;
   const navigate = useNavigate();
-  const { data: categories } = useListCategoriesQuery();
   const { data: existing, isLoading: loadingLesson } = useGetLessonQuery(id!, { skip: !id });
   const { data: existingExercises } = useListExercisesQuery(id!, { skip: !id });
   const { data: existingEntries } = useListEntriesQuery(id!, { skip: !id });
@@ -100,6 +98,7 @@ export function LessonEditorPage() {
   const [vocabulary, setVocabulary] = useState<LessonEntryInput<'vocabulary'>[]>([]);
   const [sentences, setSentences] = useState<LessonEntryInput<'sentence'>[]>([]);
   const [letters, setLetters] = useState<LessonEntryInput<'letter'>[]>([]);
+  const [numbers, setNumbers] = useState<LessonEntryInput<'number'>[]>([]);
   const [recognitionItems, setRecognitionItems] = useState<
     LessonEntryInput<'recognition-item'>[]
   >([]);
@@ -114,6 +113,7 @@ export function LessonEditorPage() {
     setExercises(
       existingExercises.map((ex, i) => ({
         id: ex.id,
+        category: ex.category,
         subType: ex.subType,
         orderIndex: ex.orderIndex ?? i,
         payload: ex.payload,
@@ -147,6 +147,14 @@ export function LessonEditorPage() {
         orderIndex: e.orderIndex ?? i,
         payload: e.payload as LessonEntryInput<'letter'>['payload'],
       }));
+    const numbersFromEntries = existingEntries
+      .filter((e) => e.kind === 'number')
+      .map<LessonEntryInput<'number'>>((e, i) => ({
+        id: e.id,
+        kind: 'number',
+        orderIndex: e.orderIndex ?? i,
+        payload: e.payload as LessonEntryInput<'number'>['payload'],
+      }));
     const recognitionFromEntries = existingEntries
       .filter((e) => e.kind === 'recognition-item')
       .map<LessonEntryInput<'recognition-item'>>((e, i) => ({
@@ -158,21 +166,16 @@ export function LessonEditorPage() {
     setVocabulary(vocab);
     setSentences(sent);
     setLetters(lettersFromEntries);
+    setNumbers(numbersFromEntries);
     setRecognitionItems(recognitionFromEntries);
   }, [existingEntries]);
-
-  useEffect(() => {
-    if (categories && categories.length > 0 && !form.categoryId) {
-      setForm((s) => ({ ...s, categoryId: categories[0].id }));
-    }
-  }, [categories, form.categoryId]);
 
   useEffect(() => {
     if (!existing) return;
     setForm({
       language: existing.language,
+      tier: existing.tier,
       level: existing.level,
-      categoryId: existing.category?.id ?? '',
       title: existing.title,
       shortDescription: existing.shortDescription,
       estimatedDuration: existing.estimatedDuration ?? '',
@@ -187,10 +190,6 @@ export function LessonEditorPage() {
     setRecognitionPrompt(existing.meta?.recognitionPrompt ?? EMPTY_RECOGNITION_PROMPT);
   }, [existing]);
 
-  const categoryName = useMemo(() => {
-    return categories?.find((c) => c.id === form.categoryId)?.name ?? null;
-  }, [categories, form.categoryId]);
-
   const saving = creating || updating || savingExercises || savingEntries;
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -200,7 +199,7 @@ export function LessonEditorPage() {
   function validate(): FieldErrors {
     const next: FieldErrors = {};
     if (form.title.trim().length < 2) next.title = 'Title is required';
-    if (!form.categoryId) next.categoryId = 'Pick a category';
+    if (!Number.isFinite(form.level) || form.level < 1) next.level = 'Level must be at least 1';
     if (form.shortDescription.length > DESCRIPTION_MAX) {
       next.shortDescription = `Keep it under ${DESCRIPTION_MAX} characters`;
     }
@@ -213,15 +212,15 @@ export function LessonEditorPage() {
       setErrors(next);
       return;
     }
+
+    
     setErrors({});
     const nextMeta: LessonMeta =
-      form.type === 'alphabets-recognition'
-        ? { ...meta, recognitionPrompt }
-        : meta;
+      form.type === 'recognition' ? { ...meta, recognitionPrompt } : meta;
     const payload = {
       language: form.language,
+      tier: form.tier,
       level: form.level,
-      categoryId: form.categoryId,
       title: form.title.trim(),
       shortDescription: form.shortDescription,
       estimatedDuration: (form.estimatedDuration || undefined) as DurationBucket | undefined,
@@ -246,6 +245,7 @@ export function LessonEditorPage() {
           lessonId,
           exercises: exercises.map((ex, i) => ({
             id: ex.id,
+            category: ex.category,
             subType: ex.subType,
             orderIndex: i,
             payload: ex.payload,
@@ -259,11 +259,15 @@ export function LessonEditorPage() {
             : sentences.map((row, i) => ({ ...row, orderIndex: i }));
         await replaceEntries({ lessonId, entries }).unwrap();
       }
-      if (lessonId && payload.type === 'alphabets-recognition') {
+      if (lessonId && payload.type === 'letters-numbers') {
         const entries = [
           ...letters.map((row, i) => ({ ...row, orderIndex: i })),
-          ...recognitionItems.map((row, i) => ({ ...row, orderIndex: i })),
+          ...numbers.map((row, i) => ({ ...row, orderIndex: i })),
         ];
+        await replaceEntries({ lessonId, entries }).unwrap();
+      }
+      if (lessonId && payload.type === 'recognition') {
+        const entries = recognitionItems.map((row, i) => ({ ...row, orderIndex: i }));
         await replaceEntries({ lessonId, entries }).unwrap();
       }
       if (!isEditing && lessonId) {
@@ -328,25 +332,24 @@ export function LessonEditorPage() {
           <Section title="1. Basic Information" description="Set the essential details of your lesson">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field label="Language" required>
-                <NativeSelect
-                  value={form.language}
-                  onChange={(v) => update('language', v as LanguageCode)}
-                  options={LANGUAGE_CODES.map((c) => ({ value: c, label: LANGUAGE_LABELS[c] }))}
-                />
+                <div className="flex h-11 items-center rounded-lg border border-border bg-neutral-soft px-3 text-sm font-semibold text-neutral">
+                  {LANGUAGE_LABELS[form.language]}
+                </div>
               </Field>
-              <Field label="Level" required>
+              <Field label="Tier" required>
                 <NativeSelect
-                  value={form.level}
-                  onChange={(v) => update('level', v as LearningLevel)}
+                  value={form.tier}
+                  onChange={(v) => update('tier', v as LearningLevel)}
                   options={LEARNING_LEVELS.map((l) => ({ value: l, label: LEARNING_LEVEL_LABELS[l] }))}
                 />
               </Field>
-              <Field label="Category" required error={errors.categoryId}>
-                <NativeSelect
-                  value={form.categoryId}
-                  onChange={(v) => update('categoryId', v)}
-                  options={(categories ?? []).map((c) => ({ value: c.id, label: c.name }))}
-                  placeholder="Select category"
+              <Field label="Level" required error={errors.level}>
+                <input
+                  type="number"
+                  min={1}
+                  value={form.level}
+                  onChange={(e) => update('level', Number(e.target.value) || 1)}
+                  className="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
                 />
               </Field>
             </div>
@@ -462,14 +465,20 @@ export function LessonEditorPage() {
               <VocabularyEditor value={vocabulary} onChange={setVocabulary} />
             ) : form.type === 'sentence' ? (
               <SentenceEditor value={sentences} onChange={setSentences} />
-            ) : (
-              <AlphabetsRecognitionEditor
+            ) : form.type === 'letters-numbers' ? (
+              <LettersNumbersEditor
+                language={form.language}
                 letters={letters}
                 onLettersChange={setLetters}
-                recognitionItems={recognitionItems}
-                onRecognitionItemsChange={setRecognitionItems}
-                recognitionPrompt={recognitionPrompt}
-                onRecognitionPromptChange={setRecognitionPrompt}
+                numbers={numbers}
+                onNumbersChange={setNumbers}
+              />
+            ) : (
+              <RecognitionItemsEditor
+                prompt={recognitionPrompt}
+                onPromptChange={setRecognitionPrompt}
+                items={recognitionItems}
+                onItemsChange={setRecognitionItems}
               />
             )}
           </Section>
@@ -510,8 +519,8 @@ export function LessonEditorPage() {
 
         <LessonSummaryCard
           language={form.language}
+          tier={form.tier}
           level={form.level}
-          categoryName={categoryName}
           type={form.type}
           speechRequired={form.speechRequired}
           estimatedDuration={form.estimatedDuration || null}

@@ -5,7 +5,6 @@ import {
   IsObject,
   IsOptional,
   IsString,
-  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -31,10 +30,12 @@ export class CreateLessonDto {
   language!: LanguageCode;
 
   @IsIn(LEARNING_LEVELS as readonly string[])
-  level!: LearningLevel;
+  tier!: LearningLevel;
 
-  @IsUUID()
-  categoryId!: string;
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  level!: number;
 
   @IsString()
   @MinLength(2)

@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { LessonMeta, LessonStatus } from '@lexiroot/shared';
 import { Lesson } from './entities/lesson.entity';
-import { CategoriesService } from '../categories/categories.service';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { ListLessonsQueryDto } from './dto/list-lessons-query.dto';
@@ -11,8 +10,8 @@ import { ListLessonsQueryDto } from './dto/list-lessons-query.dto';
 export interface LessonRow {
   id: string;
   language: Lesson['language'];
-  level: Lesson['level'];
-  category: { id: string; name: string; slug: string } | null;
+  tier: Lesson['tier'];
+  level: number;
   title: string;
   slug: string;
   shortDescription: string;
@@ -57,10 +56,8 @@ function toRow(lesson: Lesson): LessonRow {
   return {
     id: lesson.id,
     language: lesson.language,
+    tier: lesson.tier,
     level: lesson.level,
-    category: lesson.category
-      ? { id: lesson.category.id, name: lesson.category.name, slug: lesson.category.slug }
-      : null,
     title: lesson.title,
     slug: lesson.slug,
     shortDescription: lesson.shortDescription,
@@ -82,15 +79,12 @@ export class LessonsService {
   constructor(
     @InjectRepository(Lesson)
     private readonly lessons: Repository<Lesson>,
-    private readonly categoriesService: CategoriesService,
   ) {}
 
   async paginate(query: ListLessonsQueryDto): Promise<PaginatedLessons> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    const qb = this.lessons
-      .createQueryBuilder('lesson')
-      .leftJoinAndSelect('lesson.category', 'category');
+    const qb = this.lessons.createQueryBuilder('lesson');
 
     if (query.search) {
       qb.andWhere(
@@ -99,11 +93,12 @@ export class LessonsService {
       );
     }
     if (query.language) qb.andWhere('lesson.language = :language', { language: query.language });
+    if (query.tier) qb.andWhere('lesson.tier = :tier', { tier: query.tier });
     if (query.level) qb.andWhere('lesson.level = :level', { level: query.level });
     if (query.status) qb.andWhere('lesson.status = :status', { status: query.status });
 
     const [rows, total] = await qb
-      .orderBy('lesson.created_at', 'DESC')
+      .orderBy('lesson.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
@@ -126,21 +121,17 @@ export class LessonsService {
   }
 
   async getById(id: string): Promise<LessonRow> {
-    const lesson = await this.lessons.findOne({
-      where: { id },
-      relations: ['category'],
-    });
+    const lesson = await this.lessons.findOne({ where: { id } });
     if (!lesson) throw new NotFoundException('Lesson not found');
     return toRow(lesson);
   }
 
   async create(dto: CreateLessonDto, createdById: string | null): Promise<LessonRow> {
-    await this.categoriesService.findById(dto.categoryId);
     const slug = await this.uniqueSlug(slugify(dto.title));
     const lesson = this.lessons.create({
       language: dto.language,
+      tier: dto.tier,
       level: dto.level,
-      categoryId: dto.categoryId,
       title: dto.title,
       slug,
       shortDescription: dto.shortDescription ?? '',
@@ -162,15 +153,12 @@ export class LessonsService {
     const lesson = await this.lessons.findOne({ where: { id } });
     if (!lesson) throw new NotFoundException('Lesson not found');
 
-    if (dto.categoryId !== undefined) {
-      await this.categoriesService.findById(dto.categoryId);
-      lesson.categoryId = dto.categoryId;
-    }
     if (dto.title !== undefined && dto.title !== lesson.title) {
       lesson.title = dto.title;
       lesson.slug = await this.uniqueSlug(slugify(dto.title), lesson.id);
     }
     if (dto.language !== undefined) lesson.language = dto.language;
+    if (dto.tier !== undefined) lesson.tier = dto.tier;
     if (dto.level !== undefined) lesson.level = dto.level;
     if (dto.shortDescription !== undefined) lesson.shortDescription = dto.shortDescription;
     if (dto.estimatedDuration !== undefined) lesson.estimatedDuration = dto.estimatedDuration;

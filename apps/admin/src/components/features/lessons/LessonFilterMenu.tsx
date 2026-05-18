@@ -12,34 +12,34 @@ import { useClickOutside } from '../../../hooks/useClickOutside';
 
 interface Props {
   language: LanguageCode | undefined;
-  level: LearningLevel | undefined;
+  tier: LearningLevel | undefined;
   onLanguageChange: (next: LanguageCode | undefined) => void;
-  onLevelChange: (next: LearningLevel | undefined) => void;
+  onTierChange: (next: LearningLevel | undefined) => void;
 }
 
 export function LessonFilterMenu({
   language,
-  level,
+  tier,
   onLanguageChange,
-  onLevelChange,
+  onTierChange,
 }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useClickOutside(ref, () => setOpen(false), open);
 
-  const activeCount = (language ? 1 : 0) + (level ? 1 : 0);
+  const activeCount = (language ? 1 : 0) + (tier ? 1 : 0);
 
   function pickLanguage(code: LanguageCode) {
     onLanguageChange(language === code ? undefined : code);
   }
 
-  function pickLevel(value: LearningLevel) {
-    onLevelChange(level === value ? undefined : value);
+  function pickTier(value: LearningLevel) {
+    onTierChange(tier === value ? undefined : value);
   }
 
   function clearAll() {
     onLanguageChange(undefined);
-    onLevelChange(undefined);
+    onTierChange(undefined);
     setOpen(false);
   }
 
@@ -81,19 +81,19 @@ export function LessonFilterMenu({
 
           <div className="mt-2 border-t border-border pt-2">
             <div className="px-1 pb-1 text-[11px] font-bold uppercase tracking-wider text-neutral-variant">
-              Difficulty
+              Tier
             </div>
             {LEARNING_LEVELS.map((value) => (
               <button
                 key={value}
                 type="button"
-                onClick={() => pickLevel(value)}
+                onClick={() => pickTier(value)}
                 className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm text-neutral hover:bg-neutral-soft"
               >
-                <span className={level === value ? 'font-bold text-primary' : ''}>
+                <span className={tier === value ? 'font-bold text-primary' : ''}>
                   {LEARNING_LEVEL_LABELS[value]}
                 </span>
-                {level === value ? <Check size={14} className="text-primary" /> : null}
+                {tier === value ? <Check size={14} className="text-primary" /> : null}
               </button>
             ))}
           </div>

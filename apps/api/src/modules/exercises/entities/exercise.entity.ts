@@ -8,7 +8,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import type { ExerciseSubType } from '@lexiroot/shared';
+import type { ExerciseCategory, ExerciseSubType } from '@lexiroot/shared';
 import { Lesson } from '../../lessons/entities/lesson.entity';
 
 @Entity('exercises')
@@ -24,6 +24,10 @@ export class Exercise {
   @ManyToOne(() => Lesson, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'lesson_id' })
   lesson!: Lesson;
+
+  @Index()
+  @Column({ type: 'varchar', length: 30 })
+  category!: ExerciseCategory;
 
   @Column({ name: 'sub_type', type: 'varchar', length: 30 })
   subType!: ExerciseSubType;

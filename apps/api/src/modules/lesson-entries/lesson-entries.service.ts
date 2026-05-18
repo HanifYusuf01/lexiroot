@@ -54,6 +54,13 @@ function validatePayload(kind: LessonEntryKind, payload: Record<string, unknown>
     if (!isStr(payload.letter) || typeof payload.audioUrl !== 'string') {
       throw new BadRequestException('Letter entry needs letter and audioUrl');
     }
+  } else if (kind === 'number') {
+    if (!isStr(payload.value) || !isStr(payload.translation)) {
+      throw new BadRequestException('Number entry needs value and translation');
+    }
+    if (typeof payload.audioUrl !== 'string') {
+      throw new BadRequestException('Number entry audioUrl must be a string');
+    }
   } else if (kind === 'recognition-item') {
     if (!isStr(payload.word) || typeof payload.imageUrl !== 'string') {
       throw new BadRequestException('Recognition item needs word and imageUrl');

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { AudioWaveform, CheckCircle2, Loader2, Mic, Pause, Play, Square, Upload, X } from 'lucide-react';
+import { AudioWaveform, Loader2, Pause, Play, Upload, X } from 'lucide-react';
 import { useSignLessonAudioMutation } from '../../../../services/uploadsApi';
 import { uploadLessonMediaToCloudinary } from '../../../../utils/cloudinary';
 
-type Phase = 'idle' | 'recording' | 'preview' | 'uploading';
+type Phase = 'idle' | 'uploading';
 
 interface Props {
   value: string | null;
@@ -20,28 +20,12 @@ function formatDuration(ms: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-function extFor(mime: string): string {
-  if (mime.includes('webm')) return 'webm';
-  if (mime.includes('mp4') || mime.includes('aac')) return 'm4a';
-  if (mime.includes('ogg')) return 'ogg';
-  if (mime.includes('wav')) return 'wav';
-  return 'audio';
-}
-
 export function AudioRecorder({ value, onChange, variant = 'card' }: Props) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
-  const [recordingMs, setRecordingMs] = useState(0);
   const [storedDurationMs, setStoredDurationMs] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
 
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const tickRef = useRef<number | null>(null);
-  const startedAtRef = useRef<number>(0);
   const playbackRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -65,7 +49,6 @@ export function AudioRecorder({ value, onChange, variant = 'card' }: Props) {
     fileInputRef.current?.click();
   }
 
-  // Load duration of the saved value (when present and not actively recording).
   useEffect(() => {
     if (!value) {
       setStoredDurationMs(null);
@@ -84,114 +67,6 @@ export function AudioRecorder({ value, onChange, variant = 'card' }: Props) {
       playbackRef.current = null;
     };
   }, [value]);
-
-  // Cleanup on unmount.
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      if (tickRef.current !== null) cancelAnimationFrame(tickRef.current);
-      if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-        try {
-          recorderRef.current.stop();
-        } catch {
-          /* ignore */
-        }
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function startRecording() {
-    setError(null);
-    if (typeof window === 'undefined' || !('MediaRecorder' in window)) {
-      setError('Recording is not supported in this browser.');
-      return;
-    }
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError('Microphone access is not available in this browser.');
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      const recorder = new MediaRecorder(stream);
-      recorderRef.current = recorder;
-      chunksRef.current = [];
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-      recorder.onstop = () => {
-        const mime = recorder.mimeType || 'audio/webm';
-        const blob = new Blob(chunksRef.current, { type: mime });
-        const url = URL.createObjectURL(blob);
-        setPreviewBlob(blob);
-        setPreviewUrl(url);
-        setPhase('preview');
-      };
-      recorder.start();
-      startedAtRef.current = Date.now();
-      setRecordingMs(0);
-      setPhase('recording');
-      const tick = () => {
-        setRecordingMs(Date.now() - startedAtRef.current);
-        tickRef.current = requestAnimationFrame(tick);
-      };
-      tickRef.current = requestAnimationFrame(tick);
-    } catch (err) {
-      const e = err as { name?: string };
-      if (e.name === 'NotAllowedError') {
-        setError('Microphone permission denied. Allow access in your browser to record.');
-      } else if (e.name === 'NotFoundError') {
-        setError('No microphone found. Plug one in and try again.');
-      } else {
-        setError('Could not start recording. Try again.');
-      }
-    }
-  }
-
-  function stopRecording() {
-    if (tickRef.current !== null) {
-      cancelAnimationFrame(tickRef.current);
-      tickRef.current = null;
-    }
-    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-      recorderRef.current.stop();
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-  }
-
-  function discardPreview() {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
-    setPreviewBlob(null);
-    setPhase('idle');
-  }
-
-  async function confirmPreview() {
-    if (!previewBlob) return;
-    setPhase('uploading');
-    setError(null);
-    try {
-      const signature = await signAudio().unwrap();
-      const ext = extFor(previewBlob.type);
-      const file = new File([previewBlob], `recording.${ext}`, { type: previewBlob.type });
-      const url = await uploadLessonMediaToCloudinary(file, signature);
-      onChange(url);
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-      setPreviewBlob(null);
-      setPhase('idle');
-    } catch {
-      setError('Could not save the recording. Try again.');
-      setPhase('preview');
-    }
-  }
 
   function togglePlay() {
     if (!playbackRef.current) return;
@@ -214,15 +89,9 @@ export function AudioRecorder({ value, onChange, variant = 'card' }: Props) {
       <InlineView
         phase={phase}
         value={value}
-        previewUrl={previewUrl}
-        recordingMs={recordingMs}
         storedDurationMs={storedDurationMs}
         playing={playing}
         error={error}
-        onStart={startRecording}
-        onStop={stopRecording}
-        onConfirm={confirmPreview}
-        onDiscard={discardPreview}
         onTogglePlay={togglePlay}
         onClear={clearStored}
         onUploadClick={openFilePicker}
@@ -231,16 +100,7 @@ export function AudioRecorder({ value, onChange, variant = 'card' }: Props) {
       <CardView
         phase={phase}
         value={value}
-        previewUrl={previewUrl}
-        recordingMs={recordingMs}
-        storedDurationMs={storedDurationMs}
-        playing={playing}
         error={error}
-        onStart={startRecording}
-        onStop={stopRecording}
-        onConfirm={confirmPreview}
-        onDiscard={discardPreview}
-        onTogglePlay={togglePlay}
         onClear={clearStored}
         onUploadClick={openFilePicker}
       />
@@ -264,130 +124,47 @@ export function AudioRecorder({ value, onChange, variant = 'card' }: Props) {
   );
 }
 
-interface ViewProps {
+interface CardViewProps {
   phase: Phase;
   value: string | null;
-  previewUrl: string | null;
-  recordingMs: number;
-  storedDurationMs: number | null;
-  playing: boolean;
   error: string | null;
-  onStart: () => void;
-  onStop: () => void;
-  onConfirm: () => void;
-  onDiscard: () => void;
-  onTogglePlay: () => void;
   onClear: () => void;
   onUploadClick: () => void;
 }
 
-function CardView({
-  phase,
-  value,
-  previewUrl,
-  recordingMs,
-  storedDurationMs,
-  error,
-  onStart,
-  onStop,
-  onConfirm,
-  onDiscard,
-  onClear,
-  onUploadClick,
-}: ViewProps) {
+function CardView({ phase, value, error, onClear, onUploadClick }: CardViewProps) {
   return (
     <div className="space-y-3">
-      {value && phase === 'idle' ? (
-        <audio src={value} controls className="w-full" />
-      ) : null}
+      {value && phase === 'idle' ? <audio src={value} controls className="w-full" /> : null}
       <DashedBlock>
-        {phase === 'recording' ? (
-          <div className="flex w-full items-center gap-5">
-            <span className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-error/15 text-error">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-error opacity-50" />
-              <Mic size={26} className="relative" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="text-base font-extrabold text-error">Recording…</div>
-              <div className="font-mono text-sm text-neutral">{formatDuration(recordingMs)}</div>
-            </div>
-            <button
-              type="button"
-              onClick={onStop}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-3 py-2 text-xs font-semibold text-neutral hover:bg-neutral-soft"
-            >
-              <Square size={12} />
-              Stop
-            </button>
-          </div>
-        ) : phase === 'preview' && previewUrl ? (
-          <div className="w-full space-y-3">
-            <div className="flex items-center gap-5">
-              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary-softer text-primary">
-                <AudioWaveform size={26} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="text-base font-extrabold text-neutral">Preview your recording</div>
-                <audio src={previewUrl} controls className="mt-1 h-9 w-full max-w-md" />
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={onConfirm}
-                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:opacity-90"
-              >
-                <CheckCircle2 size={12} />
-                Use this recording
-              </button>
-              <button
-                type="button"
-                onClick={onDiscard}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-4 py-2 text-xs font-semibold text-neutral hover:bg-neutral-soft"
-              >
-                Re-record
-              </button>
-            </div>
-          </div>
-        ) : phase === 'uploading' ? (
+        {phase === 'uploading' ? (
           <div className="flex w-full items-center gap-3">
             <Loader2 size={20} className="animate-spin text-primary" />
-            <span className="text-sm font-semibold text-neutral">Saving recording…</span>
+            <span className="text-sm font-semibold text-neutral">Uploading audio…</span>
           </div>
         ) : (
-          <div className="w-full space-y-3">
-            <button
-              type="button"
-              onClick={onStart}
-              className="flex w-full items-center gap-5 text-left"
-            >
-              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary-softer text-primary">
-                <AudioWaveform size={26} />
+          <button type="button" onClick={onUploadClick} className="flex w-full items-center gap-5 text-left">
+            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary-softer text-primary">
+              <AudioWaveform size={26} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-base font-extrabold text-neutral">
+                {value ? 'Change Audio' : 'Upload Audio'}
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-base font-extrabold text-neutral">
-                  {value ? 'Change Audio' : 'Record Audio'}
-                </span>
-                <span className="block text-sm text-neutral-variant">
-                  {value
-                    ? 'Click to record a new audio and replace the current one.'
-                    : 'Click to record audio from your microphone.'}
-                </span>
+              <span className="block text-sm text-neutral-variant">
+                {value
+                  ? 'Click to pick a new audio file and replace the current one.'
+                  : 'Click to upload an audio file from your computer.'}
               </span>
-            </button>
-            <div className="flex items-center gap-3 pl-[calc(4rem+1.25rem)] text-xs text-neutral-variant">
-              <span className="text-neutral-variant">or</span>
-              <button
-                type="button"
-                onClick={onUploadClick}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-2.5 py-1 font-semibold text-neutral hover:bg-neutral-soft"
-              >
-                <Upload size={11} />
-                {value ? 'Upload a different file' : 'Upload an audio file'}
-              </button>
-              <span className="hidden sm:inline">MP3, WAV up to 10MB</span>
-            </div>
-          </div>
+              <span className="mt-1 block text-xs text-neutral-variant">
+                MP3, WAV, M4A up to 10MB
+              </span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-3 py-2 text-xs font-semibold text-neutral">
+              <Upload size={12} />
+              {value ? 'Replace' : 'Upload'}
+            </span>
+          </button>
         )}
       </DashedBlock>
       {value && phase === 'idle' ? (
@@ -398,9 +175,6 @@ function CardView({
         >
           Remove audio
         </button>
-      ) : null}
-      {storedDurationMs !== null && phase === 'idle' && value ? (
-        <span className="sr-only">{formatDuration(storedDurationMs)}</span>
       ) : null}
       {error ? <p className="text-xs text-error">{error}</p> : null}
     </div>
@@ -415,71 +189,32 @@ function DashedBlock({ children }: { children: React.ReactNode }) {
   );
 }
 
+interface InlineViewProps {
+  phase: Phase;
+  value: string | null;
+  storedDurationMs: number | null;
+  playing: boolean;
+  error: string | null;
+  onTogglePlay: () => void;
+  onClear: () => void;
+  onUploadClick: () => void;
+}
+
 function InlineView({
   phase,
   value,
-  previewUrl,
-  recordingMs,
   storedDurationMs,
   playing,
   error,
-  onStart,
-  onStop,
-  onConfirm,
-  onDiscard,
   onTogglePlay,
   onClear,
   onUploadClick,
-}: ViewProps) {
-  if (phase === 'recording') {
-    return (
-      <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-error/40 bg-error/5 pl-1.5 pr-2 text-xs">
-        <span className="relative flex h-3 w-3 items-center justify-center">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-error opacity-70" />
-          <span className="relative h-2 w-2 rounded-full bg-error" />
-        </span>
-        <span className="font-mono font-semibold text-error">{formatDuration(recordingMs)}</span>
-        <button
-          type="button"
-          onClick={onStop}
-          className="ml-1 rounded-full p-0.5 text-error hover:bg-error/10"
-          aria-label="Stop"
-        >
-          <Square size={10} />
-        </button>
-      </span>
-    );
-  }
-
-  if (phase === 'preview' && previewUrl) {
-    return (
-      <span className="inline-flex h-7 items-center gap-1 rounded-full border border-primary-border bg-primary-softer pl-1 pr-1 text-xs">
-        <audio src={previewUrl} controls className="h-6" />
-        <button
-          type="button"
-          onClick={onConfirm}
-          className="rounded-full p-0.5 text-primary hover:bg-primary/10"
-          title="Use this"
-        >
-          <CheckCircle2 size={12} />
-        </button>
-        <button
-          type="button"
-          onClick={onDiscard}
-          className="rounded-full p-0.5 text-neutral-variant hover:bg-neutral-soft"
-          title="Re-record"
-        >
-          <X size={10} />
-        </button>
-      </span>
-    );
-  }
-
+}: InlineViewProps) {
   if (phase === 'uploading') {
     return (
       <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-border bg-white px-2 text-xs text-neutral-variant">
         <Loader2 size={12} className="animate-spin" />
-        Saving…
+        Uploading…
       </span>
     );
   }
@@ -515,20 +250,11 @@ function InlineView({
     <span className="inline-flex items-center gap-1">
       <button
         type="button"
-        onClick={onStart}
+        onClick={onUploadClick}
         className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-border bg-white px-2 text-xs text-neutral-variant hover:border-primary hover:text-primary"
       >
-        <Mic size={11} />
-        Record
-      </button>
-      <button
-        type="button"
-        onClick={onUploadClick}
-        className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-border bg-white text-neutral-variant hover:border-primary hover:text-primary"
-        title="Upload audio file"
-        aria-label="Upload audio file"
-      >
         <Upload size={11} />
+        Upload
       </button>
       {error ? <span className="ml-1 text-[11px] text-error">{error}</span> : null}
     </span>

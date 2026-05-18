@@ -20,8 +20,7 @@ import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { ListLessonsQueryDto } from './dto/list-lessons-query.dto';
 
 @Controller('lessons')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('admin')
+@UseGuards(JwtAuthGuard)
 export class LessonsController {
   constructor(private readonly lessons: LessonsService) {}
 
@@ -31,6 +30,8 @@ export class LessonsController {
   }
 
   @Get('stats')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   stats() {
     return this.lessons.stats();
   }
@@ -41,16 +42,22 @@ export class LessonsController {
   }
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   create(@CurrentUser() user: User, @Body() dto: CreateLessonDto) {
     return this.lessons.create(dto, user.id);
   }
 
   @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   update(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: UpdateLessonDto) {
     return this.lessons.update(id, dto);
   }
 
   @Post(':id/archive')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   archive(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.lessons.archive(id);
   }

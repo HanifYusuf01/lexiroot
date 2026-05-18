@@ -34,7 +34,13 @@ export class ListLessonsQueryDto {
 
   @IsOptional()
   @IsIn(LEARNING_LEVELS as readonly string[])
-  level?: LearningLevel;
+  tier?: LearningLevel;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  level?: number;
 
   @IsOptional()
   @IsIn(LESSON_STATUSES as readonly string[])

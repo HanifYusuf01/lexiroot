@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
-import type { ExerciseSubType } from '@lexiroot/shared';
+import type { ExerciseCategory, ExerciseSubType } from '@lexiroot/shared';
 import { Exercise } from './entities/exercise.entity';
 import { Lesson } from '../lessons/entities/lesson.entity';
 import { ReplaceExercisesDto } from './dto/replace-exercises.dto';
@@ -9,6 +9,7 @@ import { ReplaceExercisesDto } from './dto/replace-exercises.dto';
 export interface ExerciseRow {
   id: string;
   lessonId: string;
+  category: ExerciseCategory;
   subType: ExerciseSubType;
   orderIndex: number;
   payload: Record<string, unknown>;
@@ -20,6 +21,7 @@ function toRow(exercise: Exercise): ExerciseRow {
   return {
     id: exercise.id,
     lessonId: exercise.lessonId,
+    category: exercise.category,
     subType: exercise.subType,
     orderIndex: exercise.orderIndex,
     payload: exercise.payload,
@@ -68,6 +70,13 @@ function validatePayload(subType: ExerciseSubType, payload: Record<string, unkno
     if (!isOptionArr(payload.options, ['id', 'imageUrl', 'isCorrect'])) {
       throw new BadRequestException('Recognition needs at least one image option');
     }
+  } else if (subType === 'name-from-image') {
+    if (!isStr(payload.imageUrl) || !isStr(payload.instruction)) {
+      throw new BadRequestException('Name from Image needs imageUrl and instruction');
+    }
+    if (!isOptionArr(payload.options, ['id', 'label', 'isCorrect'])) {
+      throw new BadRequestException('Name from Image needs at least one option');
+    }
   }
 }
 
@@ -108,6 +117,7 @@ export class ExercisesService {
       const rows = dto.exercises.map((input) =>
         repo.create({
           lessonId,
+          category: input.category,
           subType: input.subType,
           orderIndex: input.orderIndex,
           payload: input.payload,

@@ -1,6 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { HeroCard } from '../../src/components/dashboard/HeroCard';
 import { LessonCardActive } from '../../src/components/dashboard/LessonCardActive';
 import { LessonCardLocked } from '../../src/components/dashboard/LessonCardLocked';
@@ -41,11 +42,16 @@ export default function Home() {
             currentXp={30}
             targetXp={180}
             xpPerLesson={20}
+            onPress={() => router.push('/levels/beginner/1' as never)}
           />
           <LessonCardLocked level={2} unlockAt={180} />
         </View>
 
-        <Pressable style={styles.viewAll} hitSlop={8}>
+        <Pressable
+          style={styles.viewAll}
+          hitSlop={8}
+          onPress={() => router.push('/levels' as never)}
+        >
           <Text style={styles.viewAllText}>View all levels</Text>
           <Ionicons name="chevron-forward" size={14} color={colors.neutral} />
         </Pressable>

@@ -9,6 +9,7 @@ import { ExercisesModule } from './modules/exercises/exercises.module';
 import { FeedbackModule } from './modules/feedback/feedback.module';
 import { LessonEntriesModule } from './modules/lesson-entries/lesson-entries.module';
 import { LessonsModule } from './modules/lessons/lessons.module';
+import { ProgressModule } from './modules/progress/progress.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { UsersModule } from './modules/users/users.module';
@@ -33,6 +34,7 @@ import { UsersModule } from './modules/users/users.module';
     LessonsModule,
     ExercisesModule,
     LessonEntriesModule,
+    ProgressModule,
     SettingsModule,
     FeedbackModule,
     UploadsModule,

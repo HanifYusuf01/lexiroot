@@ -5,12 +5,18 @@ import {
   IsIn,
   IsInt,
   IsObject,
+  IsOptional,
+  IsUUID,
   Min,
   ValidateNested,
 } from 'class-validator';
 import { LESSON_ENTRY_KINDS, type LessonEntryKind } from '@lexiroot/shared';
 
 export class LessonEntryInputDto {
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @IsIn(LESSON_ENTRY_KINDS as readonly string[])
   kind!: LessonEntryKind;
 

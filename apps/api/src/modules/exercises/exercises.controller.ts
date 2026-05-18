@@ -14,8 +14,7 @@ import { ExercisesService } from './exercises.service';
 import { ReplaceExercisesDto } from './dto/replace-exercises.dto';
 
 @Controller('lessons/:lessonId/exercises')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('admin')
+@UseGuards(JwtAuthGuard)
 export class ExercisesController {
   constructor(private readonly exercises: ExercisesService) {}
 
@@ -25,6 +24,8 @@ export class ExercisesController {
   }
 
   @Put()
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   replace(
     @Param('lessonId', new ParseUUIDPipe()) lessonId: string,
     @Body() dto: ReplaceExercisesDto,

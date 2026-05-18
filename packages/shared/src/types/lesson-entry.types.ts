@@ -2,6 +2,7 @@ export const LESSON_ENTRY_KINDS = [
   'vocabulary',
   'sentence',
   'letter',
+  'number',
   'recognition-item',
 ] as const;
 export type LessonEntryKind = (typeof LESSON_ENTRY_KINDS)[number];
@@ -24,6 +25,14 @@ export interface LetterEntryPayload {
   audioUrl: string;
 }
 
+export interface NumberEntryPayload {
+  /** Numeral in the lesson's target language (e.g. Yoruba: "Èèjì"). */
+  value: string;
+  /** Translation in the learner's UI language (e.g. English: "Two"). */
+  translation: string;
+  audioUrl: string;
+}
+
 export interface RecognitionItemPayload {
   word: string;
   imageUrl: string;
@@ -34,6 +43,7 @@ export type LessonEntryPayloadMap = {
   vocabulary: VocabularyEntryPayload;
   sentence: SentenceEntryPayload;
   letter: LetterEntryPayload;
+  number: NumberEntryPayload;
   'recognition-item': RecognitionItemPayload;
 };
 

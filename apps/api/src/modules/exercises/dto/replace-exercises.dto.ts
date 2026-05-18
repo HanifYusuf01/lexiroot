@@ -5,12 +5,26 @@ import {
   IsIn,
   IsInt,
   IsObject,
+  IsOptional,
+  IsUUID,
   Min,
   ValidateNested,
 } from 'class-validator';
-import { EXERCISE_SUB_TYPES, type ExerciseSubType } from '@lexiroot/shared';
+import {
+  EXERCISE_CATEGORIES,
+  EXERCISE_SUB_TYPES,
+  type ExerciseCategory,
+  type ExerciseSubType,
+} from '@lexiroot/shared';
 
 export class ExerciseInputDto {
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
+  @IsIn(EXERCISE_CATEGORIES as readonly string[])
+  category!: ExerciseCategory;
+
   @IsIn(EXERCISE_SUB_TYPES as readonly string[])
   subType!: ExerciseSubType;
 
