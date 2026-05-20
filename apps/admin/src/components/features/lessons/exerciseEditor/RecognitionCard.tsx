@@ -1,5 +1,6 @@
 import { CheckCircle2, Plus, Trash2 } from 'lucide-react';
 import type { ImageOptionItem, RecognitionPayload } from '@lexiroot/shared';
+import { YorubaInput } from '../../../ui/YorubaInput';
 import { MediaUploader } from './MediaUploader';
 
 interface Props {
@@ -40,24 +41,22 @@ export function RecognitionCard({ value, onChange }: Props) {
           <label className="mb-1.5 block text-xs font-semibold text-neutral">
             Word (Yoruba) <span className="text-primary">*</span>
           </label>
-          <input
-            type="text"
+          <YorubaInput
             value={value.word}
-            onChange={(e) => onChange({ ...value, word: e.target.value })}
+            onChange={(next) => onChange({ ...value, word: next })}
             placeholder="Iwe"
-            className="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
+            inputClassName="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
           />
         </div>
         <div>
           <label className="mb-1.5 block text-xs font-semibold text-neutral">
             Question Instruction
           </label>
-          <input
-            type="text"
+          <YorubaInput
             value={value.instruction}
-            onChange={(e) => onChange({ ...value, instruction: e.target.value })}
+            onChange={(next) => onChange({ ...value, instruction: next })}
             placeholder="Select the correct image"
-            className="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
+            inputClassName="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
           />
         </div>
       </div>

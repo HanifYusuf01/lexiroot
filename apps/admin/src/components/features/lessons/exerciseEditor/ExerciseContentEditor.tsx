@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import {
   EXERCISE_CATEGORIES,
@@ -22,6 +22,8 @@ import { NameFromImageCard } from './NameFromImageCard';
 interface Props {
   value: ExerciseInput[];
   onChange: (next: ExerciseInput[]) => void;
+  /** When set, hide the category tab row and only author exercises of this one category. */
+  restrictToCategory?: ExerciseCategory;
 }
 
 const CATEGORY_DESCRIPTIONS: Record<ExerciseCategory, string> = {
@@ -83,8 +85,15 @@ function defaultSubTypeFor(category: ExerciseCategory): ExerciseSubType {
   return EXERCISE_CATEGORY_SUB_TYPES[category][0] as ExerciseSubType;
 }
 
-export function ExerciseContentEditor({ value, onChange }: Props) {
-  const [activeCategory, setActiveCategory] = useState<ExerciseCategory>('letters-numbers');
+export function ExerciseContentEditor({ value, onChange, restrictToCategory }: Props) {
+  const [activeCategory, setActiveCategory] = useState<ExerciseCategory>(
+    restrictToCategory ?? 'letters-numbers',
+  );
+  useEffect(() => {
+    if (restrictToCategory && activeCategory !== restrictToCategory) {
+      setActiveCategory(restrictToCategory);
+    }
+  }, [restrictToCategory, activeCategory]);
 
   const indexed = useMemo(
     () => value.map((ex, originalIndex) => ({ ex, originalIndex })),
@@ -135,37 +144,39 @@ export function ExerciseContentEditor({ value, onChange }: Props) {
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        {EXERCISE_CATEGORIES.map((cat) => {
-          const active = cat === activeCategory;
-          const count = value.filter((ex) => ex.category === cat).length;
-          return (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => setActiveCategory(cat)}
-              className={`inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-semibold transition ${
-                active
-                  ? 'border-primary-border bg-primary-softer text-primary'
-                  : 'border-border bg-white text-neutral hover:bg-neutral-soft'
-              }`}
-            >
-              {EXERCISE_CATEGORY_LABELS[cat]}
-              {count > 0 ? (
-                <span
-                  className={`rounded-full px-1.5 text-[10px] font-bold ${
-                    active
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-neutral-soft text-neutral-variant'
-                  }`}
-                >
-                  {count}
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
+      {restrictToCategory ? null : (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {EXERCISE_CATEGORIES.map((cat) => {
+            const active = cat === activeCategory;
+            const count = value.filter((ex) => ex.category === cat).length;
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setActiveCategory(cat)}
+                className={`inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-semibold transition ${
+                  active
+                    ? 'border-primary-border bg-primary-softer text-primary'
+                    : 'border-border bg-white text-neutral hover:bg-neutral-soft'
+                }`}
+              >
+                {EXERCISE_CATEGORY_LABELS[cat]}
+                {count > 0 ? (
+                  <span
+                    className={`rounded-full px-1.5 text-[10px] font-bold ${
+                      active
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-neutral-soft text-neutral-variant'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      )}
       <p className="mb-4 text-xs text-neutral-variant">
         {CATEGORY_DESCRIPTIONS[activeCategory]}
       </p>

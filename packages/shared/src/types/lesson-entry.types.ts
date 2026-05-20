@@ -35,6 +35,7 @@ export interface NumberEntryPayload {
 
 export interface RecognitionItemPayload {
   word: string;
+  meaning: string;
   imageUrl: string;
   audioUrl: string;
 }

@@ -7,6 +7,7 @@ import { ExerciseLessonHeader } from '../../components/exercise/ExerciseLessonHe
 import { ExerciseTopBar } from '../../components/exercise/ExerciseTopBar';
 import { OptionCard } from '../../components/exercise/OptionCard';
 import { PlayButton } from '../../components/exercise/PlayButton';
+import { useAudioPlayback } from '../../hooks/useAudioPlayback';
 import { colors, fonts, spacing, type SkillTheme } from '../../constants/theme';
 
 interface ListenSelectOption {
@@ -23,7 +24,7 @@ interface ListenSelectExerciseProps {
   progress: number;
   xpReward: number;
   instruction?: string;
-  onPlay?: () => void;
+  audioUrl?: string | null;
   onContinue?: (wasCorrect: boolean) => void;
   onClose?: () => void;
 }
@@ -39,12 +40,13 @@ export function ListenSelectExercise({
   progress,
   xpReward,
   instruction,
-  onPlay,
+  audioUrl,
   onContinue,
   onClose,
 }: ListenSelectExerciseProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>('answering');
+  const audio = useAudioPlayback(audioUrl);
 
   const handleCheck = () => {
     if (!selectedId) return;
@@ -100,7 +102,7 @@ export function ListenSelectExercise({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.playRow}>
-          <PlayButton theme={theme} onPress={onPlay} />
+          <PlayButton theme={theme} onPress={audio.play} isPlaying={audio.isPlaying} />
         </View>
 
         {instruction ? (

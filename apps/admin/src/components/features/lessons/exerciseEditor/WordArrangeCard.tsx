@@ -1,5 +1,6 @@
 import { Plus, X } from 'lucide-react';
 import type { WordArrangePayload, WordArrangeTile } from '@lexiroot/shared';
+import { YorubaInput } from '../../../ui/YorubaInput';
 
 interface Props {
   value: WordArrangePayload;
@@ -39,24 +40,22 @@ export function WordArrangeCard({ value, onChange }: Props) {
           <label className="mb-1.5 block text-xs font-semibold text-neutral">
             Sentence (Yoruba) <span className="text-primary">*</span>
           </label>
-          <input
-            type="text"
+          <YorubaInput
             value={value.sentence}
-            onChange={(e) => onChange({ ...value, sentence: e.target.value })}
+            onChange={(next) => onChange({ ...value, sentence: next })}
             placeholder="My name is Akande."
-            className="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
+            inputClassName="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
           />
         </div>
         <div>
           <label className="mb-1.5 block text-xs font-semibold text-neutral">
             Question Instruction
           </label>
-          <input
-            type="text"
+          <YorubaInput
             value={value.instruction}
-            onChange={(e) => onChange({ ...value, instruction: e.target.value })}
+            onChange={(next) => onChange({ ...value, instruction: next })}
             placeholder="Arrange the sentence"
-            className="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
+            inputClassName="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
           />
         </div>
       </div>
@@ -65,12 +64,11 @@ export function WordArrangeCard({ value, onChange }: Props) {
         <label className="mb-1.5 block text-xs font-semibold text-neutral">
           Correct Answer <span className="text-primary">*</span>
         </label>
-        <input
-          type="text"
+        <YorubaInput
           value={value.correctAnswer}
-          onChange={(e) => onChange({ ...value, correctAnswer: e.target.value })}
+          onChange={(next) => onChange({ ...value, correctAnswer: next })}
           placeholder="Orúkọ mi ni Akande"
-          className="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
+          inputClassName="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
         />
       </div>
 
@@ -98,12 +96,13 @@ export function WordArrangeCard({ value, onChange }: Props) {
                   : 'border-border bg-white text-neutral-variant'
               }`}
             >
-              <input
-                type="text"
+              <YorubaInput
                 value={tile.label}
-                onChange={(e) => setTileLabel(tile.id, e.target.value)}
+                onChange={(next) => setTileLabel(tile.id, next)}
                 placeholder="word"
-                className="w-20 bg-transparent text-sm font-semibold outline-none placeholder:text-neutral-variant/60"
+                hideTrigger
+                className="w-20"
+                inputClassName="w-full bg-transparent text-sm font-semibold outline-none placeholder:text-neutral-variant/60"
               />
               <button
                 type="button"

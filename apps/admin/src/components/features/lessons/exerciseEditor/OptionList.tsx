@@ -1,5 +1,6 @@
 import { CheckCircle2, Plus, Trash2 } from 'lucide-react';
 import type { OptionItem } from '@lexiroot/shared';
+import { YorubaInput } from '../../../ui/YorubaInput';
 
 interface Props {
   options: OptionItem[];
@@ -64,12 +65,12 @@ export function OptionList({ options, onChange, addLabel = 'Add Option', placeho
                 <span className="h-4 w-4 rounded-full border-2 border-border" />
               )}
             </button>
-            <input
-              type="text"
+            <YorubaInput
               value={opt.label}
-              onChange={(e) => setLabel(opt.id, e.target.value)}
+              onChange={(next) => setLabel(opt.id, next)}
               placeholder={placeholder}
-              className="flex-1 bg-transparent text-sm text-neutral outline-none placeholder:text-neutral-variant"
+              className="flex-1"
+              inputClassName="w-full bg-transparent text-sm text-neutral outline-none placeholder:text-neutral-variant"
             />
             {opt.isCorrect ? (
               <span className="text-xs font-semibold text-success">✓ Correct</span>

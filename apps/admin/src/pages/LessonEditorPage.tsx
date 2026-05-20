@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, Eye } from 'lucide-react';
 import {
   DURATION_BUCKETS,
@@ -11,6 +11,7 @@ import {
   LESSON_TYPES,
   LESSON_TYPE_LABELS,
   type DurationBucket,
+  type ExerciseCategory,
   type ExerciseInput,
   type LanguageCode,
   type LessonEntryInput,
@@ -34,6 +35,7 @@ import {
   useReplaceEntriesMutation,
 } from '../services/lessonEntriesApi';
 import { LessonSummaryCard } from '../components/features/lessons/LessonSummaryCard';
+import { YorubaShortcutsHelp } from '../components/features/lessons/YorubaShortcutsHelp';
 import { ExerciseContentEditor } from '../components/features/lessons/exerciseEditor/ExerciseContentEditor';
 import { VocabularyEditor } from '../components/features/lessons/contentEditors/VocabularyEditor';
 import { SentenceEditor } from '../components/features/lessons/contentEditors/SentenceEditor';
@@ -43,6 +45,14 @@ import { RecognitionItemsEditor } from '../components/features/lessons/contentEd
 const EMPTY_RECOGNITION_PROMPT: RecognitionPromptMeta = { audioUrl: '', instruction: '' };
 
 const DESCRIPTION_MAX = 200;
+
+function lessonTypeToExerciseCategory(type: LessonType): ExerciseCategory | undefined {
+  if (type === 'letters-numbers') return 'letters-numbers';
+  if (type === 'vocabulary') return 'vocabulary';
+  if (type === 'recognition') return 'recognition';
+  if (type === 'sentence') return 'sentence';
+  return undefined;
+}
 
 interface FormState {
   language: LanguageCode;
@@ -85,6 +95,11 @@ export function LessonEditorPage() {
   const { id } = useParams<{ id?: string }>();
   const isEditing = !!id;
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const presetType = useMemo<LessonType | null>(() => {
+    const raw = searchParams.get('type');
+    return raw && (LESSON_TYPES as readonly string[]).includes(raw) ? (raw as LessonType) : null;
+  }, [searchParams]);
   const { data: existing, isLoading: loadingLesson } = useGetLessonQuery(id!, { skip: !id });
   const { data: existingExercises } = useListExercisesQuery(id!, { skip: !id });
   const { data: existingEntries } = useListEntriesQuery(id!, { skip: !id });
@@ -93,7 +108,10 @@ export function LessonEditorPage() {
   const [replaceExercises, { isLoading: savingExercises }] = useReplaceExercisesMutation();
   const [replaceEntries, { isLoading: savingEntries }] = useReplaceEntriesMutation();
 
-  const [form, setForm] = useState<FormState>(DEFAULT_FORM);
+  const [form, setForm] = useState<FormState>(() => ({
+    ...DEFAULT_FORM,
+    type: presetType ?? DEFAULT_FORM.type,
+  }));
   const [exercises, setExercises] = useState<ExerciseInput[]>([]);
   const [vocabulary, setVocabulary] = useState<LessonEntryInput<'vocabulary'>[]>([]);
   const [sentences, setSentences] = useState<LessonEntryInput<'sentence'>[]>([]);
@@ -240,7 +258,7 @@ export function LessonEditorPage() {
         const created = await createLesson(payload).unwrap();
         lessonId = created.id;
       }
-      if (lessonId && payload.type === 'exercise') {
+      if (lessonId) {
         await replaceExercises({
           lessonId,
           exercises: exercises.map((ex, i) => ({
@@ -420,12 +438,26 @@ export function LessonEditorPage() {
 
           <Section title="2. Lesson Settings" description="Configure how this lesson will behave in the app">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Lesson Type" required>
-                <NativeSelect
-                  value={form.type}
-                  onChange={(v) => update('type', v as LessonType)}
-                  options={LESSON_TYPES.map((t) => ({ value: t, label: LESSON_TYPE_LABELS[t] }))}
-                />
+              <Field
+                label="Lesson Type"
+                required
+                hint={
+                  isEditing
+                    ? 'Lesson type is fixed after creation. Create a new lesson for a different skill.'
+                    : undefined
+                }
+              >
+                {isEditing ? (
+                  <div className="flex h-10 items-center rounded-lg border border-border bg-neutral-soft/40 px-3 text-sm font-semibold text-neutral">
+                    {LESSON_TYPE_LABELS[form.type]}
+                  </div>
+                ) : (
+                  <NativeSelect
+                    value={form.type}
+                    onChange={(v) => update('type', v as LessonType)}
+                    options={LESSON_TYPES.map((t) => ({ value: t, label: LESSON_TYPE_LABELS[t] }))}
+                  />
+                )}
               </Field>
               <Field label="Speech Required" required>
                 <Toggle
@@ -458,30 +490,52 @@ export function LessonEditorPage() {
             </Field>
           </Section>
 
-          <Section title="3. Lesson Content" description="Add the learning content and activities">
-            {form.type === 'exercise' ? (
+          {form.type === 'exercise' ? (
+            <Section title="3. Lesson Content" description="Build the exercises for this lesson">
+              <YorubaShortcutsHelp />
               <ExerciseContentEditor value={exercises} onChange={setExercises} />
-            ) : form.type === 'vocabulary' ? (
-              <VocabularyEditor value={vocabulary} onChange={setVocabulary} />
-            ) : form.type === 'sentence' ? (
-              <SentenceEditor value={sentences} onChange={setSentences} />
-            ) : form.type === 'letters-numbers' ? (
-              <LettersNumbersEditor
-                language={form.language}
-                letters={letters}
-                onLettersChange={setLetters}
-                numbers={numbers}
-                onNumbersChange={setNumbers}
-              />
-            ) : (
-              <RecognitionItemsEditor
-                prompt={recognitionPrompt}
-                onPromptChange={setRecognitionPrompt}
-                items={recognitionItems}
-                onItemsChange={setRecognitionItems}
-              />
-            )}
-          </Section>
+            </Section>
+          ) : (
+            <>
+              <Section
+                title="3a. Source Content"
+                description="The learning material learners will study before practicing"
+              >
+                <YorubaShortcutsHelp />
+                {form.type === 'vocabulary' ? (
+                  <VocabularyEditor value={vocabulary} onChange={setVocabulary} />
+                ) : form.type === 'sentence' ? (
+                  <SentenceEditor value={sentences} onChange={setSentences} />
+                ) : form.type === 'letters-numbers' ? (
+                  <LettersNumbersEditor
+                    language={form.language}
+                    letters={letters}
+                    onLettersChange={setLetters}
+                    numbers={numbers}
+                    onNumbersChange={setNumbers}
+                  />
+                ) : (
+                  <RecognitionItemsEditor
+                    prompt={recognitionPrompt}
+                    onPromptChange={setRecognitionPrompt}
+                    items={recognitionItems}
+                    onItemsChange={setRecognitionItems}
+                  />
+                )}
+              </Section>
+
+              <Section
+                title="3b. Practice Exercises"
+                description="The questions learners will answer in this lesson"
+              >
+                <ExerciseContentEditor
+                  value={exercises}
+                  onChange={setExercises}
+                  restrictToCategory={lessonTypeToExerciseCategory(form.type)}
+                />
+              </Section>
+            </>
+          )}
 
           {errors.general ? (
             <div className="rounded-lg border border-error/30 bg-error/5 px-4 py-3 text-sm text-error">
@@ -556,12 +610,14 @@ function Field({
   label,
   required,
   error,
+  hint,
   children,
   className,
 }: {
   label: string;
   required?: boolean;
   error?: string;
+  hint?: string;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -573,6 +629,7 @@ function Field({
       </label>
       {children}
       {error ? <p className="mt-1 text-xs text-error">{error}</p> : null}
+      {!error && hint ? <p className="mt-1 text-[11px] text-neutral-variant">{hint}</p> : null}
     </div>
   );
 }

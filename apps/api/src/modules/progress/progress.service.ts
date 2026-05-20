@@ -1,9 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import type { LessonProgressState } from '@lexiroot/shared';
 import { Lesson } from '../lessons/entities/lesson.entity';
 import { User } from '../users/entities/user.entity';
+import { UpsertLessonProgressDto } from './dto/upsert-lesson-progress.dto';
 import { LessonCompletion } from './entities/lesson-completion.entity';
+import { LessonProgress } from './entities/lesson-progress.entity';
 
 export interface ProgressSummary {
   streak: number;
@@ -27,11 +30,27 @@ function isPrevUtcDay(prev: Date, today: Date): boolean {
   return diff === oneDayMs;
 }
 
+function toProgressState(row: LessonProgress): LessonProgressState {
+  return {
+    tier: row.tier,
+    level: row.level,
+    subIdx: row.subIdx,
+    subLessonId: row.subLessonId,
+    stepKind: row.stepKind,
+    stepIndex: row.stepIndex,
+    correctCount: row.correctCount,
+    xp: row.xp,
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
 @Injectable()
 export class ProgressService {
   constructor(
     @InjectRepository(LessonCompletion)
     private readonly completions: Repository<LessonCompletion>,
+    @InjectRepository(LessonProgress)
+    private readonly progress: Repository<LessonProgress>,
     @InjectRepository(Lesson)
     private readonly lessons: Repository<Lesson>,
     @InjectRepository(User)
@@ -39,6 +58,49 @@ export class ProgressService {
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) {}
+
+  async getActiveProgress(userId: string): Promise<LessonProgressState | null> {
+    const row = await this.progress.findOne({
+      where: { userId },
+      order: { updatedAt: 'DESC' },
+    });
+    return row ? toProgressState(row) : null;
+  }
+
+  async upsertProgress(
+    userId: string,
+    dto: UpsertLessonProgressDto,
+  ): Promise<LessonProgressState> {
+    const existing = await this.progress.findOne({
+      where: { userId, tier: dto.tier, level: dto.level },
+    });
+    const row = existing
+      ? await this.progress.save({
+          ...existing,
+          subIdx: dto.subIdx,
+          subLessonId: dto.subLessonId ?? null,
+          stepKind: dto.stepKind,
+          stepIndex: dto.stepIndex,
+          correctCount: dto.correctCount,
+          xp: dto.xp,
+        })
+      : await this.progress.save({
+          userId,
+          tier: dto.tier,
+          level: dto.level,
+          subIdx: dto.subIdx,
+          subLessonId: dto.subLessonId ?? null,
+          stepKind: dto.stepKind,
+          stepIndex: dto.stepIndex,
+          correctCount: dto.correctCount,
+          xp: dto.xp,
+        });
+    return toProgressState(row);
+  }
+
+  async clearProgress(userId: string, tier: string, level: number): Promise<void> {
+    await this.progress.delete({ userId, tier, level });
+  }
 
   async summary(userId: string): Promise<ProgressSummary> {
     const user = await this.users.findOne({ where: { id: userId } });

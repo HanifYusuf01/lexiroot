@@ -96,6 +96,7 @@ export class LessonsService {
     if (query.tier) qb.andWhere('lesson.tier = :tier', { tier: query.tier });
     if (query.level) qb.andWhere('lesson.level = :level', { level: query.level });
     if (query.status) qb.andWhere('lesson.status = :status', { status: query.status });
+    if (query.type) qb.andWhere('lesson.type = :type', { type: query.type });
 
     const [rows, total] = await qb
       .orderBy('lesson.createdAt', 'DESC')

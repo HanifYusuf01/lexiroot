@@ -4,9 +4,11 @@ import {
   LANGUAGE_CODES,
   LEARNING_LEVELS,
   LESSON_STATUSES,
+  LESSON_TYPES,
   type LanguageCode,
   type LearningLevel,
   type LessonStatus,
+  type LessonType,
 } from '@lexiroot/shared';
 
 export class ListLessonsQueryDto {
@@ -45,4 +47,8 @@ export class ListLessonsQueryDto {
   @IsOptional()
   @IsIn(LESSON_STATUSES as readonly string[])
   status?: LessonStatus;
+
+  @IsOptional()
+  @IsIn(LESSON_TYPES as readonly string[])
+  type?: LessonType;
 }

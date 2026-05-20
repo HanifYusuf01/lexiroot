@@ -1,4 +1,5 @@
 import type { CorrectMeaningPayload } from '@lexiroot/shared';
+import { YorubaInput } from '../../../ui/YorubaInput';
 import { OptionList } from './OptionList';
 
 interface Props {
@@ -14,24 +15,22 @@ export function CorrectMeaningCard({ value, onChange }: Props) {
           <label className="mb-1.5 block text-xs font-semibold text-neutral">
             Word/sentence <span className="text-primary">*</span>
           </label>
-          <input
-            type="text"
+          <YorubaInput
             value={value.prompt}
-            onChange={(e) => onChange({ ...value, prompt: e.target.value })}
+            onChange={(next) => onChange({ ...value, prompt: next })}
             placeholder="E Kaaro"
-            className="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
+            inputClassName="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
           />
         </div>
         <div>
           <label className="mb-1.5 block text-xs font-semibold text-neutral">
             Question Instruction
           </label>
-          <input
-            type="text"
+          <YorubaInput
             value={value.instruction}
-            onChange={(e) => onChange({ ...value, instruction: e.target.value })}
+            onChange={(next) => onChange({ ...value, instruction: next })}
             placeholder="What does this greeting mean?"
-            className="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
+            inputClassName="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
           />
         </div>
       </div>

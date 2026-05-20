@@ -234,6 +234,7 @@ function renderExercise(
         skillTitle={skillTitle}
         level={level}
         instruction={p.instruction}
+        audioUrl={p.audioUrl}
         options={p.options.map((o) => ({ id: o.id, label: o.label }))}
         correctId={findCorrectId(p.options)}
         progress={progress}

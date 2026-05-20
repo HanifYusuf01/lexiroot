@@ -10,7 +10,6 @@ import { createPortal } from 'react-dom';
  *    map to a Yoruba glyph and replace the two-char sequence in place:
  *      - `/` after a vowel → high tone (acute):  a/ → á  e/ → é  i/ → í  o/ → ó  u/ → ú
  *      - `\` after a vowel → low  tone (grave):  a\ → à  e\ → è  i\ → ì  o\ → ò  u\ → ù
- *      - `-` after a vowel → mid  tone (macron): a- → ā  e- → ē  i- → ī  o- → ō  u- → ū
  *      - `.` after e/o/s → sub-dot:              e. → ẹ  o. → ọ  s. → ṣ
  *      - Capital forms apply identically (A/ → Á, etc.).
  *
@@ -30,6 +29,8 @@ interface YorubaInputProps {
   rows?: number;
   disabled?: boolean;
   inputClassName?: string;
+  /** When true, hide the "Á" palette button — only keystroke shortcuts work. */
+  hideTrigger?: boolean;
 }
 
 const SHORTCUTS: Record<string, string> = {
@@ -65,17 +66,6 @@ const SHORTCUTS: Record<string, string> = {
   'I;': 'Ì',
   'O;': 'Ò',
   'U;': 'Ù',
-  // macron / mid  (-)
-  'a-': 'ā',
-  'e-': 'ē',
-  'i-': 'ī',
-  'o-': 'ō',
-  'u-': 'ū',
-  'A-': 'Ā',
-  'E-': 'Ē',
-  'I-': 'Ī',
-  'O-': 'Ō',
-  'U-': 'Ū',
   // sub-dot  (.)
   'e.': 'ẹ',
   'o.': 'ọ',
@@ -90,33 +80,27 @@ const SHORTCUTS: Record<string, string> = {
   'ọ\\': 'ọ̀',
   'ẹ;': 'ẹ̀',
   'ọ;': 'ọ̀',
-  'ẹ-': 'ẹ̄',
-  'ọ-': 'ọ̄',
   'Ẹ/': 'Ẹ́',
   'Ọ/': 'Ọ́',
   'Ẹ\\': 'Ẹ̀',
   'Ọ\\': 'Ọ̀',
   'Ẹ;': 'Ẹ̀',
   'Ọ;': 'Ọ̀',
-  'Ẹ-': 'Ẹ̄',
-  'Ọ-': 'Ọ̄',
 };
 
 const PALETTE_LOWER: string[][] = [
-  ['á', 'à', 'ā', 'é', 'è', 'ē'],
-  ['í', 'ì', 'ī', 'ó', 'ò', 'ō'],
-  ['ú', 'ù', 'ū', 'ẹ', 'ọ', 'ṣ'],
-  ['ẹ́', 'ẹ̀', 'ẹ̄', 'ọ́', 'ọ̀', 'ọ̄'],
+  ['á', 'à', 'é', 'è', 'í', 'ì'],
+  ['ó', 'ò', 'ú', 'ù', 'ẹ', 'ọ'],
+  ['ṣ', 'ẹ́', 'ẹ̀', 'ọ́', 'ọ̀'],
 ];
 
 const PALETTE_UPPER: string[][] = [
-  ['Á', 'À', 'Ā', 'É', 'È', 'Ē'],
-  ['Í', 'Ì', 'Ī', 'Ó', 'Ò', 'Ō'],
-  ['Ú', 'Ù', 'Ū', 'Ẹ', 'Ọ', 'Ṣ'],
-  ['Ẹ́', 'Ẹ̀', 'Ẹ̄', 'Ọ́', 'Ọ̀', 'Ọ̄'],
+  ['Á', 'À', 'É', 'È', 'Í', 'Ì'],
+  ['Ó', 'Ò', 'Ú', 'Ù', 'Ẹ', 'Ọ'],
+  ['Ṣ', 'Ẹ́', 'Ẹ̀', 'Ọ́', 'Ọ̀'],
 ];
 
-const TRIGGER_KEYS = new Set(['/', '\\', ';', '-', '.']);
+const TRIGGER_KEYS = new Set(['/', '\\', ';', '.']);
 
 export function YorubaInput({
   value,
@@ -127,6 +111,7 @@ export function YorubaInput({
   rows = 3,
   disabled,
   inputClassName,
+  hideTrigger,
 }: YorubaInputProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -252,17 +237,19 @@ export function YorubaInput({
           className={sharedInputClass}
         />
       )}
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        disabled={disabled}
-        title="Insert Yoruba character"
-        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-white text-sm font-bold text-neutral hover:bg-neutral-soft disabled:opacity-50"
-        style={popoverButtonStyle}
-      >
-        Á
-      </button>
+      {hideTrigger ? null : (
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          disabled={disabled}
+          title="Insert Yoruba character"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-white text-sm font-bold text-neutral hover:bg-neutral-soft disabled:opacity-50"
+          style={popoverButtonStyle}
+        >
+          Á
+        </button>
+      )}
       {open
         ? createPortal(
             <div
@@ -315,7 +302,7 @@ export function YorubaInput({
               <div className="mt-2 border-t border-border pt-1.5 text-[10px] leading-snug text-neutral-variant">
                 Shortcuts after a letter:
                 <br />
-                <span className="font-semibold">/</span> á · <span className="font-semibold">; or \</span> à · <span className="font-semibold">-</span> ā · <span className="font-semibold">.</span> ẹ ọ ṣ
+                <span className="font-semibold">/</span> á · <span className="font-semibold">; or \</span> à · <span className="font-semibold">.</span> ẹ ọ ṣ
               </div>
             </div>,
             document.body,

@@ -8,6 +8,7 @@ import {
   type LanguageCode,
   type LearningLevel,
   type LessonStatus,
+  type LessonType,
 } from '@lexiroot/shared';
 import { Badge } from '../components/ui/Badge';
 import {
@@ -43,6 +44,17 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'draft', label: 'Drafts' },
 ];
 
+type SkillTab = 'all' | LessonType;
+
+const SKILL_TABS: { value: SkillTab; label: string }[] = [
+  { value: 'all', label: 'All skills' },
+  { value: 'letters-numbers', label: 'Letters & Numbers' },
+  { value: 'vocabulary', label: 'Vocabulary' },
+  { value: 'recognition', label: 'Recognition' },
+  { value: 'sentence', label: 'Sentence' },
+  { value: 'exercise', label: 'Exercise' },
+];
+
 function statusBadge(status: LessonStatus) {
   const tone = status === 'published' ? 'success' : status === 'draft' ? 'warning' : 'neutral';
   return <Badge tone={tone}>{LESSON_STATUS_LABELS[status]}</Badge>;
@@ -50,6 +62,7 @@ function statusBadge(status: LessonStatus) {
 
 export function LessonsPage() {
   const [tab, setTab] = useState<Tab>('all');
+  const [skillTab, setSkillTab] = useState<SkillTab>('all');
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState('');
   const debouncedSearch = useDebounce(searchInput.trim(), 400);
@@ -58,12 +71,18 @@ export function LessonsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, language, tier, tab]);
+  }, [debouncedSearch, language, tier, tab, skillTab]);
 
   const status = useMemo<LessonStatus | undefined>(() => {
     if (tab === 'all') return undefined;
     return tab;
   }, [tab]);
+
+  const typeFilter = useMemo<LessonType | undefined>(() => {
+    return skillTab === 'all' ? undefined : skillTab;
+  }, [skillTab]);
+
+  const createHref = skillTab === 'all' ? '/lessons/new' : `/lessons/new?type=${skillTab}`;
 
   const { data, isLoading, isFetching } = useListLessonsQuery({
     page,
@@ -72,6 +91,7 @@ export function LessonsPage() {
     language,
     tier,
     status,
+    type: typeFilter,
   });
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
@@ -91,7 +111,7 @@ export function LessonsPage() {
               onTierChange={setTier}
             />
             <Link
-              to="/lessons/new"
+              to={createHref}
               className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-bold text-primary-foreground hover:opacity-90"
             >
               <Plus size={16} />
@@ -102,6 +122,26 @@ export function LessonsPage() {
       />
 
       <LessonStatsCards />
+
+      <div className="flex flex-wrap items-center gap-2">
+        {SKILL_TABS.map((t) => {
+          const active = skillTab === t.value;
+          return (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => setSkillTab(t.value)}
+              className={`inline-flex h-9 items-center rounded-full border px-3 text-xs font-semibold transition ${
+                active
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-white text-neutral hover:bg-neutral-soft'
+              }`}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
 
       <div className="border-b border-border">
         <div className="flex gap-6">

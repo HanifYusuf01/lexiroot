@@ -5,4 +5,5 @@ export * from './types/lesson-entry.types';
 export * from './types/gamification.types';
 export * from './types/progress.types';
 export * from './types/subscription.types';
+export * from './types/analytics.types';
 export * from './constants';

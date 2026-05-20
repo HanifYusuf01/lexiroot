@@ -68,6 +68,9 @@ function validatePayload(kind: LessonEntryKind, payload: Record<string, unknown>
     if (typeof payload.audioUrl !== 'string') {
       throw new BadRequestException('Recognition item audioUrl must be a string');
     }
+    if (payload.meaning !== undefined && typeof payload.meaning !== 'string') {
+      throw new BadRequestException('Recognition item meaning must be a string');
+    }
   }
 }
 

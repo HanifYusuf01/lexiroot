@@ -16,7 +16,7 @@ interface Props {
 }
 
 function blankPayload(): RecognitionItemPayload {
-  return { word: '', imageUrl: '', audioUrl: '' };
+  return { word: '', meaning: '', imageUrl: '', audioUrl: '' };
 }
 
 export function RecognitionItemsEditor({
@@ -83,6 +83,7 @@ export function RecognitionItemsEditor({
             <thead className="bg-primary-softer/40">
               <tr className="text-left">
                 <th className="px-3 py-2 text-xs font-semibold text-neutral">Word (Yoruba)</th>
+                <th className="px-3 py-2 text-xs font-semibold text-neutral">Meaning (English)</th>
                 <th className="w-20 px-3 py-2 text-xs font-semibold text-neutral">Image</th>
                 <th className="w-32 px-3 py-2 text-xs font-semibold text-neutral">Audio</th>
                 <th className="w-16 px-3 py-2 text-right text-xs font-semibold text-neutral">
@@ -93,7 +94,7 @@ export function RecognitionItemsEditor({
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-xs text-neutral-variant">
+                  <td colSpan={5} className="px-4 py-6 text-center text-xs text-neutral-variant">
                     No recognition items yet. Click{' '}
                     <span className="font-semibold">Add</span> to start.
                   </td>
@@ -107,6 +108,15 @@ export function RecognitionItemsEditor({
                       onChange={(v) => patch(i, { word: v })}
                       placeholder="Ìwé"
                       inputClassName="h-8 w-full bg-transparent text-sm text-neutral outline-none placeholder:text-neutral-variant"
+                    />
+                  </td>
+                  <td className="px-3 py-2 align-middle">
+                    <input
+                      type="text"
+                      value={row.payload.meaning ?? ''}
+                      onChange={(e) => patch(i, { meaning: e.target.value })}
+                      placeholder="Book"
+                      className="h-8 w-full bg-transparent text-sm text-neutral outline-none placeholder:text-neutral-variant"
                     />
                   </td>
                   <td className="px-3 py-2 align-middle">

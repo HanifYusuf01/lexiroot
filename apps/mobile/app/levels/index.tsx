@@ -7,18 +7,32 @@ import { StreakBadge } from '../../src/components/dashboard/StreakBadge';
 import { Button } from '../../src/components/ui/Button';
 import { colors, fonts, radius, spacing } from '../../src/constants/theme';
 import { useAppSelector } from '../../src/store/hooks';
+import type { LessonType } from '@lexiroot/shared';
 import { useListLessonsQuery, type LessonRow } from '../../src/services/lessonsApi';
 
 const PRIMARY_TIER = 'beginner' as const;
 const UNLOCK_THRESHOLDS = [0, 180, 360, 540, 720, 900, 1080, 1260];
+
+// Curriculum order — matches the level player's sub-lesson sequence.
+const TYPE_PRIORITY: readonly LessonType[] = [
+  'letters-numbers',
+  'vocabulary',
+  'recognition',
+  'sentence',
+];
+const typeRank = (t: LessonType) => {
+  const i = TYPE_PRIORITY.indexOf(t);
+  return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+};
 
 export default function LevelsIndex() {
   const { data, isLoading } = useListLessonsQuery({ tier: PRIMARY_TIER, limit: 100 });
   const user = useAppSelector((s) => s.auth.user);
   const firstName = user?.displayName?.split(' ')[0] ?? 'there';
 
-  // Group lessons by level number — pick the first non-exercise lesson as the
-  // level's title row.
+  // Group lessons by level number — pick the priority-ranked first content
+  // lesson (letters-numbers → vocabulary → recognition → sentence) as the
+  // level's representative title row.
   const levels = useMemo(() => {
     const lessons = data?.items ?? [];
     const byLevel = new Map<number, LessonRow[]>();
@@ -29,7 +43,11 @@ export default function LevelsIndex() {
     }
     const entries = Array.from(byLevel.entries())
       .map(([level, list]) => {
-        const content = list.find((l) => l.type !== 'exercise') ?? list[0];
+        const ranked = list
+          .filter((l) => TYPE_PRIORITY.includes(l.type))
+          .slice()
+          .sort((a, b) => typeRank(a.type) - typeRank(b.type));
+        const content = ranked[0] ?? list[0];
         return { level, title: content?.title ?? `Level ${level}` };
       })
       .sort((a, b) => a.level - b.level);

@@ -1,4 +1,5 @@
 import type { ListenSelectPayload } from '@lexiroot/shared';
+import { YorubaInput } from '../../../ui/YorubaInput';
 import { AudioRecorder } from '../contentEditors/AudioRecorder';
 import { OptionList } from './OptionList';
 
@@ -14,12 +15,11 @@ export function ListenSelectCard({ value, onChange }: Props) {
         <label className="mb-1.5 block text-xs font-semibold text-neutral">
           Instruction Text
         </label>
-        <input
-          type="text"
+        <YorubaInput
           value={value.instruction}
-          onChange={(e) => onChange({ ...value, instruction: e.target.value })}
+          onChange={(next) => onChange({ ...value, instruction: next })}
           placeholder="Tap Play, then select the word you hear"
-          className="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
+          inputClassName="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
         />
       </div>
       <OptionList

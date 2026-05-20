@@ -19,3 +19,25 @@ export interface LessonCompletionResult {
   streak: number;
   totalXp: number;
 }
+
+// In-progress lesson state for the resume-mid-lesson flow.
+// Keyed per-user by (tier, level). One row per active level run.
+export type LessonStepKind =
+  | 'intro'
+  | 'content'
+  | 'practice-intro'
+  | 'exercise'
+  | 'almost-there'
+  | 'complete';
+
+export interface LessonProgressState {
+  tier: string;
+  level: number;
+  subIdx: number;
+  subLessonId: string | null;
+  stepKind: LessonStepKind;
+  stepIndex: number;
+  correctCount: number;
+  xp: number;
+  updatedAt: string;
+}

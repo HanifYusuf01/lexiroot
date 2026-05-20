@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LastActiveInterceptor } from './common/interceptors/last-active.interceptor';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { ExercisesModule } from './modules/exercises/exercises.module';
@@ -38,6 +39,7 @@ import { UsersModule } from './modules/users/users.module';
     SettingsModule,
     FeedbackModule,
     UploadsModule,
+    AnalyticsModule,
   ],
   providers: [
     {

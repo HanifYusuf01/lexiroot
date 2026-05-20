@@ -51,6 +51,7 @@ export interface ListLessonsArgs {
   tier?: LearningLevel;
   level?: number;
   status?: LessonStatus;
+  type?: LessonType;
 }
 
 export interface CreateLessonBody {

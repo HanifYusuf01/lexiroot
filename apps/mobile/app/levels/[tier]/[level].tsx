@@ -1,27 +1,34 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type {
   ExerciseRow,
   LearningLevel,
   LessonEntryRow,
+  LessonType,
   ListenSelectPayload,
   CorrectMeaningPayload,
+  NameFromImagePayload,
   RecognitionPayload,
   WordArrangePayload,
 } from '@lexiroot/shared';
 import { MascotIcon } from '../../../src/components/icons/MascotIcon';
+import { PadlockUnlockedIcon } from '../../../src/components/icons/PadlockUnlockedIcon';
 import { LessonContentCard } from '../../../src/components/lesson/LessonContentCard';
 import { LessonFullCenterScreen } from '../../../src/components/lesson/LessonFullCenterScreen';
 import { LessonProgressHeader } from '../../../src/components/lesson/LessonProgressHeader';
 import { Button } from '../../../src/components/ui/Button';
-import { CheckButton } from '../../../src/components/exercise/CheckButton';
-import { OptionCard } from '../../../src/components/exercise/OptionCard';
 import { PlayButton } from '../../../src/components/exercise/PlayButton';
-import { skillThemes, type SkillTheme } from '../../../src/constants/theme';
+import { CorrectMeaningExercise } from '../../../src/screens/practice/CorrectMeaningExercise';
+import { ListenSelectExercise } from '../../../src/screens/practice/ListenSelectExercise';
+import { NameFromImageExercise } from '../../../src/screens/practice/NameFromImageExercise';
+import { RecognitionExercise } from '../../../src/screens/practice/RecognitionExercise';
+import { WordArrangeExercise } from '../../../src/screens/practice/WordArrangeExercise';
+import { skillThemes, type SkillKey, type SkillTheme } from '../../../src/constants/theme';
 import { colors, fonts, radius, spacing } from '../../../src/constants/theme';
+import { useAudioPlayback } from '../../../src/hooks/useAudioPlayback';
 import { useAppSelector } from '../../../src/store/hooks';
 import {
   useListEntriesQuery,
@@ -29,6 +36,12 @@ import {
   useListLessonsQuery,
   type LessonRow,
 } from '../../../src/services/lessonsApi';
+import {
+  useClearLessonProgressMutation,
+  useCompleteLessonMutation,
+  useGetLessonProgressQuery,
+  useUpsertLessonProgressMutation,
+} from '../../../src/services/progressApi';
 
 type Step =
   | { kind: 'intro' }
@@ -68,8 +81,28 @@ const TIER_INTRO: Record<string, { title: string; body: string }> = {
 const FREE_TIER_CONTENT_LIMIT = 4;
 const FREE_TIER_EXERCISE_LIMIT = 4;
 
-function isFreeTrialBoundary(tier: LearningLevel, level: number): boolean {
-  return tier === 'beginner' && level === 1;
+function isFreeTrialBoundary(_tier: LearningLevel, _level: number): boolean {
+  // Subscription/paywall is bypassed during development — payments aren't wired up yet.
+  // Re-enable: return tier === 'beginner' && level === 1;
+  // When restoring, also re-apply FREE_TIER_CONTENT_LIMIT / FREE_TIER_EXERCISE_LIMIT
+  // (will need a redesign for the multi-sub-lesson flow).
+  void FREE_TIER_CONTENT_LIMIT;
+  void FREE_TIER_EXERCISE_LIMIT;
+  return false;
+}
+
+// Each (tier, level) plays through these content types in fixed order.
+// Stable categorical sort by enum-rank — missing types skip naturally,
+// preserving the order of whatever IS present.
+const TYPE_PRIORITY: readonly LessonType[] = [
+  'letters-numbers',
+  'vocabulary',
+  'recognition',
+  'sentence',
+];
+function typeRank(t: LessonType): number {
+  const i = TYPE_PRIORITY.indexOf(t);
+  return i === -1 ? Number.MAX_SAFE_INTEGER : i;
 }
 
 export default function LevelPlayer() {
@@ -88,54 +121,113 @@ export default function LevelPlayer() {
     limit: 20,
   });
 
-  const lessons = lessonsPage?.items ?? [];
-  const contentLesson = lessons.find((l) => l.type !== 'exercise');
-  const exerciseLesson = lessons.find((l) => l.type === 'exercise');
-  const primaryLesson = contentLesson ?? exerciseLesson;
+  // All sub-lessons at this (tier, level), in curriculum order:
+  // letters-numbers → vocabulary → recognition → sentence. Missing types skip.
+  const subLessons = useMemo(() => {
+    const items = lessonsPage?.items ?? [];
+    return items
+      .filter((l) => TYPE_PRIORITY.includes(l.type))
+      .slice()
+      .sort((a, b) => typeRank(a.type) - typeRank(b.type));
+  }, [lessonsPage]);
 
-  const { data: entries = [] } = useListEntriesQuery(contentLesson?.id ?? '', {
-    skip: !contentLesson,
-  });
-  const { data: exercises = [] } = useListExercisesQuery(exerciseLesson?.id ?? '', {
-    skip: !exerciseLesson,
-  });
-
-  const cappedEntries = useMemo(() => {
-    if (!isFreeTrialBoundary(tier, level)) return entries;
-    return entries.slice(0, FREE_TIER_CONTENT_LIMIT);
-  }, [entries, tier, level]);
-
-  const cappedExercises = useMemo(() => {
-    if (!isFreeTrialBoundary(tier, level)) return exercises;
-    return exercises.slice(0, FREE_TIER_EXERCISE_LIMIT);
-  }, [exercises, tier, level]);
-
+  const [subIdx, setSubIdx] = useState(0);
   const [step, setStep] = useState<Step>({ kind: 'intro' });
   const [xp, setXp] = useState(0);
   const [correct, setCorrect] = useState(0);
 
-  const totalSteps = cappedEntries.length + cappedExercises.length;
+  const currentSub = subLessons[subIdx];
+
+  const { data: entries = [], isFetching: loadingEntries } = useListEntriesQuery(
+    currentSub?.id ?? '',
+    { skip: !currentSub },
+  );
+  const { data: exercises = [], isFetching: loadingExercises } = useListExercisesQuery(
+    currentSub?.id ?? '',
+    { skip: !currentSub },
+  );
+
+  // Resume state: fetch once on mount; restore when both lessons + saved state are ready.
+  const { data: savedProgress, isLoading: loadingSaved } = useGetLessonProgressQuery();
+  const [upsertProgress] = useUpsertLessonProgressMutation();
+  const [clearProgress] = useClearLessonProgressMutation();
+  const [completeLesson] = useCompleteLessonMutation();
+  const restoredRef = useRef(false);
+
+  useEffect(() => {
+    if (restoredRef.current) return;
+    if (loadingList || loadingSaved) return;
+    if (subLessons.length === 0) {
+      restoredRef.current = true;
+      return;
+    }
+    if (
+      savedProgress &&
+      savedProgress.tier === tier &&
+      savedProgress.level === level &&
+      savedProgress.subIdx >= 0 &&
+      savedProgress.subIdx < subLessons.length
+    ) {
+      setSubIdx(savedProgress.subIdx);
+      setXp(savedProgress.xp);
+      setCorrect(savedProgress.correctCount);
+      const restoredStep: Step =
+        savedProgress.stepKind === 'content' || savedProgress.stepKind === 'exercise'
+          ? { kind: savedProgress.stepKind, index: savedProgress.stepIndex }
+          : { kind: savedProgress.stepKind };
+      setStep(restoredStep);
+    }
+    restoredRef.current = true;
+  }, [loadingList, loadingSaved, savedProgress, subLessons.length, tier, level]);
+
+  // Persist state on every meaningful change. Skip terminal states (complete/next-unlocked/upgrade).
+  useEffect(() => {
+    if (!restoredRef.current) return;
+    if (!currentSub) return;
+    if (step.kind === 'complete' || step.kind === 'next-unlocked' || step.kind === 'upgrade') return;
+    const stepIndex = step.kind === 'content' || step.kind === 'exercise' ? step.index : 0;
+    upsertProgress({
+      tier,
+      level,
+      subIdx,
+      subLessonId: currentSub.id,
+      stepKind: step.kind,
+      stepIndex,
+      correctCount: correct,
+      xp,
+    });
+  }, [step, subIdx, correct, xp, currentSub, tier, level, upsertProgress]);
+
+  // Per-exercise XP, derived from the admin-assigned lesson.xpReward.
+  // 20 XP / 5 exercises = 4 XP each. Minimum 1 so something always shows.
+  const xpPerCorrect = useMemo(() => {
+    if (!currentSub) return 0;
+    return Math.max(1, Math.floor((currentSub.xpReward ?? 0) / Math.max(exercises.length, 1)));
+  }, [currentSub, exercises.length]);
+
+  const totalSteps = entries.length + exercises.length;
   const stepProgress = useMemo(() => {
     if (totalSteps === 0) return 0;
     if (step.kind === 'content') return (step.index + 1) / (totalSteps + 1);
     if (step.kind === 'exercise')
-      return (cappedEntries.length + step.index + 1) / (totalSteps + 1);
+      return (entries.length + step.index + 1) / (totalSteps + 1);
     if (step.kind === 'almost-there' || step.kind === 'complete') return 1;
     return 0;
-  }, [step, totalSteps, cappedEntries.length]);
+  }, [step, totalSteps, entries.length]);
 
   const close = () => router.back();
 
   function advanceFromIntro() {
-    if (cappedEntries.length > 0) setStep({ kind: 'content', index: 0 });
-    else if (cappedExercises.length > 0) setStep({ kind: 'practice-intro' });
+    if (loadingEntries || loadingExercises) return;
+    if (entries.length > 0) setStep({ kind: 'content', index: 0 });
+    else if (exercises.length > 0) setStep({ kind: 'practice-intro' });
     else setStep({ kind: 'complete' });
   }
 
   function advanceFromContent(index: number) {
-    if (index + 1 < cappedEntries.length) {
+    if (index + 1 < entries.length) {
       setStep({ kind: 'content', index: index + 1 });
-    } else if (cappedExercises.length > 0) {
+    } else if (exercises.length > 0) {
       setStep({ kind: 'practice-intro' });
     } else {
       setStep({ kind: 'complete' });
@@ -145,41 +237,54 @@ export default function LevelPlayer() {
   function advanceFromExercise(index: number, wasCorrect: boolean) {
     const nextCorrect = correct + (wasCorrect ? 1 : 0);
     if (wasCorrect) {
-      setXp((v) => v + 6);
+      setXp((v) => v + xpPerCorrect);
       setCorrect(nextCorrect);
     }
-    if (index + 1 < cappedExercises.length) {
+    if (index + 1 < exercises.length) {
       setStep({ kind: 'exercise', index: index + 1 });
-    } else if (nextCorrect >= cappedExercises.length) {
+    } else if (nextCorrect >= exercises.length) {
+      // Sub-lesson cleared — persist completion so the backend awards full xpReward
+      // and bumps streak. Fire-and-forget; result reflected on next progress refetch.
+      if (currentSub) {
+        completeLesson({
+          lessonId: currentSub.id,
+          correctCount: nextCorrect,
+          totalCount: exercises.length,
+        });
+      }
       setStep({ kind: 'complete' });
     } else {
       setStep({ kind: 'almost-there' });
     }
   }
 
-  function retryLevel() {
-    setXp(0);
+  function retryCurrentSub() {
     setCorrect(0);
-    if (cappedExercises.length > 0) setStep({ kind: 'exercise', index: 0 });
+    if (exercises.length > 0) setStep({ kind: 'exercise', index: 0 });
     else setStep({ kind: 'complete' });
   }
 
-  function finishLevel() {
-    if (isFreeTrialBoundary(tier, level)) {
+  function advanceAfterComplete() {
+    if (subIdx + 1 < subLessons.length) {
+      // Move to next sub-lesson within this same level.
+      setSubIdx((i) => i + 1);
+      setCorrect(0);
+      setStep({ kind: 'intro' });
+    } else if (isFreeTrialBoundary(tier, level)) {
       setStep({ kind: 'upgrade' });
     } else {
+      // Level fully complete — drop the resume row so the home card re-targets.
+      clearProgress({ tier, level });
       setStep({ kind: 'next-unlocked' });
     }
   }
 
-  if (loadingList || !primaryLesson) {
+  if (loadingList) {
     return (
       <SafeAreaView style={styles.root} edges={['top']}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.loadingWrap}>
-          <Text style={styles.loadingText}>
-            {loadingList ? 'Loading level…' : 'No lesson found for this level.'}
-          </Text>
+          <Text style={styles.loadingText}>Loading level…</Text>
           <Pressable onPress={close} style={styles.loadingBack}>
             <Text style={styles.loadingBackText}>Back</Text>
           </Pressable>
@@ -188,8 +293,22 @@ export default function LevelPlayer() {
     );
   }
 
+  if (!currentSub) {
+    return (
+      <LessonFullCenterScreen
+        onClose={close}
+        footer={<Button label="Back" variant="outline" onPress={close} />}
+      >
+        <Text style={styles.heroTitle}>More levels coming soon</Text>
+        <Text style={styles.heroBody}>
+          You&apos;ve reached the end of available levels for now. Check back as we add more!
+        </Text>
+      </LessonFullCenterScreen>
+    );
+  }
+
   if (step.kind === 'intro') {
-    const copy = TIER_INTRO[primaryLesson.type];
+    const copy = TIER_INTRO[currentSub.type];
     return (
       <LessonFullCenterScreen
         onClose={close}
@@ -202,7 +321,7 @@ export default function LevelPlayer() {
   }
 
   if (step.kind === 'content') {
-    const entry = cappedEntries[step.index];
+    const entry = entries[step.index];
     if (!entry) {
       advanceFromContent(step.index);
       return null;
@@ -228,7 +347,7 @@ export default function LevelPlayer() {
           <Button
             label="Lets go!"
             onPress={() =>
-              cappedExercises.length > 0
+              exercises.length > 0
                 ? setStep({ kind: 'exercise', index: 0 })
                 : setStep({ kind: 'complete' })
             }
@@ -245,17 +364,19 @@ export default function LevelPlayer() {
   }
 
   if (step.kind === 'exercise') {
-    const ex = cappedExercises[step.index];
+    const ex = exercises[step.index];
     if (!ex) {
       advanceFromExercise(step.index, true);
       return null;
     }
     return (
       <ExerciseStep
-        key={step.index}
+        key={`${currentSub.id}-${step.index}`}
         exercise={ex}
+        lessonType={currentSub.type}
+        levelNumber={level}
+        xpReward={currentSub.xpReward ?? 0}
         progress={stepProgress}
-        xp={xp}
         onClose={close}
         onResult={(ok) => advanceFromExercise(step.index, ok)}
       />
@@ -267,22 +388,26 @@ export default function LevelPlayer() {
       <AlmostThereScreen
         firstName={firstName}
         correct={correct}
-        total={cappedExercises.length}
+        total={exercises.length}
         xpEarned={xp}
         nextLevel={level + 1}
         onClose={close}
-        onRetry={retryLevel}
+        onRetry={retryCurrentSub}
       />
     );
   }
 
   if (step.kind === 'complete') {
+    const displayXp = xp || currentSub?.xpReward || 0;
     return (
       <LessonFullCenterScreen
         onClose={close}
-        footer={<Button label="Continue" onPress={finishLevel} />}
+        footer={<Button label="Continue" onPress={advanceAfterComplete} />}
       >
-        <Text style={styles.xpHero}>+{xp || 6} XP</Text>
+        <Ionicons name="flash" size={92} color={colors.primary} />
+        <Text style={styles.completeTitle}>Lesson completed!</Text>
+        <Text style={styles.xpHero}>+{displayXp} XP</Text>
+        <Text style={styles.completeBody}>Well done! You are making progress</Text>
       </LessonFullCenterScreen>
     );
   }
@@ -301,16 +426,15 @@ export default function LevelPlayer() {
         }
       >
         <Text style={styles.unlockTagline}>You just Unlocked a new Level!</Text>
-        <Ionicons name="lock-open" size={64} color={colors.primary} />
-        <Text style={styles.heroTitle}>In this level, expand Your Vocabulary</Text>
-        <Text style={styles.heroBody}>
-          Learn new words and their meanings with easy examples.
-        </Text>
+        <PadlockUnlockedIcon width={64} height={90} />
+        <Text style={styles.heroTitle}>Level {level + 1} awaits</Text>
+        <Text style={styles.heroBody}>Keep going to expand your skills.</Text>
       </LessonFullCenterScreen>
     );
   }
 
-  // upgrade
+  // upgrade — kept for when payments integrate. Currently unreachable
+  // because isFreeTrialBoundary always returns false.
   return (
     <LessonFullCenterScreen
       onClose={close}
@@ -337,6 +461,9 @@ interface ContentStepProps {
 }
 
 function ContentStep({ entry, progress, xp, levelNumber, onClose, onContinue }: ContentStepProps) {
+  const entryAudioUrl =
+    (entry.payload as unknown as { audioUrl?: string } | undefined)?.audioUrl ?? null;
+  const audio = useAudioPlayback(entryAudioUrl);
   const card = useMemo(() => {
     const p = entry.payload as unknown as Record<string, unknown>;
     if (entry.kind === 'letter') {
@@ -401,7 +528,11 @@ function ContentStep({ entry, progress, xp, levelNumber, onClose, onContinue }: 
         <Text style={styles.contentPrompt}>{title}</Text>
         <Text style={styles.contentSub}>Tap the play button to hear the pronunciation</Text>
         <View style={styles.playRow}>
-          <PlayButton theme={skillThemes['listen-select']} />
+          <PlayButton
+            theme={skillThemes['listen-select']}
+            onPress={audio.play}
+            isPlaying={audio.isPlaying}
+          />
         </View>
         {card}
       </ScrollView>
@@ -416,120 +547,158 @@ function ContentStep({ entry, progress, xp, levelNumber, onClose, onContinue }: 
 
 interface ExerciseStepProps {
   exercise: ExerciseRow;
+  lessonType: LessonType;
+  levelNumber: number;
+  xpReward: number;
   progress: number;
-  xp: number;
   onClose: () => void;
   onResult: (correct: boolean) => void;
 }
 
-type Phase = 'answering' | 'correct' | 'incorrect';
+// Map the sub-lesson type to the matching skill theme + headline title, so the
+// exercise screen visually matches its sub-lesson (vocabulary lessons get the
+// vocabulary palette, recognition lessons get the recognition palette, etc.).
+function pickTheme(lessonType: LessonType): SkillTheme {
+  if (lessonType === 'sentence') return skillThemes.sentence;
+  if (lessonType === 'recognition') return skillThemes.recognition;
+  if (lessonType === 'vocabulary') return skillThemes.vocabulary;
+  return skillThemes['listen-select' as SkillKey];
+}
+function skillTitleFor(lessonType: LessonType): string {
+  if (lessonType === 'sentence') return 'Sentence';
+  if (lessonType === 'recognition') return 'Recognition';
+  if (lessonType === 'vocabulary') return 'Vocabulary';
+  return 'Letters & Numbers';
+}
+function findCorrectId<T extends { id: string; isCorrect: boolean }>(items: T[]): string {
+  return items.find((o) => o.isCorrect)?.id ?? items[0]?.id ?? '';
+}
 
-function ExerciseStep({ exercise, progress, xp, onClose, onResult }: ExerciseStepProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [phase, setPhase] = useState<Phase>('answering');
+// Dispatches to the corresponding full-screen practice exercise component
+// based on the exercise's subType. Covers all 5 admin-creatable subtypes:
+// listen-select, correct-meaning, word-arrange, recognition, name-from-image.
+function ExerciseStep({
+  exercise,
+  lessonType,
+  levelNumber,
+  xpReward,
+  progress,
+  onClose,
+  onResult,
+}: ExerciseStepProps) {
+  const theme = pickTheme(lessonType);
+  const skillTitle = skillTitleFor(lessonType);
 
-  const theme: SkillTheme = skillThemes['listen-select'];
-
-  useEffect(() => {
-    setSelectedId(null);
-    setPhase('answering');
-  }, [exercise.id]);
-
-  if (exercise.subType === 'listen-select' || exercise.subType === 'correct-meaning') {
-    const payload =
-      exercise.subType === 'listen-select'
-        ? (exercise.payload as ListenSelectPayload)
-        : (exercise.payload as CorrectMeaningPayload);
-    const options = payload.options ?? [];
-    const correctId = options.find((o) => o.isCorrect)?.id ?? '';
-    const instruction =
-      payload.instruction ||
-      (exercise.subType === 'listen-select'
-        ? 'Tap play then select the alphabet you hear'
-        : 'Select the correct answer');
-
-    const optionState = (id: string) => {
-      if (phase === 'correct' && id === correctId) return 'correct' as const;
-      if (phase === 'incorrect' && id === selectedId) return 'incorrect' as const;
-      if (id === selectedId) return 'selected' as const;
-      return 'idle' as const;
-    };
-
-    const checkState =
-      phase === 'correct'
-        ? 'correct'
-        : phase === 'incorrect'
-          ? 'incorrect'
-          : selectedId
-            ? 'active'
-            : 'disabled';
-
+  if (exercise.subType === 'listen-select') {
+    const p = exercise.payload as ListenSelectPayload;
     return (
-      <SafeAreaView style={styles.root} edges={['top']}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <LessonProgressHeader progress={progress} xp={xp} onClose={onClose} />
-        <ScrollView contentContainerStyle={styles.scroll}>
-          {exercise.subType === 'listen-select' ? (
-            <View style={styles.playRow}>
-              <PlayButton theme={theme} />
-            </View>
-          ) : (
-            <View style={styles.promptCard}>
-              <Text style={styles.promptText}>
-                {(exercise.payload as CorrectMeaningPayload).prompt}
-              </Text>
-            </View>
-          )}
-          <Text style={styles.contentPrompt}>{instruction}</Text>
-          <Text style={styles.contentSub}>Select the correct answer</Text>
-          <View style={styles.grid}>
-            {options.map((opt) => (
-              <OptionCard
-                key={opt.id}
-                label={opt.label}
-                state={optionState(opt.id)}
-                theme={theme}
-                disabled={phase !== 'answering'}
-                onPress={() => setSelectedId(opt.id)}
-              />
-            ))}
-          </View>
-        </ScrollView>
-        <View style={styles.bottomCta}>
-          <CheckButton
-            theme={theme}
-            state={checkState}
-            onPress={() => {
-              if (phase === 'answering') {
-                if (!selectedId) return;
-                const ok = selectedId === correctId;
-                setPhase(ok ? 'correct' : 'incorrect');
-              } else if (phase === 'correct') {
-                onResult(true);
-              } else {
-                onResult(false);
-              }
-            }}
-          />
-        </View>
-      </SafeAreaView>
+      <ListenSelectExercise
+        key={exercise.id}
+        theme={theme}
+        skillTitle={skillTitle}
+        level={levelNumber}
+        instruction={p.instruction}
+        audioUrl={p.audioUrl}
+        options={p.options.map((o) => ({ id: o.id, label: o.label }))}
+        correctId={findCorrectId(p.options)}
+        progress={progress}
+        xpReward={xpReward}
+        onContinue={onResult}
+        onClose={onClose}
+      />
     );
   }
 
-  // word-arrange / recognition fall back to a "Coming soon" until we wire them.
-  const fallbackLabel =
-    exercise.subType === 'word-arrange'
-      ? 'Word arrange'
-      : exercise.subType === 'recognition'
-        ? 'Image recognition'
-        : 'Exercise';
+  if (exercise.subType === 'correct-meaning') {
+    const p = exercise.payload as CorrectMeaningPayload;
+    return (
+      <CorrectMeaningExercise
+        key={exercise.id}
+        theme={theme}
+        skillTitle={skillTitle}
+        level={levelNumber}
+        word={p.prompt}
+        instruction={p.instruction}
+        options={p.options.map((o) => ({ id: o.id, label: o.label }))}
+        correctId={findCorrectId(p.options)}
+        progress={progress}
+        xpReward={xpReward}
+        onContinue={onResult}
+        onClose={onClose}
+      />
+    );
+  }
+
+  if (exercise.subType === 'word-arrange') {
+    const p = exercise.payload as WordArrangePayload;
+    const pool = p.tiles.map((t) => t.label);
+    const correctOrder = p.correctAnswer.split(/\s+/).filter(Boolean);
+    return (
+      <WordArrangeExercise
+        key={exercise.id}
+        theme={theme}
+        skillTitle={skillTitle}
+        level={levelNumber}
+        prompt={p.sentence}
+        instruction={p.instruction}
+        pool={pool}
+        correctOrder={correctOrder}
+        progress={progress}
+        xpReward={xpReward}
+        onContinue={onResult}
+        onClose={onClose}
+      />
+    );
+  }
+
+  if (exercise.subType === 'recognition') {
+    const p = exercise.payload as RecognitionPayload;
+    return (
+      <RecognitionExercise
+        key={exercise.id}
+        theme={theme}
+        skillTitle={skillTitle}
+        level={levelNumber}
+        word={p.word}
+        instruction={p.instruction}
+        options={p.options.map((o) => ({ id: o.id, imageUrl: o.imageUrl }))}
+        correctId={findCorrectId(p.options)}
+        progress={progress}
+        xpReward={xpReward}
+        onContinue={onResult}
+        onClose={onClose}
+      />
+    );
+  }
+
+  if (exercise.subType === 'name-from-image') {
+    const p = exercise.payload as NameFromImagePayload;
+    return (
+      <NameFromImageExercise
+        key={exercise.id}
+        theme={theme}
+        skillTitle={skillTitle}
+        level={levelNumber}
+        imageUrl={p.imageUrl}
+        instruction={p.instruction}
+        options={p.options.map((o) => ({ id: o.id, label: o.label }))}
+        correctId={findCorrectId(p.options)}
+        progress={progress}
+        xpReward={xpReward}
+        onContinue={onResult}
+        onClose={onClose}
+      />
+    );
+  }
+
+  // Unknown subType — skip gracefully rather than blocking the user.
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
-      <LessonProgressHeader progress={progress} xp={xp} onClose={onClose} />
+      <LessonProgressHeader progress={progress} xp={0} onClose={onClose} />
       <View style={styles.fallbackBody}>
-        <Text style={styles.contentPrompt}>{fallbackLabel} coming soon</Text>
-        <Text style={styles.contentSub}>Skip this question for now.</Text>
+        <Text style={styles.contentPrompt}>Unsupported exercise type</Text>
+        <Text style={styles.contentSub}>Skipping this question.</Text>
       </View>
       <View style={styles.bottomCta}>
         <Button label="Skip" onPress={() => onResult(true)} />
@@ -775,6 +944,19 @@ const styles = StyleSheet.create({
     fontFamily: fonts.extrabold,
     fontSize: 40,
     color: colors.primary,
+  },
+  completeTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    color: colors.neutral,
+    textAlign: 'center',
+    marginTop: spacing.md,
+  },
+  completeBody: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    color: colors.neutralVariant,
+    textAlign: 'center',
   },
   unlockTagline: {
     fontFamily: fonts.bold,
