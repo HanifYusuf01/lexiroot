@@ -29,17 +29,17 @@ export function OptionCard({
     backgroundColor = theme.softer;
   } else if (state === 'correct') {
     borderColor = colors.success;
-    backgroundColor = '#E6F8EC';
+    backgroundColor = colors.successSurface;
   } else if (state === 'incorrect') {
-    borderColor = colors.error;
-    backgroundColor = '#FDECEC';
+    borderColor = colors.errorStrong;
+    backgroundColor = colors.errorSurface;
   }
 
   const labelColor =
     state === 'correct'
       ? colors.success
       : state === 'incorrect'
-        ? colors.error
+        ? colors.errorStrong
         : state === 'selected'
           ? theme.main
           : colors.neutralVariant;
@@ -72,6 +72,9 @@ const styles = StyleSheet.create({
     minHeight: 76,
     borderRadius: radius.lg,
     borderWidth: 1.5,
+    // Thicker bottom edge gives the card a pressable 3D feel — same color
+    // as the rest of the border, just heavier on the bottom.
+    borderBottomWidth: 5,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     alignItems: 'center',

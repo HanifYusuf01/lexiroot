@@ -18,7 +18,18 @@ export const uploadsApi = api.injectEndpoints({
     signLessonImage: build.mutation<MediaSignaturePayload, void>({
       query: () => ({ url: '/uploads/lesson-image/signature', method: 'POST' }),
     }),
+    signCulturalAudio: build.mutation<MediaSignaturePayload, void>({
+      query: () => ({ url: '/uploads/cultural-audio/signature', method: 'POST' }),
+    }),
+    signCulturalImage: build.mutation<MediaSignaturePayload, void>({
+      query: () => ({ url: '/uploads/cultural-image/signature', method: 'POST' }),
+    }),
   }),
 });
 
-export const { useSignLessonAudioMutation, useSignLessonImageMutation } = uploadsApi;
+export const {
+  useSignLessonAudioMutation,
+  useSignLessonImageMutation,
+  useSignCulturalAudioMutation,
+  useSignCulturalImageMutation,
+} = uploadsApi;

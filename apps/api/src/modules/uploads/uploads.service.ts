@@ -59,8 +59,15 @@ export class UploadsService {
   }
 
   signLessonMediaUpload(kind: 'audio' | 'image'): MediaSignaturePayload {
+    return this.signMediaUpload(`lexiroot/lessons/${kind}`, kind);
+  }
+
+  signCulturalMediaUpload(kind: 'audio' | 'image'): MediaSignaturePayload {
+    return this.signMediaUpload(`lexiroot/cultural-content/${kind}`, kind);
+  }
+
+  private signMediaUpload(folder: string, kind: 'audio' | 'image'): MediaSignaturePayload {
     const timestamp = Math.floor(Date.now() / 1000);
-    const folder = `lexiroot/lessons/${kind}`;
     const resourceType: 'image' | 'video' = kind === 'audio' ? 'video' : 'image';
     const paramsToSign = { timestamp, folder };
     let signature: string;

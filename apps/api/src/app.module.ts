@@ -6,6 +6,7 @@ import { LastActiveInterceptor } from './common/interceptors/last-active.interce
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CategoriesModule } from './modules/categories/categories.module';
+import { CulturalContentModule } from './modules/cultural-content/cultural-content.module';
 import { ExercisesModule } from './modules/exercises/exercises.module';
 import { FeedbackModule } from './modules/feedback/feedback.module';
 import { LessonEntriesModule } from './modules/lesson-entries/lesson-entries.module';
@@ -32,6 +33,7 @@ import { UsersModule } from './modules/users/users.module';
     UsersModule,
     AuthModule,
     CategoriesModule,
+    CulturalContentModule,
     LessonsModule,
     ExercisesModule,
     LessonEntriesModule,

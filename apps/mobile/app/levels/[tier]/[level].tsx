@@ -26,7 +26,7 @@ import { ListenSelectExercise } from '../../../src/screens/practice/ListenSelect
 import { NameFromImageExercise } from '../../../src/screens/practice/NameFromImageExercise';
 import { RecognitionExercise } from '../../../src/screens/practice/RecognitionExercise';
 import { WordArrangeExercise } from '../../../src/screens/practice/WordArrangeExercise';
-import { skillThemes, type SkillKey, type SkillTheme } from '../../../src/constants/theme';
+import { neutralExerciseTheme, type SkillTheme } from '../../../src/constants/theme';
 import { colors, fonts, radius, spacing } from '../../../src/constants/theme';
 import { useAudioPlayback } from '../../../src/hooks/useAudioPlayback';
 import { useAppSelector } from '../../../src/store/hooks';
@@ -135,6 +135,14 @@ export default function LevelPlayer() {
   const [step, setStep] = useState<Step>({ kind: 'intro' });
   const [xp, setXp] = useState(0);
   const [correct, setCorrect] = useState(0);
+  // Running totals across every sub-lesson the user reaches in this level
+  // run. Used by the end-of-level Almost There screen to show aggregated
+  // correct/total — per-sub Almost There is suppressed.
+  const [levelCorrect, setLevelCorrect] = useState(0);
+  const [levelTotal, setLevelTotal] = useState(0);
+  // When true, advancing between sub-lessons skips intro + content and goes
+  // straight to the practice-intro/exercises. Set by retryLevel.
+  const [retryMode, setRetryMode] = useState(false);
 
   const currentSub = subLessons[subIdx];
 
@@ -242,41 +250,66 @@ export default function LevelPlayer() {
     }
     if (index + 1 < exercises.length) {
       setStep({ kind: 'exercise', index: index + 1 });
-    } else if (nextCorrect >= exercises.length) {
-      // Sub-lesson cleared — persist completion so the backend awards full xpReward
-      // and bumps streak. Fire-and-forget; result reflected on next progress refetch.
-      if (currentSub) {
-        completeLesson({
-          lessonId: currentSub.id,
-          correctCount: nextCorrect,
-          totalCount: exercises.length,
-        });
-      }
-      setStep({ kind: 'complete' });
-    } else {
-      setStep({ kind: 'almost-there' });
+      return;
     }
+    // Sub's exercises done. Persist completion only if every exercise was
+    // correct — partial runs don't bank the lesson's xpReward. Always continue
+    // to 'complete'; per-sub Almost There is gone, we only show it at the end
+    // of the level after aggregating across sub-lessons.
+    if (currentSub && nextCorrect >= exercises.length) {
+      completeLesson({
+        lessonId: currentSub.id,
+        correctCount: nextCorrect,
+        totalCount: exercises.length,
+      });
+    }
+    setStep({ kind: 'complete' });
   }
 
-  function retryCurrentSub() {
+  function retryLevel() {
+    // Restart the level — exercises only. Content stays skipped because the
+    // user already worked through it on the first pass.
+    setRetryMode(true);
+    setSubIdx(0);
     setCorrect(0);
-    if (exercises.length > 0) setStep({ kind: 'exercise', index: 0 });
-    else setStep({ kind: 'complete' });
+    setLevelCorrect(0);
+    setLevelTotal(0);
+    setXp(0);
+    setStep({ kind: 'practice-intro' });
   }
 
   function advanceAfterComplete() {
+    const nextLevelCorrect = levelCorrect + correct;
+    const nextLevelTotal = levelTotal + exercises.length;
+    setLevelCorrect(nextLevelCorrect);
+    setLevelTotal(nextLevelTotal);
+
     if (subIdx + 1 < subLessons.length) {
-      // Move to next sub-lesson within this same level.
+      // More sub-lessons in this level → reset per-sub correct count and
+      // step into the next one. Retry mode skips back to practice-intro so
+      // we don't repeat content the user has already covered.
       setSubIdx((i) => i + 1);
       setCorrect(0);
-      setStep({ kind: 'intro' });
-    } else if (isFreeTrialBoundary(tier, level)) {
-      setStep({ kind: 'upgrade' });
-    } else {
-      // Level fully complete — drop the resume row so the home card re-targets.
-      clearProgress({ tier, level });
-      setStep({ kind: 'next-unlocked' });
+      setStep(retryMode ? { kind: 'practice-intro' } : { kind: 'intro' });
+      return;
     }
+
+    if (isFreeTrialBoundary(tier, level)) {
+      setStep({ kind: 'upgrade' });
+      return;
+    }
+
+    if (nextLevelTotal > 0 && nextLevelCorrect < nextLevelTotal) {
+      // Finished the last sub but missed at least one exercise — surface
+      // the aggregated Almost There so the user can retry the whole level.
+      setStep({ kind: 'almost-there' });
+      return;
+    }
+
+    // Perfect run (or level had no exercises) → drop the resume row and
+    // route to the next-unlocked celebration.
+    clearProgress({ tier, level });
+    setStep({ kind: 'next-unlocked' });
   }
 
   if (loadingList) {
@@ -387,12 +420,12 @@ export default function LevelPlayer() {
     return (
       <AlmostThereScreen
         firstName={firstName}
-        correct={correct}
-        total={exercises.length}
+        correct={levelCorrect}
+        total={levelTotal}
         xpEarned={xp}
         nextLevel={level + 1}
         onClose={close}
-        onRetry={retryCurrentSub}
+        onRetry={retryLevel}
       />
     );
   }
@@ -529,7 +562,7 @@ function ContentStep({ entry, progress, xp, levelNumber, onClose, onContinue }: 
         <Text style={styles.contentSub}>Tap the play button to hear the pronunciation</Text>
         <View style={styles.playRow}>
           <PlayButton
-            theme={skillThemes['listen-select']}
+            theme={neutralExerciseTheme}
             onPress={audio.play}
             isPlaying={audio.isPlaying}
           />
@@ -555,14 +588,11 @@ interface ExerciseStepProps {
   onResult: (correct: boolean) => void;
 }
 
-// Map the sub-lesson type to the matching skill theme + headline title, so the
-// exercise screen visually matches its sub-lesson (vocabulary lessons get the
-// vocabulary palette, recognition lessons get the recognition palette, etc.).
-function pickTheme(lessonType: LessonType): SkillTheme {
-  if (lessonType === 'sentence') return skillThemes.sentence;
-  if (lessonType === 'recognition') return skillThemes.recognition;
-  if (lessonType === 'vocabulary') return skillThemes.vocabulary;
-  return skillThemes['listen-select' as SkillKey];
+// Inside the level flow we deliberately use the neutral palette so exercises
+// don't switch colors per sub-lesson type — the level run feels like one
+// continuous experience. The practice tab still uses skill-specific themes.
+function pickTheme(_lessonType: LessonType): SkillTheme {
+  return neutralExerciseTheme;
 }
 function skillTitleFor(lessonType: LessonType): string {
   if (lessonType === 'sentence') return 'Sentence';
@@ -755,7 +785,7 @@ function AlmostThereScreen({
             <View style={styles.xpBadge}>
               <Text style={styles.xpBadgeText}>XP</Text>
             </View>
-            <Text style={styles.xpValue}>: 0</Text>
+            <Text style={styles.xpValue}>: {xpEarned}</Text>
           </View>
           <View style={styles.nextLevelRow}>
             <Text style={styles.nextLevelText}>Next Level: {nextLevel}</Text>

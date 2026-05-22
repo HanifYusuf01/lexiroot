@@ -16,8 +16,11 @@ export const colors = {
   white: '#FFFFFF',
   black: '#1A1A1A',
   error: '#FF3333',
+  errorStrong: '#FA0505',
+  errorSurface: '#FFF0F0',
   warning: '#F9D506',
   success: '#16A34A',
+  successSurface: '#E6F8EC',
 } as const;
 
 export const spacing = {
@@ -101,3 +104,18 @@ export const skillThemes: Record<SkillKey, SkillTheme> = {
     on: '#FFFFFF',
   },
 } as const;
+
+// Neutral palette used by exercises that are part of a level run (lesson
+// flow). The practice tab uses the skill-specific themes above; the level
+// flow stays grey so it doesn't dye every screen with a different brand color.
+// `key` is required by SkillTheme but isn't read by exercise screens.
+export const neutralExerciseTheme: SkillTheme = {
+  key: 'listen-select',
+  title: 'Lesson',
+  level: 0,
+  main: '#7A7878',
+  border: '#E5E5E5',
+  soft: '#EFEFEF',
+  softer: '#F7F7F7',
+  on: '#FFFFFF',
+};

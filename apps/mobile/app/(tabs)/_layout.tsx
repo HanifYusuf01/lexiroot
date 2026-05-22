@@ -51,12 +51,12 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="games"
+        name="culture"
         options={{
           tabBarIcon: ({ color }) => (
             <MaterialCommunityIcons name="drama-masks" size={26} color={color} />
           ),
-          tabBarLabel: (props) => <TabLabel {...props} label="Games" />,
+          tabBarLabel: (props) => <TabLabel {...props} label="Culture" />,
         }}
       />
       <Tabs.Screen

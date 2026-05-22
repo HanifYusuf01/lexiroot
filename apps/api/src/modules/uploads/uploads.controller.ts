@@ -29,4 +29,18 @@ export class UploadsController {
   signLessonImageUpload() {
     return this.uploads.signLessonMediaUpload('image');
   }
+
+  @Post('cultural-audio/signature')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  signCulturalAudioUpload() {
+    return this.uploads.signCulturalMediaUpload('audio');
+  }
+
+  @Post('cultural-image/signature')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  signCulturalImageUpload() {
+    return this.uploads.signCulturalMediaUpload('image');
+  }
 }

@@ -6,4 +6,5 @@ export * from './types/gamification.types';
 export * from './types/progress.types';
 export * from './types/subscription.types';
 export * from './types/analytics.types';
+export * from './types/cultural-content.types';
 export * from './constants';
