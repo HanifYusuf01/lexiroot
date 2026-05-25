@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { GoogleIcon } from '../../src/components/icons/GoogleIcon';
-import { HeroCircle } from '../../src/components/ui/HeroCircle';
+import { MascotHeadIcon } from '../../src/components/icons/MascotHeadIcon';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
 import { SocialButton } from '../../src/components/ui/SocialButton';
 import { colors, fonts, spacing } from '../../src/constants/theme';
@@ -13,7 +13,7 @@ export default function SignupOptions() {
     <ScreenContainer showBack>
       <View style={styles.body}>
         <View style={styles.hero}>
-          <HeroCircle variant="neutral" size={120} />
+          <MascotHeadIcon size={130} />
         </View>
         <Text style={styles.title}>Create your{'\n'}LexiRoot account</Text>
       </View>

@@ -167,6 +167,12 @@ export function RichTextArea({
   // caret straight from the DOM (the text node + offset), then if it pairs
   // with the trigger key into a known glyph, swallows the trigger and replaces
   // the previous character with the glyph in one move.
+  //
+  // Splice the text node directly instead of deleteContents + execCommand:
+  // when the target letter is the only/last char in the text node (common at
+  // the start of a word or paragraph), Chrome drops the now-empty text node,
+  // the saved Range becomes detached, and the inserted glyph lands in the
+  // next text node — visually "joining" the new letter to the next word.
   function handleKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
     if (!yoruba) return;
     if (!TRIGGER_KEYS.has(e.key)) return;
@@ -184,13 +190,17 @@ export function RichTextArea({
     const replacement = SHORTCUTS[pair];
     if (!replacement) return;
     e.preventDefault();
-    const repRange = document.createRange();
-    repRange.setStart(container, offset - 1);
-    repRange.setEnd(container, offset);
-    repRange.deleteContents();
+
+    const before = text.slice(0, offset - 1);
+    const after = text.slice(offset);
+    container.textContent = before + replacement + after;
+
+    const caret = before.length + replacement.length;
+    const newRange = document.createRange();
+    newRange.setStart(container, caret);
+    newRange.collapse(true);
     sel.removeAllRanges();
-    sel.addRange(repRange);
-    document.execCommand('insertText', false, replacement);
+    sel.addRange(newRange);
     emit();
   }
 

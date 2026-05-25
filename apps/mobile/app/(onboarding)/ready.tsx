@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button } from '../../src/components/ui/Button';
-import { HeroCircle } from '../../src/components/ui/HeroCircle';
+import { MascotHeadIcon } from '../../src/components/icons/MascotHeadIcon';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
 import { colors, fonts, spacing } from '../../src/constants/theme';
 import { useUpdateMeMutation } from '../../src/services/authApi';
@@ -33,7 +33,7 @@ export default function ReadyScreen() {
     <ScreenContainer>
       <View style={styles.body}>
         <View style={styles.hero}>
-          <HeroCircle variant="primary" size={260} />
+          <MascotHeadIcon size={200} />
         </View>
         <Text style={styles.title}>You are ready!</Text>
         <Text style={styles.subtitle}>Start your first lesson and earn your first XP.</Text>

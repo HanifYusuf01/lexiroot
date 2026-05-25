@@ -58,6 +58,14 @@ function statusBadge(status: CulturalContentStatus) {
 }
 
 function typeBadge(type: CulturalContentType) {
+  if (type === 'story') {
+    return (
+      <Badge tone="neutral" style={{ backgroundColor: '#E5E4FF', color: '#060099' }}>
+        {CULTURAL_CONTENT_TYPE_LABELS[type]}
+      </Badge>
+    );
+  }
+
   const tone: 'success' | 'warning' | 'neutral' =
     type === 'folktale' ? 'success' : type === 'proverb' ? 'warning' : 'neutral';
   return <Badge tone={tone}>{CULTURAL_CONTENT_TYPE_LABELS[type]}</Badge>;
@@ -204,7 +212,7 @@ function CulturalContentRowItem({ item }: { item: CulturalContentRow }) {
   return (
     <TableRow>
       <TableCell>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3" style={{ maxWidth: 360 }}>
           {item.coverImageUrl ? (
             <img
               src={item.coverImageUrl}
@@ -214,7 +222,7 @@ function CulturalContentRowItem({ item }: { item: CulturalContentRow }) {
           ) : (
             <span className="h-9 w-9 shrink-0 rounded-md bg-neutral-soft" aria-hidden />
           )}
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="truncate font-semibold text-neutral">{item.titleEnglish}</div>
             <div className="truncate text-xs text-neutral-variant">
               {item.shortDescription || item.titleTranslated || '—'}

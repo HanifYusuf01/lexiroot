@@ -32,7 +32,9 @@ export function CulturalContentMediaPanel({
   onAudioChange,
 }: Props) {
   return (
-    <aside className="rounded-2xl border border-border bg-white p-5 h-[350px]">
+
+  
+    <aside className="rounded-2xl border border-border bg-white p-5 h-[500px]">
       <h3 className="font-display text-base font-bold text-neutral">Media &amp; Audio</h3>
       <p className="text-xs text-neutral-variant">
         Add images and audio for LexiRoot learners

@@ -4,17 +4,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { LearningLevel, LessonType } from '@lexiroot/shared';
-import { HeroCard } from '../../src/components/dashboard/HeroCard';
 import { LessonCardActive } from '../../src/components/dashboard/LessonCardActive';
-import { LessonCardLocked } from '../../src/components/dashboard/LessonCardLocked';
 import { StreakBadge } from '../../src/components/dashboard/StreakBadge';
+import { UpgradePromoCard } from '../../src/components/dashboard/UpgradePromoCard';
 import { WeekDots } from '../../src/components/dashboard/WeekDots';
+import { RootNuggetCard } from '../../src/components/culture/RootNuggetCard';
 import { colors, fonts, spacing } from '../../src/constants/theme';
 import { useListLessonsQuery, type LessonRow } from '../../src/services/lessonsApi';
-import {
-  useGetLessonProgressQuery,
-  useGetProgressQuery,
-} from '../../src/services/progressApi';
+import { useListCulturalContentQuery } from '../../src/services/culturalContentApi';
+import { useGetLessonProgressQuery, useGetProgressQuery } from '../../src/services/progressApi';
 import { useAppSelector } from '../../src/store/hooks';
 
 const TYPE_PRIORITY: readonly LessonType[] = [
@@ -37,13 +35,21 @@ function todayWeekdayIndex(): number {
 export default function Home() {
   const user = useAppSelector((s) => s.auth.user);
   const firstName = user?.displayName?.split(' ')[0] ?? 'there';
-  // User's tier isn't exposed on AuthUser yet — default to beginner.
-  // When user.level is wired into authSlice, swap to that.
-  const tier: LearningLevel = 'beginner';
+  const tier: LearningLevel = user?.level ?? 'beginner';
 
-  const { data: progress } = useGetProgressQuery();
+  // refetchOnMountOrArgChange keeps the streak fresh: each time the user
+  // returns to Home (e.g. after touchActivity has bumped the streak on the
+  // first request of the day), RTK Query re-fetches /me/progress.
+  const { data: progress } = useGetProgressQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
   const { data: savedProgress } = useGetLessonProgressQuery();
   const { data: lessonsPage } = useListLessonsQuery({ tier, limit: 100 });
+  const { data: nuggetPage } = useListCulturalContentQuery({
+    type: 'proverb',
+    tier,
+    limit: 10,
+  });
 
   const completedIds = useMemo(
     () => new Set(progress?.completedLessonIds ?? []),
@@ -65,15 +71,16 @@ export default function Home() {
     return map;
   }, [lessonsPage]);
 
-  // Pick the active level: saved resume target if it still exists in the data,
-  // otherwise the lowest level number that isn't fully completed.
+  // Pick the active level: saved resume target if it still exists AND isn't
+  // already fully completed (a learner re-entering a finished level can leave
+  // a stale resume row pointing back at it — ignore that so the dashboard
+  // advances to the next un-finished level), otherwise the lowest level
+  // number that isn't fully completed.
   const activeLevel = useMemo(() => {
-    if (
-      savedProgress &&
-      savedProgress.tier === tier &&
-      levelsMap.has(savedProgress.level)
-    ) {
-      return savedProgress.level;
+    if (savedProgress && savedProgress.tier === tier && levelsMap.has(savedProgress.level)) {
+      const savedSubs = levelsMap.get(savedProgress.level) ?? [];
+      const savedDone = savedSubs.length > 0 && savedSubs.every((s) => completedIds.has(s.id));
+      if (!savedDone) return savedProgress.level;
     }
     const sortedLevels = Array.from(levelsMap.keys()).sort((a, b) => a - b);
     for (const lvl of sortedLevels) {
@@ -88,17 +95,23 @@ export default function Home() {
   const activeTitle = activeSubs[0]?.title ?? `Level ${activeLevel}`;
   const targetXp = activeSubs.reduce((sum, s) => sum + (s.xpReward ?? 0), 0);
   const currentXp =
-    savedProgress &&
-    savedProgress.tier === tier &&
-    savedProgress.level === activeLevel
+    savedProgress && savedProgress.tier === tier && savedProgress.level === activeLevel
       ? savedProgress.xp
       : activeSubs
           .filter((s) => completedIds.has(s.id))
           .reduce((sum, s) => sum + (s.xpReward ?? 0), 0);
   const xpPerLesson = activeSubs[0]?.xpReward ?? 0;
 
-  const nextLevelNumber = activeLevel + 1;
-  const nextLevelUnlockAt = targetXp || 180;
+  const activeSubsDone = activeSubs.filter((s) => completedIds.has(s.id)).length;
+
+  const latestNugget = useMemo(() => {
+    const items = [...(nuggetPage?.items ?? [])].sort((a, b) => {
+      const aT = a.publishedAt ?? a.createdAt;
+      const bT = b.publishedAt ?? b.createdAt;
+      return bT.localeCompare(aT);
+    });
+    return items.find((c) => !!c.audioUrl) ?? items[0] ?? null;
+  }, [nuggetPage]);
 
   const streak = progress?.streak ?? 0;
   const weekday = todayWeekdayIndex();
@@ -120,30 +133,25 @@ export default function Home() {
           <WeekDots currentDay={weekday} />
         </View>
 
-        <View style={styles.heroWrap}>
-          <HeroCard />
-        </View>
-
         <Text style={styles.sectionTitle}>Jump back in</Text>
 
         <View style={styles.lessons}>
-          {activeSubs.length > 0 ? (
+          {activeSubs.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>No lessons available yet.</Text>
+            </View>
+          ) : (
             <LessonCardActive
               level={activeLevel}
               title={activeTitle}
               currentXp={currentXp}
               targetXp={targetXp || xpPerLesson || 1}
               xpPerLesson={xpPerLesson}
+              lessonsCompleted={activeSubsDone}
+              lessonsTotal={activeSubs.length}
               onPress={() => router.push(`/levels/${tier}/${activeLevel}` as never)}
             />
-          ) : (
-            <View style={styles.empty}>
-              <Text style={styles.emptyText}>No lessons available yet.</Text>
-            </View>
           )}
-          {levelsMap.has(nextLevelNumber) ? (
-            <LessonCardLocked level={nextLevelNumber} unlockAt={nextLevelUnlockAt} />
-          ) : null}
         </View>
 
         <Pressable
@@ -154,6 +162,17 @@ export default function Home() {
           <Text style={styles.viewAllText}>View all levels</Text>
           <Ionicons name="chevron-forward" size={14} color={colors.neutral} />
         </Pressable>
+
+        {latestNugget ? (
+          <RootNuggetCard
+            proverb={latestNugget.titleTranslated || latestNugget.titleEnglish}
+            translation={latestNugget.shortDescription}
+            audioUrl={latestNugget.audioUrl}
+            onViewAllPress={() => router.push('/(tabs)/culture' as never)}
+          />
+        ) : null}
+
+        <UpgradePromoCard onPress={() => router.push('/upgrade' as never)} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -192,9 +211,6 @@ const styles = StyleSheet.create({
   },
   weekWrap: {
     paddingVertical: spacing.xs,
-  },
-  heroWrap: {
-    marginTop: spacing.xs,
   },
   sectionTitle: {
     fontFamily: fonts.extrabold,

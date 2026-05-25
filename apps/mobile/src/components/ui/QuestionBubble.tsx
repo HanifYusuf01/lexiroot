@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
+import { MascotHeadIcon } from '../icons/MascotHeadIcon';
 import { colors, fonts, radius, spacing } from '../../constants/theme';
 
 interface QuestionBubbleProps {
@@ -8,7 +9,9 @@ interface QuestionBubbleProps {
 export function QuestionBubble({ question }: QuestionBubbleProps) {
   return (
     <View style={styles.row}>
-      <View style={styles.avatar} />
+      <View style={styles.avatar}>
+        <MascotHeadIcon size={64} />
+      </View>
       <View style={styles.bubble}>
         <View style={styles.tail} />
         <Text style={styles.question}>{question}</Text>
@@ -28,10 +31,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.full,
-    backgroundColor: colors.primary,
+    width: 64,
+    height: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bubble: {
     flex: 1,

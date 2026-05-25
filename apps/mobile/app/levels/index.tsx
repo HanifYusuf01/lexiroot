@@ -7,11 +7,11 @@ import { StreakBadge } from '../../src/components/dashboard/StreakBadge';
 import { Button } from '../../src/components/ui/Button';
 import { colors, fonts, radius, spacing } from '../../src/constants/theme';
 import { useAppSelector } from '../../src/store/hooks';
-import type { LessonType } from '@lexiroot/shared';
+import type { LearningLevel, LessonType } from '@lexiroot/shared';
 import { useListLessonsQuery, type LessonRow } from '../../src/services/lessonsApi';
+import { useGetLessonProgressQuery, useGetProgressQuery } from '../../src/services/progressApi';
 
 const PRIMARY_TIER = 'beginner' as const;
-const UNLOCK_THRESHOLDS = [0, 180, 360, 540, 720, 900, 1080, 1260];
 
 // Curriculum order — matches the level player's sub-lesson sequence.
 const TYPE_PRIORITY: readonly LessonType[] = [
@@ -26,9 +26,19 @@ const typeRank = (t: LessonType) => {
 };
 
 export default function LevelsIndex() {
-  const { data, isLoading } = useListLessonsQuery({ tier: PRIMARY_TIER, limit: 100 });
   const user = useAppSelector((s) => s.auth.user);
   const firstName = user?.displayName?.split(' ')[0] ?? 'there';
+  const tier: LearningLevel = user?.level ?? PRIMARY_TIER;
+
+  const { data, isLoading } = useListLessonsQuery({ tier, limit: 100 });
+  const { data: progress } = useGetProgressQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
+  const { data: savedProgress } = useGetLessonProgressQuery();
+  const completedIds = useMemo(
+    () => new Set(progress?.completedLessonIds ?? []),
+    [progress?.completedLessonIds],
+  );
 
   // Group lessons by level number — pick the priority-ranked first content
   // lesson (letters-numbers → vocabulary → recognition → sentence) as the
@@ -47,16 +57,35 @@ export default function LevelsIndex() {
           .filter((l) => TYPE_PRIORITY.includes(l.type))
           .slice()
           .sort((a, b) => typeRank(a.type) - typeRank(b.type));
-        const content = ranked[0] ?? list[0];
-        return { level, title: content?.title ?? `Level ${level}` };
+        const subs = ranked.length > 0 ? ranked : list;
+        const content = subs[0];
+        return { level, title: content?.title ?? `Level ${level}`, subs };
       })
       .sort((a, b) => a.level - b.level);
     return entries;
   }, [data]);
 
-  // For v1: first level unlocked, all others locked.
-  const currentXp = 30;
-  const currentLevel = 1;
+  const activeLevel = useMemo(() => {
+    const levelNumbers = levels.map((l) => l.level);
+    if (
+      savedProgress &&
+      savedProgress.tier === tier &&
+      levelNumbers.includes(savedProgress.level)
+    ) {
+      const savedLevel = levels.find((l) => l.level === savedProgress.level);
+      const savedDone =
+        !!savedLevel &&
+        savedLevel.subs.length > 0 &&
+        savedLevel.subs.every((s) => completedIds.has(s.id));
+      if (!savedDone) return savedProgress.level;
+    }
+
+    for (const lvl of levels) {
+      const allDone = lvl.subs.length > 0 && lvl.subs.every((s) => completedIds.has(s.id));
+      if (!allDone) return lvl.level;
+    }
+    return levels.at(-1)?.level ?? 1;
+  }, [levels, savedProgress, tier, completedIds]);
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -70,7 +99,7 @@ export default function LevelsIndex() {
             <Text style={styles.greeting}>Ẹ káàbọ̀, {firstName}</Text>
             <Text style={styles.subtitle}>You&apos;re on a roll!</Text>
           </View>
-          <StreakBadge days={5} />
+          <StreakBadge days={progress?.streak ?? 0} />
         </View>
 
         <View style={styles.dailyCard}>
@@ -96,21 +125,40 @@ export default function LevelsIndex() {
         ) : (
           <View style={styles.levelList}>
             {levels.map((lvl) => {
-              const unlocked = lvl.level <= currentLevel;
-              const xpToUnlock = UNLOCK_THRESHOLDS[lvl.level - 1] ?? lvl.level * 180;
+              const lessonsDone = lvl.subs.filter((s) => completedIds.has(s.id)).length;
+              const completed = lvl.subs.length > 0 && lessonsDone === lvl.subs.length;
+              const active = lvl.level === activeLevel && !completed;
+              const targetXp = lvl.subs.reduce((sum, s) => sum + (s.xpReward ?? 0), 0);
+              const currentXp =
+                savedProgress && savedProgress.tier === tier && savedProgress.level === lvl.level
+                  ? savedProgress.xp
+                  : lvl.subs
+                      .filter((s) => completedIds.has(s.id))
+                      .reduce((sum, s) => sum + (s.xpReward ?? 0), 0);
+              const xpToUnlock = levels
+                .filter((entry) => entry.level < lvl.level)
+                .reduce(
+                  (sum, entry) =>
+                    sum + entry.subs.reduce((entrySum, s) => entrySum + (s.xpReward ?? 0), 0),
+                  0,
+                );
+              const unlocked = completed || active;
               return (
                 <LevelRow
                   key={lvl.level}
                   level={lvl.level}
                   title={lvl.title}
                   unlocked={unlocked}
-                  active={lvl.level === currentLevel}
+                  completed={completed}
+                  active={active}
                   currentXp={currentXp}
-                  targetXp={UNLOCK_THRESHOLDS[lvl.level] ?? lvl.level * 180}
+                  targetXp={targetXp || 1}
                   xpToUnlock={xpToUnlock}
+                  lessonsDone={lessonsDone}
+                  lessonsTotal={lvl.subs.length}
                   onPress={() => {
                     if (!unlocked) return;
-                    router.push(`/levels/${PRIMARY_TIER}/${lvl.level}` as never);
+                    router.push(`/levels/${tier}/${lvl.level}` as never);
                   }}
                 />
               );
@@ -126,10 +174,13 @@ interface LevelRowProps {
   level: number;
   title: string;
   unlocked: boolean;
+  completed: boolean;
   active: boolean;
   currentXp: number;
   targetXp: number;
   xpToUnlock: number;
+  lessonsDone: number;
+  lessonsTotal: number;
   onPress: () => void;
 }
 
@@ -137,16 +188,43 @@ function LevelRow({
   level,
   title,
   unlocked,
+  completed,
   active,
   currentXp,
   targetXp,
   xpToUnlock,
+  lessonsDone,
+  lessonsTotal,
   onPress,
 }: LevelRowProps) {
+  if (completed) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [styles.completedCard, pressed && styles.pressed]}
+      >
+        <View style={styles.completedBadge}>
+          <Text style={styles.activeBadgeText}>Lvl {level}</Text>
+        </View>
+        <View style={styles.lockedBody}>
+          <Text style={styles.activeTitle}>{title}</Text>
+          <View style={styles.completedMetaRow}>
+            <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+            <Text style={styles.completedMeta}>Completed · +{targetXp} XP</Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.neutralVariant} />
+      </Pressable>
+    );
+  }
+
   if (active) {
     const progress = Math.min(1, currentXp / targetXp);
     return (
-      <Pressable onPress={onPress} style={({ pressed }) => [styles.activeCard, pressed && styles.pressed]}>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [styles.activeCard, pressed && styles.pressed]}
+      >
         <View style={styles.activeRow}>
           <View style={styles.activeBadge}>
             <Text style={styles.activeBadgeText}>Lvl {level}</Text>
@@ -163,8 +241,13 @@ function LevelRow({
           <View style={[styles.activeFill, { width: `${progress * 100}%` }]} />
         </View>
         <View style={styles.activeBonus}>
-          <Ionicons name="star" size={12} color={colors.tertiary} />
-          <Text style={styles.activeBonusText}>+10 XP after next lesson</Text>
+          <Text style={styles.activeLessons}>
+            {lessonsDone}/{lessonsTotal} Lessons
+          </Text>
+          <View style={styles.activeBonusRight}>
+            <Ionicons name="star" size={12} color={colors.tertiary} />
+            <Text style={styles.activeBonusText}>+{targetXp - currentXp} XP left</Text>
+          </View>
         </View>
       </Pressable>
     );
@@ -269,6 +352,33 @@ const styles = StyleSheet.create({
   levelList: {
     gap: spacing.sm,
   },
+  completedCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.successSurface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  completedBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.md,
+    backgroundColor: colors.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  completedMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  completedMeta: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.success,
+  },
   activeCard: {
     backgroundColor: colors.primarySoft,
     borderRadius: radius.lg,
@@ -321,6 +431,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   activeBonus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  activeLessons: {
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    color: colors.neutral,
+  },
+  activeBonusRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,

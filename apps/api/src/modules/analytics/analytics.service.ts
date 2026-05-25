@@ -118,14 +118,32 @@ export class AnalyticsService {
   private async dailyActivity(): Promise<AnalyticsDailyActivityPoint[]> {
     const start = daysAgo(ACTIVITY_WINDOW_DAYS - 1);
 
-    const active: DailyRow[] = await this.users
-      .createQueryBuilder('user')
-      .select(`to_char(date_trunc('day', user.last_active_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`, 'day')
-      .addSelect('COUNT(*)', 'active')
-      .addSelect('0', 'new_users')
-      .where('user.last_active_at >= :start', { start })
-      .groupBy('day')
-      .getRawMany();
+    const active: DailyRow[] = await this.users.query(
+      `
+        SELECT to_char(day, 'YYYY-MM-DD') AS day,
+               COUNT(DISTINCT user_id)::text AS active,
+               '0' AS new_users
+        FROM (
+          SELECT "id" AS user_id, date_trunc('day', "last_active_at" AT TIME ZONE 'UTC') AS day
+          FROM "users"
+          WHERE "last_active_at" >= $1
+
+          UNION ALL
+
+          SELECT "user_id" AS user_id, date_trunc('day', "completed_at" AT TIME ZONE 'UTC') AS day
+          FROM "lesson_completions"
+          WHERE "completed_at" >= $1
+
+          UNION ALL
+
+          SELECT "user_id" AS user_id, date_trunc('day', "updated_at" AT TIME ZONE 'UTC') AS day
+          FROM "lesson_progress"
+          WHERE "updated_at" >= $1
+        ) activity
+        GROUP BY day
+        `,
+      [start],
+    );
 
     const created: DailyRow[] = await this.users
       .createQueryBuilder('user')
@@ -204,11 +222,7 @@ export class AnalyticsService {
   private async topLessons(): Promise<AnalyticsTopLesson[]> {
     const rows: LessonRow[] = await this.lessons
       .createQueryBuilder('lesson')
-      .leftJoin(
-        'lesson_completions',
-        'completion',
-        'completion.lesson_id = lesson.id',
-      )
+      .leftJoin('lesson_completions', 'completion', 'completion.lesson_id = lesson.id')
       .select('lesson.id', 'id')
       .addSelect('lesson.title', 'title')
       .addSelect('lesson.tier', 'tier')

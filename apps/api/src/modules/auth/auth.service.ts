@@ -12,7 +12,12 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes, randomInt } from 'crypto';
 import { UsersService } from '../users/users.service';
 import { User, UserRole } from '../users/entities/user.entity';
-import type { CountryCode } from '@lexiroot/shared';
+import type {
+  CountryCode,
+  LanguageCode,
+  LearningLevel,
+  LearningReason,
+} from '@lexiroot/shared';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangePendingEmailDto } from './dto/change-pending-email.dto';
 import { LoginDto } from './dto/login.dto';
@@ -41,6 +46,9 @@ export interface AuthResponse {
     emailVerifiedAt: Date | null;
     country: CountryCode | null;
     avatarUrl: string | null;
+    language: LanguageCode | null;
+    level: LearningLevel | null;
+    learningReason: LearningReason | null;
     xp: number;
     currentStreakDays: number;
     lessonsCompleted: number;
@@ -279,6 +287,9 @@ export class AuthService {
         emailVerifiedAt: user.emailVerifiedAt,
         country: user.country,
         avatarUrl: user.avatarUrl,
+        language: user.language,
+        level: user.level,
+        learningReason: user.learningReason,
         xp: user.xp,
         currentStreakDays: user.currentStreakDays,
         lessonsCompleted: user.lessonsCompleted,

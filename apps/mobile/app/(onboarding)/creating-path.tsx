@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { HeroCircle } from '../../src/components/ui/HeroCircle';
+import { MascotHeadIcon } from '../../src/components/icons/MascotHeadIcon';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
 import { colors, fonts, spacing } from '../../src/constants/theme';
 
@@ -39,7 +39,7 @@ export default function CreatingPathScreen() {
     <ScreenContainer>
       <View style={styles.body}>
         <View style={styles.hero}>
-          <HeroCircle variant="primary" size={180} />
+          <MascotHeadIcon size={170} />
         </View>
         <Text style={styles.title}>Creating your{'\n'}learning path</Text>
         <Animated.View style={[styles.spinner, { transform: [{ rotate }] }]}>

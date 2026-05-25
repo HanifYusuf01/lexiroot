@@ -3,10 +3,12 @@ import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { LessonType } from '@lexiroot/shared';
+import type { LearningLevel, LessonType } from '@lexiroot/shared';
 import { SkillCard } from '../../src/components/practice/SkillCard';
+import { RootNuggetCard } from '../../src/components/culture/RootNuggetCard';
 import { useListLessonsQuery } from '../../src/services/lessonsApi';
 import { useGetProgressQuery } from '../../src/services/progressApi';
+import { useListCulturalContentQuery } from '../../src/services/culturalContentApi';
 import { useAppSelector } from '../../src/store/hooks';
 import {
   colors,
@@ -28,11 +30,22 @@ const SKILL_TO_LESSON_TYPE: Record<SkillKey, LessonType> = {
 
 export default function PracticeTab() {
   const user = useAppSelector((s) => s.auth.user);
+  const tier: LearningLevel = user?.level ?? 'beginner';
   const lessonsQuery = useListLessonsQuery({ limit: 100 });
   const progressQuery = useGetProgressQuery();
+  const nuggetQuery = useListCulturalContentQuery({ tier, limit: 10 });
 
   const completedIds = progressQuery.data?.completedLessonIds ?? [];
   const streak = progressQuery.data?.streak ?? 0;
+
+  const latestNugget = useMemo(() => {
+    const items = [...(nuggetQuery.data?.items ?? [])].sort((a, b) => {
+      const aT = a.publishedAt ?? a.createdAt;
+      const bT = b.publishedAt ?? b.createdAt;
+      return bT.localeCompare(aT);
+    });
+    return items.find((c) => !!c.audioUrl) ?? items[0] ?? null;
+  }, [nuggetQuery.data]);
 
   const progressBySkill = useMemo(() => {
     const items = lessonsQuery.data?.items ?? [];
@@ -77,6 +90,15 @@ export default function PracticeTab() {
             />
           ))}
         </View>
+
+        {latestNugget ? (
+          <RootNuggetCard
+            proverb={latestNugget.titleTranslated || latestNugget.titleEnglish}
+            translation={latestNugget.shortDescription}
+            audioUrl={latestNugget.audioUrl}
+            onViewAllPress={() => router.push('/(tabs)/culture' as never)}
+          />
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

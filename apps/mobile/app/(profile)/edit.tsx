@@ -16,9 +16,11 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { ScreenHeader } from '../../src/components/ui/ScreenHeader';
 import { TextField } from '../../src/components/ui/TextField';
+import { UpgradePromoCard } from '../../src/components/dashboard/UpgradePromoCard';
 import { UserAvatar } from '../../src/components/ui/UserAvatar';
 import { colors, fonts, radius, spacing } from '../../src/constants/theme';
 import { useSignAvatarUploadMutation, useUpdateMeMutation } from '../../src/services/authApi';
+import { useGetProgressQuery } from '../../src/services/progressApi';
 import { authStorage } from '../../src/services/secureStorage';
 import { uploadAvatarToCloudinary } from '../../src/utils/cloudinary';
 import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
@@ -41,6 +43,11 @@ export default function EditProfileScreen() {
   const token = useAppSelector((s) => s.auth.token);
   const [updateMe, { isLoading: saving }] = useUpdateMeMutation();
   const [signAvatarUpload] = useSignAvatarUploadMutation();
+  // Pull live stats from /me/progress so completed lessons reflect immediately —
+  // the auth.user slice is only seeded at login and never refreshed.
+  const { data: progress } = useGetProgressQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
 
   const [name, setName] = useState(user?.displayName ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
@@ -150,9 +157,9 @@ export default function EditProfileScreen() {
     }
   }
 
-  const lessons = user?.lessonsCompleted ?? 0;
-  const streak = user?.currentStreakDays ?? 0;
-  const xp = user?.xp ?? 0;
+  const lessons = progress?.lessonsCompleted ?? user?.lessonsCompleted ?? 0;
+  const streak = progress?.streak ?? user?.currentStreakDays ?? 0;
+  const xp = progress?.totalXp ?? user?.xp ?? 0;
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
@@ -249,21 +256,8 @@ export default function EditProfileScreen() {
             />
           </View>
 
-          <View style={styles.promoCard}>
-            <View style={styles.promoCorner} />
-            <View style={styles.promoIcon}>
-              <Ionicons name="bookmark" size={24} color={colors.white} />
-            </View>
-            <View style={styles.promoText}>
-              <Text style={styles.promoTitle}>Unlock full Yoruba{'\n'}Journey</Text>
-              <Text style={styles.promoSubtitle}>All lessons, stories & audio</Text>
-            </View>
-            <Pressable
-              onPress={() => router.push('/preferences')}
-              style={({ pressed }) => [styles.promoBtn, pressed && styles.promoBtnPressed]}
-            >
-              <Text style={styles.promoBtnLabel}>Upgrade</Text>
-            </Pressable>
+          <View style={styles.promoWrap}>
+            <UpgradePromoCard onPress={() => router.push('/upgrade')} />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -397,64 +391,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.primary,
   },
-  promoCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
+  promoWrap: {
     marginTop: spacing.lg,
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.lg,
-    backgroundColor: colors.primary,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  promoCorner: {
-    position: 'absolute',
-    top: -28,
-    right: -28,
-    width: 90,
-    height: 90,
-    borderRadius: radius.full,
-    backgroundColor: colors.chatBubbleUser,
-    opacity: 0.85,
-  },
-  promoIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: radius.md,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  promoText: {
-    flex: 1,
-  },
-  promoTitle: {
-    fontFamily: fonts.extrabold,
-    fontSize: 17,
-    lineHeight: 22,
-    color: colors.white,
-  },
-  promoSubtitle: {
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.92)',
-    marginTop: spacing.xs,
-  },
-  promoBtn: {
-    paddingHorizontal: spacing.md + 2,
-    paddingVertical: spacing.sm + 2,
-    borderRadius: radius.full,
-    backgroundColor: colors.primarySofter,
-  },
-  promoBtnPressed: {
-    opacity: 0.85,
-  },
-  promoBtnLabel: {
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    color: colors.primary,
   },
   saveLabel: {
     fontFamily: fonts.bold,

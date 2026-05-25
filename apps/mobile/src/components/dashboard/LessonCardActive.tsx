@@ -8,6 +8,8 @@ interface LessonCardActiveProps {
   currentXp: number;
   targetXp: number;
   xpPerLesson: number;
+  lessonsCompleted: number;
+  lessonsTotal: number;
   onPress?: () => void;
 }
 
@@ -17,32 +19,42 @@ export function LessonCardActive({
   currentXp,
   targetXp,
   xpPerLesson,
+  lessonsCompleted,
+  lessonsTotal,
   onPress,
 }: LessonCardActiveProps) {
-  const progress = Math.min(1, currentXp / targetXp);
+  const progress = Math.min(1, targetXp > 0 ? currentXp / targetXp : 0);
 
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+    >
       <View style={styles.row}>
         <View style={styles.badge}>
           <Text style={styles.badgeText}>Lvl {level}</Text>
         </View>
         <View style={styles.center}>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.level}>Level {level}</Text>
+          <Text style={styles.title} numberOfLines={1}>
+            {title} <Text style={styles.titleDot}>· Level {level}</Text>
+          </Text>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+          </View>
         </View>
         <Text style={styles.xp}>
           {currentXp}/{targetXp} XP
         </Text>
       </View>
 
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
-      </View>
-
-      <View style={styles.bonusRow}>
-        <Ionicons name="star" size={14} color={colors.tertiary} />
-        <Text style={styles.bonusText}>+{xpPerLesson} XP after next lesson</Text>
+      <View style={styles.metaRow}>
+        <Text style={styles.lessonsCount}>
+          {lessonsCompleted}/{lessonsTotal} Lessons
+        </Text>
+        <View style={styles.bonus}>
+          <Ionicons name="star" size={13} color={colors.tertiary} />
+          <Text style={styles.bonusText}>+{xpPerLesson} XP after next lesson</Text>
+        </View>
       </View>
     </Pressable>
   );
@@ -78,21 +90,16 @@ const styles = StyleSheet.create({
   },
   center: {
     flex: 1,
+    gap: 6,
   },
   title: {
     fontFamily: fonts.bold,
-    fontSize: 16,
+    fontSize: 14,
     color: colors.neutral,
   },
-  level: {
+  titleDot: {
     fontFamily: fonts.medium,
-    fontSize: 12,
     color: colors.neutralVariant,
-  },
-  xp: {
-    fontFamily: fonts.bold,
-    fontSize: 13,
-    color: colors.primary,
   },
   progressTrack: {
     height: 6,
@@ -105,14 +112,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: 3,
   },
-  bonusRow: {
+  xp: {
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    color: colors.primary,
+  },
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    justifyContent: 'space-between',
+    paddingLeft: 56 + spacing.md,
+    gap: spacing.sm,
+  },
+  lessonsCount: {
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    color: colors.neutral,
+  },
+  bonus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   bonusText: {
     fontFamily: fonts.medium,
-    fontSize: 12,
+    fontSize: 11,
     color: colors.neutralVariant,
   },
 });

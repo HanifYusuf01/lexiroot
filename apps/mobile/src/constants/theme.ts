@@ -47,6 +47,7 @@ export const fonts = {
   semiboldItalic: 'Nunito_600SemiBold_Italic',
   bold: 'Nunito_700Bold',
   extrabold: 'Nunito_800ExtraBold',
+  black: 'Nunito_900Black',
 } as const;
 
 export type SkillKey = 'listen-select' | 'vocabulary' | 'sentence' | 'recognition';
@@ -97,25 +98,26 @@ export const skillThemes: Record<SkillKey, SkillTheme> = {
     key: 'recognition',
     title: 'Recognition',
     level: 8,
-    main: '#18B452',
-    border: '#A5F3C2',
-    soft: '#E6F8EC',
-    softer: '#F1FBF4',
+    main: '#673AB7',
+    border: '#C7B2E0',
+    soft: '#EDE7F6',
+    softer: '#F5F1FB',
     on: '#FFFFFF',
   },
 } as const;
 
-// Neutral palette used by exercises that are part of a level run (lesson
-// flow). The practice tab uses the skill-specific themes above; the level
-// flow stays grey so it doesn't dye every screen with a different brand color.
+// Unified palette used by exercises that are part of a level run (lesson
+// flow). The practice tab uses skill-specific themes above; the level flow
+// uses one brand-primary palette so all sub-lessons feel like one continuous
+// experience rather than switching colour per sub-lesson type.
 // `key` is required by SkillTheme but isn't read by exercise screens.
 export const neutralExerciseTheme: SkillTheme = {
   key: 'listen-select',
   title: 'Lesson',
   level: 0,
-  main: '#7A7878',
-  border: '#E5E5E5',
-  soft: '#EFEFEF',
-  softer: '#F7F7F7',
+  main: '#E35336',
+  border: '#F3B2A5',
+  soft: '#FCEBE6',
+  softer: '#FDF7F7',
   on: '#FFFFFF',
 };

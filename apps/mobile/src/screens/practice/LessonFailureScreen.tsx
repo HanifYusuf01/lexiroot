@@ -1,7 +1,7 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ExerciseTopBar } from '../../components/exercise/ExerciseTopBar';
+import { MascotSadIcon } from '../../components/icons/MascotSadIcon';
 import { colors, fonts, radius, spacing } from '../../constants/theme';
 
 interface LessonFailureScreenProps {
@@ -44,7 +44,7 @@ export function LessonFailureScreen({
       <View style={styles.body}>
         <View style={styles.mascotRow}>
           <View style={styles.mascotBox}>
-            <Ionicons name="happy" size={56} color={colors.primary} />
+            <MascotSadIcon size={80} />
           </View>
           <View style={[styles.bubble, { borderColor: colors.primaryBorder }]}>
             <Text style={styles.bubbleText}>
@@ -115,12 +115,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   mascotBox: {
-    width: 72,
-    height: 72,
-    borderRadius: radius.lg,
-    backgroundColor: colors.primarySoft,
+    width: 100,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   bubble: {
     flex: 1,

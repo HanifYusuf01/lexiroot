@@ -5,7 +5,7 @@ import {
   LEARNING_LEVEL_LABELS,
 } from '@lexiroot/shared';
 import { Button } from '../../src/components/ui/Button';
-import { HeroCircle } from '../../src/components/ui/HeroCircle';
+import { MascotIcon } from '../../src/components/icons/MascotIcon';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
 import { colors, fonts, spacing } from '../../src/constants/theme';
 import { useAppSelector } from '../../src/store/hooks';
@@ -30,7 +30,7 @@ export default function SetupScreen() {
     <ScreenContainer>
       <View style={styles.body}>
         <View style={styles.hero}>
-          <HeroCircle variant="soft" size={220} />
+          <MascotIcon size={170} />
         </View>
         <Text style={styles.title}>We&apos;re setting things up for you...</Text>
         <View style={styles.summary}>

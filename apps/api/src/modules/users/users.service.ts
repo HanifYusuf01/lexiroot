@@ -67,6 +67,22 @@ function isActive(lastActiveAt: Date | null): boolean {
   return lastActiveAt.getTime() >= activeCutoff().getTime();
 }
 
+function isSameUtcDay(a: Date, b: Date): boolean {
+  return (
+    a.getUTCFullYear() === b.getUTCFullYear() &&
+    a.getUTCMonth() === b.getUTCMonth() &&
+    a.getUTCDate() === b.getUTCDate()
+  );
+}
+
+function isPrevUtcDay(prev: Date, today: Date): boolean {
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const diff =
+    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()) -
+    Date.UTC(prev.getUTCFullYear(), prev.getUTCMonth(), prev.getUTCDate());
+  return diff === oneDayMs;
+}
+
 function toPublic(u: User): PublicUser {
   return {
     id: u.id,
@@ -127,7 +143,24 @@ export class UsersService {
   }
 
   async touchActivity(id: string): Promise<void> {
-    await this.users.update(id, { lastActiveAt: new Date() });
+    const user = await this.users.findOne({ where: { id } });
+    if (!user) return;
+    const now = new Date();
+    const last = user.lastActiveAt ? new Date(user.lastActiveAt) : null;
+    let streak = user.currentStreakDays ?? 0;
+    if (!last) {
+      streak = 1;
+    } else if (isSameUtcDay(last, now)) {
+      // Already counted today. A brand-new account is created with
+      // lastActiveAt=now and streak=0, so promote to 1 the first time the
+      // user actually pings any endpoint.
+      if (streak === 0) streak = 1;
+    } else if (isPrevUtcDay(last, now)) {
+      streak = streak + 1;
+    } else {
+      streak = 1;
+    }
+    await this.users.update(id, { lastActiveAt: now, currentStreakDays: streak });
   }
 
   async paginate(query: ListUsersQueryDto): Promise<PaginatedUsers> {

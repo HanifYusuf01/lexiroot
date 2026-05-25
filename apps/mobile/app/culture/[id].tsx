@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
-  Easing,
   Modal,
   Pressable,
   ScrollView,
@@ -41,7 +39,6 @@ export default function CultureReaderScreen() {
   const [langPickerOpen, setLangPickerOpen] = useState(false);
 
   const playback = useAudioPlayback(item?.audioUrl ?? null);
-  const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (autoplay === '1' && playback.isReady && !playback.isPlaying) {
@@ -49,19 +46,6 @@ export default function CultureReaderScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playback.isReady, autoplay]);
-
-  useEffect(() => {
-    progress.stopAnimation();
-    if (playback.isPlaying) {
-      progress.setValue(0);
-      Animated.timing(progress, {
-        toValue: 1,
-        duration: 60_000,
-        easing: Easing.linear,
-        useNativeDriver: false,
-      }).start();
-    }
-  }, [playback.isPlaying, progress]);
 
   if (isLoading || !item) {
     return (
@@ -78,10 +62,10 @@ export default function CultureReaderScreen() {
     : item.titleEnglish;
 
   const langLabel = LANGUAGE_LABELS[item.language];
-  const progressWidth = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
-  });
+  const progressPct =
+    playback.duration > 0
+      ? Math.min(100, Math.max(0, (playback.currentTime / playback.duration) * 100))
+      : 0;
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -110,25 +94,27 @@ export default function CultureReaderScreen() {
             <View style={styles.playerRow}>
               <Pressable
                 onPress={playback.isPlaying ? playback.stop : playback.play}
-                style={styles.playerBtn}
+                style={styles.playBtn}
+                hitSlop={8}
               >
                 <Ionicons
                   name={playback.isPlaying ? 'pause' : 'play'}
-                  size={20}
+                  size={18}
                   color={colors.white}
                 />
               </Pressable>
               <View style={styles.progressTrack}>
-                <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
+                <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
               </View>
               <Pressable
                 onPress={() => {
                   playback.stop();
                   playback.play();
                 }}
-                style={styles.playerBtn}
+                style={styles.restartBtn}
+                hitSlop={8}
               >
-                <Ionicons name="refresh" size={18} color={colors.white} />
+                <Ionicons name="refresh" size={22} color={colors.white} />
               </Pressable>
             </View>
           </View>
@@ -332,7 +318,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     backgroundColor: colors.primary,
     borderRadius: radius.lg,
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
   },
   playerLabel: {
     fontFamily: fonts.bold,
@@ -340,30 +327,39 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
   playerRow: {
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
   },
-  playerBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  playBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     borderWidth: 2,
     borderColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  restartBtn: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   progressTrack: {
     flex: 1,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    height: 16,
+    borderRadius: 999,
+    backgroundColor: colors.primarySoft,
     overflow: 'hidden',
+    padding: 3,
+    justifyContent: 'center',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: colors.secondary,
+    borderRadius: 999,
+    backgroundColor: '#3C2A1A',
   },
   body: {
     marginTop: spacing.xl,

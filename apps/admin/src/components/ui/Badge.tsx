@@ -1,10 +1,12 @@
-import { ReactNode } from 'react';
+import { type CSSProperties, type ReactNode } from 'react';
 
 type Tone = 'success' | 'warning' | 'error' | 'neutral';
 
 interface BadgeProps {
   tone: Tone;
   children: ReactNode;
+  className?: string;
+  style?: CSSProperties;
 }
 
 const toneClasses: Record<Tone, string> = {
@@ -14,10 +16,11 @@ const toneClasses: Record<Tone, string> = {
   neutral: 'bg-neutral-soft text-neutral-variant',
 };
 
-export function Badge({ tone, children }: BadgeProps) {
+export function Badge({ tone, children, className = '', style }: BadgeProps) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${toneClasses[tone]}`}
+      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${toneClasses[tone]} ${className}`}
+      style={style}
     >
       {children}
     </span>

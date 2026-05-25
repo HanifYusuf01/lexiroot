@@ -15,6 +15,7 @@ import type {
   WordArrangePayload,
 } from '@lexiroot/shared';
 import { MascotIcon } from '../../../src/components/icons/MascotIcon';
+import { MascotSadIcon } from '../../../src/components/icons/MascotSadIcon';
 import { PadlockUnlockedIcon } from '../../../src/components/icons/PadlockUnlockedIcon';
 import { LessonContentCard } from '../../../src/components/lesson/LessonContentCard';
 import { LessonFullCenterScreen } from '../../../src/components/lesson/LessonFullCenterScreen';
@@ -40,6 +41,7 @@ import {
   useClearLessonProgressMutation,
   useCompleteLessonMutation,
   useGetLessonProgressQuery,
+  useGetProgressQuery,
   useUpsertLessonProgressMutation,
 } from '../../../src/services/progressApi';
 
@@ -155,8 +157,21 @@ export default function LevelPlayer() {
     { skip: !currentSub },
   );
 
-  // Resume state: fetch once on mount; restore when both lessons + saved state are ready.
-  const { data: savedProgress, isLoading: loadingSaved } = useGetLessonProgressQuery();
+  // Resume state: refetch on every mount so a completion just persisted in
+  // another screen (or a previous run of this player) is reflected as soon as
+  // the learner re-opens the level — otherwise the bar would render off the
+  // stale cache and look empty even though the server knows the sub is done.
+  const { data: savedProgress, isLoading: loadingSaved } = useGetLessonProgressQuery(
+    undefined,
+    { refetchOnMountOrArgChange: true },
+  );
+  const { data: overallProgress } = useGetProgressQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
+  const completedLessonIds = useMemo(
+    () => new Set(overallProgress?.completedLessonIds ?? []),
+    [overallProgress?.completedLessonIds],
+  );
   const [upsertProgress] = useUpsertLessonProgressMutation();
   const [clearProgress] = useClearLessonProgressMutation();
   const [completeLesson] = useCompleteLessonMutation();
@@ -188,11 +203,27 @@ export default function LevelPlayer() {
     restoredRef.current = true;
   }, [loadingList, loadingSaved, savedProgress, subLessons.length, tier, level]);
 
-  // Persist state on every meaningful change. Skip terminal states (complete/next-unlocked/upgrade).
+  // Persist state on every meaningful change. Skip end-of-level screens
+  // (next-unlocked/upgrade) — those are post-level and shouldn't re-open. But
+  // DO persist 'complete' so a learner who finishes a sub and navigates away
+  // resumes on the celebration screen with the correct xp/correct counts
+  // instead of being dropped back into the last exercise.
+  //
+  // Also skip persistence when this level is already fully completed — a
+  // learner revisiting a finished level (e.g., tapping the green Completed
+  // card on Home) would otherwise overwrite the cleared lesson-progress row
+  // with a fresh subIdx=0/xp=0 state, and the next time they open Home the
+  // dashboard would pick that up and treat the finished level as "active"
+  // again with a 0/X XP bar.
+  const levelAlreadyComplete = useMemo(
+    () => subLessons.length > 0 && subLessons.every((s) => completedLessonIds.has(s.id)),
+    [subLessons, completedLessonIds],
+  );
   useEffect(() => {
     if (!restoredRef.current) return;
     if (!currentSub) return;
-    if (step.kind === 'complete' || step.kind === 'next-unlocked' || step.kind === 'upgrade') return;
+    if (step.kind === 'next-unlocked' || step.kind === 'upgrade') return;
+    if (levelAlreadyComplete) return;
     const stepIndex = step.kind === 'content' || step.kind === 'exercise' ? step.index : 0;
     upsertProgress({
       tier,
@@ -214,14 +245,26 @@ export default function LevelPlayer() {
   }, [currentSub, exercises.length]);
 
   const totalSteps = entries.length + exercises.length;
+  // Progress bar spans the whole level (every sub-lesson), so once a sub is
+  // completed its share of the bar stays filled — even if the learner re-enters
+  // the level and the per-sub step resets to intro.
   const stepProgress = useMemo(() => {
-    if (totalSteps === 0) return 0;
-    if (step.kind === 'content') return (step.index + 1) / (totalSteps + 1);
-    if (step.kind === 'exercise')
-      return (entries.length + step.index + 1) / (totalSteps + 1);
-    if (step.kind === 'almost-there' || step.kind === 'complete') return 1;
-    return 0;
-  }, [step, totalSteps, entries.length]);
+    const totalSubs = subLessons.length;
+    if (totalSubs === 0) return 0;
+    const completedSubs = subLessons.filter((s) => completedLessonIds.has(s.id)).length;
+    const currentSubDone = currentSub && completedLessonIds.has(currentSub.id);
+    let withinCurrent = 0;
+    if (currentSubDone) {
+      withinCurrent = 1;
+    } else if (totalSteps > 0) {
+      if (step.kind === 'content') withinCurrent = (step.index + 1) / (totalSteps + 1);
+      else if (step.kind === 'exercise')
+        withinCurrent = (entries.length + step.index + 1) / (totalSteps + 1);
+      else if (step.kind === 'almost-there' || step.kind === 'complete') withinCurrent = 1;
+    }
+    const filled = completedSubs + (currentSubDone ? 0 : withinCurrent);
+    return Math.min(1, filled / totalSubs);
+  }, [step, totalSteps, entries.length, subLessons, currentSub, completedLessonIds]);
 
   const close = () => router.back();
 
@@ -268,14 +311,16 @@ export default function LevelPlayer() {
 
   function retryLevel() {
     // Restart the level — exercises only. Content stays skipped because the
-    // user already worked through it on the first pass.
+    // user already worked through it on the first pass, and the practice-intro
+    // is suppressed: they've just been told to try again, so we drop them
+    // straight into the questions.
     setRetryMode(true);
     setSubIdx(0);
     setCorrect(0);
     setLevelCorrect(0);
     setLevelTotal(0);
     setXp(0);
-    setStep({ kind: 'practice-intro' });
+    setStep({ kind: 'exercise', index: 0 });
   }
 
   function advanceAfterComplete() {
@@ -286,11 +331,11 @@ export default function LevelPlayer() {
 
     if (subIdx + 1 < subLessons.length) {
       // More sub-lessons in this level → reset per-sub correct count and
-      // step into the next one. Retry mode skips back to practice-intro so
-      // we don't repeat content the user has already covered.
+      // step into the next one. In retry mode skip both content and
+      // practice-intro and drop straight into the next sub's exercises.
       setSubIdx((i) => i + 1);
       setCorrect(0);
-      setStep(retryMode ? { kind: 'practice-intro' } : { kind: 'intro' });
+      setStep(retryMode ? { kind: 'exercise', index: 0 } : { kind: 'intro' });
       return;
     }
 
@@ -387,8 +432,10 @@ export default function LevelPlayer() {
           />
         }
       >
-        <View style={styles.practiceBlob} />
-        <Text style={styles.heroTitle}>Let&apos;s Practice What You&apos;ve Learned</Text>
+        <View style={styles.practiceMascot}>
+          <MascotIcon size={160} />
+        </View>
+        <Text style={styles.practiceTitle}>Let&apos;s Practice What{'\n'}You&apos;ve Learned</Text>
         <Text style={styles.heroBody}>
           You&apos;ll listen, match, and answer a few quick questions.
         </Text>
@@ -588,9 +635,10 @@ interface ExerciseStepProps {
   onResult: (correct: boolean) => void;
 }
 
-// Inside the level flow we deliberately use the neutral palette so exercises
-// don't switch colors per sub-lesson type — the level run feels like one
-// continuous experience. The practice tab still uses skill-specific themes.
+// Inside the level flow we deliberately use one brand-primary palette so
+// exercises don't switch colors per sub-lesson type — the level run feels
+// like one continuous experience. The practice tab still uses skill-specific
+// themes.
 function pickTheme(_lessonType: LessonType): SkillTheme {
   return neutralExerciseTheme;
 }
@@ -765,7 +813,7 @@ function AlmostThereScreen({
 
       <View style={styles.almostBody}>
         <View style={styles.almostBubbleRow}>
-          <MascotIcon size={104} />
+          <MascotSadIcon size={104} />
           <View style={styles.bubbleWrap}>
             <View style={styles.bubblePointer} />
             <View style={styles.bubble}>
@@ -883,6 +931,17 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     backgroundColor: colors.primary,
     marginBottom: spacing.lg,
+  },
+  practiceMascot: {
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  practiceTitle: {
+    fontFamily: fonts.black,
+    fontSize: 30,
+    lineHeight: 36,
+    color: colors.primary,
+    textAlign: 'center',
   },
   almostBody: {
     flex: 1,

@@ -10,11 +10,13 @@ import {
   Nunito_600SemiBold_Italic,
   Nunito_700Bold,
   Nunito_800ExtraBold,
+  Nunito_900Black,
   useFonts,
 } from '@expo-google-fonts/nunito';
 import { store } from '../src/store';
 import { useAppSelector } from '../src/store/hooks';
 import { useAuthBootstrap } from '../src/hooks/useAuthBootstrap';
+import { SplashScreenView } from '../src/components/ui/SplashScreenView';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -28,7 +30,7 @@ function Bootstrap({ children }: { children: ReactNode }) {
     }
   }, [hydrated]);
 
-  if (!hydrated) return null;
+  if (!hydrated) return <SplashScreenView />;
   return <>{children}</>;
 }
 
@@ -40,6 +42,7 @@ export default function RootLayout() {
     Nunito_600SemiBold_Italic,
     Nunito_700Bold,
     Nunito_800ExtraBold,
+    Nunito_900Black,
   });
 
   if (!loaded && !error) return null;

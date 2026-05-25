@@ -45,7 +45,7 @@ export default function CultureTab() {
           </View>
         ) : (
           <View style={styles.list}>
-            {items.map((item, index) => (
+            {items.map((item) => (
               <CultureContentCard
                 key={item.id}
                 type={item.type}
@@ -53,7 +53,6 @@ export default function CultureTab() {
                 subtitle={item.shortDescription}
                 coverImageUrl={item.coverImageUrl}
                 audioUrl={item.audioUrl}
-                variant={index === 0 ? 'soft' : 'primary'}
                 onReadPress={() => router.push(`/culture/${item.id}`)}
                 onListenPress={() => router.push(`/culture/${item.id}?autoplay=1`)}
               />

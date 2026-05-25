@@ -24,7 +24,7 @@ const ICON_BG: Record<CulturalContentType, string> = {
 };
 
 const ICON_FG: Record<CulturalContentType, string> = {
-  story: '#7B61FF',
+  story: '#060099',
   folktale: '#16a34a',
   proverb: '#e35336',
 };

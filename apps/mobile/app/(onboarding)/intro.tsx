@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button } from '../../src/components/ui/Button';
-import { HeroCircle } from '../../src/components/ui/HeroCircle';
+import { MascotHeadIcon } from '../../src/components/icons/MascotHeadIcon';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
 import { SkipConfirmModal } from '../../src/components/ui/SkipConfirmModal';
 import { colors, fonts, spacing } from '../../src/constants/theme';
@@ -17,7 +17,7 @@ export default function OnboardingIntro() {
     <ScreenContainer>
       <View style={styles.body}>
         <View style={styles.hero}>
-          <HeroCircle variant="neutral" size={240} />
+          <MascotHeadIcon size={180} />
         </View>
         <Text style={styles.title}>This is more than learning a language.</Text>
         <Text style={styles.subtitle}>

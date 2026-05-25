@@ -8,7 +8,6 @@ interface Props {
   subtitle: string;
   coverImageUrl: string | null;
   audioUrl: string | null;
-  variant?: 'soft' | 'primary';
   completed?: boolean;
   onReadPress: () => void;
   onListenPress: () => void;
@@ -20,46 +19,36 @@ export function CultureContentCard({
   subtitle,
   coverImageUrl,
   audioUrl,
-  variant = 'primary',
   completed = false,
   onReadPress,
   onListenPress,
 }: Props) {
-  const isSoft = variant === 'soft';
-  const readLabel = type === 'proverb' ? 'Read Proverb' : 'Read Story';
-
-  const bg = isSoft ? colors.primarySoft : colors.primary;
-  const blobBg = isSoft ? colors.primaryBorder : colors.primarySoft;
-  const titleColor = isSoft ? colors.primary : colors.white;
-  const subtitleColor = isSoft ? colors.primary : colors.white;
-  const ringColor = isSoft ? colors.primary : colors.white;
-  const ringFill = completed ? (isSoft ? colors.primary : colors.white) : 'transparent';
+  const readLabel = `Read ${CULTURAL_CONTENT_TYPE_LABELS[type]}`;
 
   return (
-    <View style={[styles.card, { backgroundColor: bg }]}>
-      <View
-        pointerEvents="none"
-        style={[styles.blob, { backgroundColor: blobBg }]}
-      />
+    <View style={styles.card}>
+      <View pointerEvents="none" style={styles.blob} />
 
       <View style={styles.row}>
         <View style={styles.content}>
-          <Text style={[styles.title, { color: titleColor }]} numberOfLines={2}>
+          <Text style={styles.title} numberOfLines={2}>
             {title}
           </Text>
           {subtitle ? (
-            <Text style={[styles.subtitle, { color: subtitleColor }]} numberOfLines={2}>
+            <Text style={styles.subtitle} numberOfLines={2}>
               {subtitle}
             </Text>
           ) : (
-            <Text style={[styles.subtitle, { color: subtitleColor }]} numberOfLines={1}>
+            <Text style={styles.subtitle} numberOfLines={1}>
               {`A ${CULTURAL_CONTENT_TYPE_LABELS[type].toLowerCase()}`}
             </Text>
           )}
         </View>
-        {isSoft && coverImageUrl ? (
+        {coverImageUrl ? (
           <Image source={{ uri: coverImageUrl }} style={styles.thumb} />
-        ) : null}
+        ) : (
+          <View style={[styles.thumb, styles.thumbPlaceholder]} />
+        )}
       </View>
 
       <View style={styles.footer}>
@@ -78,7 +67,7 @@ export function CultureContentCard({
         <View
           style={[
             styles.ring,
-            { borderColor: ringColor, backgroundColor: ringFill },
+            completed && { backgroundColor: colors.primary },
           ]}
         />
       </View>
@@ -89,19 +78,23 @@ export function CultureContentCard({
 const styles = StyleSheet.create({
   card: {
     borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primarySoft,
     padding: spacing.lg,
     overflow: 'hidden',
     position: 'relative',
   },
   blob: {
     position: 'absolute',
-    top: -32,
+    top: -28,
     right: -40,
-    width: 140,
-    height: 100,
-    borderBottomLeftRadius: 80,
-    borderTopLeftRadius: 60,
-    opacity: 0.5,
+    width: 120,
+    height: 90,
+    borderBottomLeftRadius: 70,
+    borderTopLeftRadius: 50,
+    backgroundColor: colors.primary,
+    opacity: 0.85,
   },
   row: {
     flexDirection: 'row',
@@ -115,18 +108,22 @@ const styles = StyleSheet.create({
     fontFamily: fonts.extrabold,
     fontSize: 20,
     lineHeight: 26,
+    color: colors.primary,
   },
   subtitle: {
     marginTop: 4,
     fontFamily: fonts.medium,
     fontSize: 13,
     lineHeight: 18,
-    opacity: 0.9,
+    color: colors.primary,
+    opacity: 0.85,
   },
   thumb: {
-    width: 64,
-    height: 64,
+    width: 88,
+    height: 88,
     borderRadius: radius.md,
+  },
+  thumbPlaceholder: {
     backgroundColor: colors.primarySofter,
   },
   footer: {
@@ -143,7 +140,7 @@ const styles = StyleSheet.create({
   actionBtn: {
     backgroundColor: colors.secondary,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderRadius: radius.sm,
   },
   actionBtnDisabled: {
@@ -159,5 +156,6 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     borderWidth: 2,
+    borderColor: colors.primary,
   },
 });
