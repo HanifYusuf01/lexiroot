@@ -59,6 +59,9 @@ export class User {
   @Column({ name: 'current_streak_days', type: 'int', default: 0 })
   currentStreakDays!: number;
 
+  @Column({ name: 'longest_streak_days', type: 'int', default: 0 })
+  longestStreakDays!: number;
+
   @Column({ name: 'lessons_completed', type: 'int', default: 0 })
   lessonsCompleted!: number;
 

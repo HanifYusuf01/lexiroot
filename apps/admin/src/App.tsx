@@ -8,11 +8,13 @@ import { ActivityLogPage } from './pages/ActivityLogPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { CulturalContentEditorPage } from './pages/CulturalContentEditorPage';
 import { CulturalContentPage } from './pages/CulturalContentPage';
+import { GamificationPage } from './pages/GamificationPage';
 import { LessonEditorPage } from './pages/LessonEditorPage';
 import { LessonsPage } from './pages/LessonsPage';
 import { LoginPage } from './pages/LoginPage';
 import { ManageAccountPage } from './pages/ManageAccountPage';
 import { OverviewPage } from './pages/OverviewPage';
+import { TopXpEarnersPage } from './pages/TopXpEarnersPage';
 import { UsersPage } from './pages/UsersPage';
 
 function ComingSoon({ title }: { title: string }) {
@@ -52,7 +54,8 @@ export function App() {
           <Route path="/cultural-content/stories" element={<CulturalContentPage />} />
           <Route path="/cultural-content/new" element={<CulturalContentEditorPage />} />
           <Route path="/cultural-content/:id/edit" element={<CulturalContentEditorPage />} />
-          <Route path="/gamification" element={<ComingSoon title="Gamification" />} />
+          <Route path="/gamification" element={<GamificationPage />} />
+          <Route path="/gamification/top-earners" element={<TopXpEarnersPage />} />
           <Route path="/subscription" element={<ComingSoon title="Subscription" />} />
           <Route path="/reports" element={<ComingSoon title="Reports" />} />
           <Route path="/settings" element={<ComingSoon title="Settings" />} />

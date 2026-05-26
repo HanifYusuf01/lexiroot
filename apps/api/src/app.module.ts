@@ -3,12 +3,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LastActiveInterceptor } from './common/interceptors/last-active.interceptor';
+import { RlsContextInterceptor } from './common/interceptors/rls-context.interceptor';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { CulturalContentModule } from './modules/cultural-content/cultural-content.module';
 import { ExercisesModule } from './modules/exercises/exercises.module';
 import { FeedbackModule } from './modules/feedback/feedback.module';
+import { GamificationModule } from './modules/gamification/gamification.module';
 import { LessonEntriesModule } from './modules/lesson-entries/lesson-entries.module';
 import { LessonsModule } from './modules/lessons/lessons.module';
 import { ProgressModule } from './modules/progress/progress.module';
@@ -42,8 +44,15 @@ import { UsersModule } from './modules/users/users.module';
     FeedbackModule,
     UploadsModule,
     AnalyticsModule,
+    GamificationModule,
   ],
   providers: [
+    // Order matters: RLS context first so the GUC is set before any handler
+    // touches an RLS-protected table; LastActive runs after.
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RlsContextInterceptor,
+    },
     {
       provide: APP_INTERCEPTOR,
       useClass: LastActiveInterceptor,

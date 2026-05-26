@@ -20,6 +20,7 @@ import { UpgradePromoCard } from '../../src/components/dashboard/UpgradePromoCar
 import { UserAvatar } from '../../src/components/ui/UserAvatar';
 import { colors, fonts, radius, spacing } from '../../src/constants/theme';
 import { useSignAvatarUploadMutation, useUpdateMeMutation } from '../../src/services/authApi';
+import { useGetMyAchievementsQuery } from '../../src/services/gamificationApi';
 import { useGetProgressQuery } from '../../src/services/progressApi';
 import { authStorage } from '../../src/services/secureStorage';
 import { uploadAvatarToCloudinary } from '../../src/utils/cloudinary';
@@ -36,6 +37,18 @@ interface FieldErrors {
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const ACHIEVEMENT_SLOTS = 5;
 
+function achievementIcon(iconKey: string) {
+  switch (iconKey) {
+    case 'flame':
+      return 'flame' as const;
+    case 'star':
+      return 'star' as const;
+    case 'medal':
+    default:
+      return 'ribbon' as const;
+  }
+}
+
 export default function EditProfileScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
@@ -46,6 +59,9 @@ export default function EditProfileScreen() {
   // Pull live stats from /me/progress so completed lessons reflect immediately —
   // the auth.user slice is only seeded at login and never refreshed.
   const { data: progress } = useGetProgressQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
+  const { data: achievements } = useGetMyAchievementsQuery(undefined, {
     refetchOnMountOrArgChange: true,
   });
 
@@ -207,13 +223,32 @@ export default function EditProfileScreen() {
           </View>
 
           <View style={styles.achievementsCard}>
-            <Text style={styles.achievementsTitle}>Achievements</Text>
+            <View style={styles.achievementsHeader}>
+              <Text style={styles.achievementsTitle}>Achievements</Text>
+              <Pressable onPress={() => router.push('/leaderboard')} hitSlop={8}>
+                <Text style={styles.viewLeaderboardLink}>View leaderboard</Text>
+              </Pressable>
+            </View>
             <View style={styles.achievementsRow}>
-              {Array.from({ length: ACHIEVEMENT_SLOTS }).map((_, i) => (
-                <View key={i} style={styles.achievementBadge}>
-                  <Ionicons name="ribbon" size={20} color={colors.primary} />
-                </View>
-              ))}
+              {Array.from({ length: ACHIEVEMENT_SLOTS }).map((_, i) => {
+                const earned = achievements?.[i];
+                if (earned) {
+                  return (
+                    <View key={earned.id} style={styles.achievementBadge}>
+                      <Ionicons
+                        name={achievementIcon(earned.achievement.iconKey)}
+                        size={20}
+                        color={colors.primary}
+                      />
+                    </View>
+                  );
+                }
+                return (
+                  <View key={i} style={[styles.achievementBadge, styles.achievementBadgeLocked]}>
+                    <Ionicons name="lock-closed" size={16} color={colors.neutralVariant} />
+                  </View>
+                );
+              })}
             </View>
           </View>
 
@@ -359,12 +394,21 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     backgroundColor: colors.white,
   },
+  achievementsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
   achievementsTitle: {
     fontFamily: fonts.bold,
     fontSize: 13,
     color: colors.neutral,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
+  },
+  viewLeaderboardLink: {
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    color: colors.primary,
   },
   achievementsRow: {
     flexDirection: 'row',
@@ -378,6 +422,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySofter,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  achievementBadgeLocked: {
+    backgroundColor: colors.neutralSoft,
   },
   fields: {
     gap: spacing.md,

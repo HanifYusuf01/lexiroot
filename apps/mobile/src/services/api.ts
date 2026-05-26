@@ -52,6 +52,8 @@ export const api = createApi({
     'Progress',
     'LessonProgress',
     'CulturalContent',
+    'Leaderboard',
+    'Achievements',
   ],
   endpoints: () => ({}),
 });

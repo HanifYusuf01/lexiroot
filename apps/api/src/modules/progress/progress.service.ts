@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import type { LessonProgressState } from '@lexiroot/shared';
+import { GamificationService } from '../gamification/gamification.service';
 import { Lesson } from '../lessons/entities/lesson.entity';
 import { User } from '../users/entities/user.entity';
 import { UpsertLessonProgressDto } from './dto/upsert-lesson-progress.dto';
@@ -57,6 +58,7 @@ export class ProgressService {
     private readonly users: Repository<User>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
+    private readonly gamification: GamificationService,
   ) {}
 
   async getActiveProgress(userId: string): Promise<LessonProgressState | null> {
@@ -167,9 +169,27 @@ export class ProgressService {
 
       user.xp = (user.xp ?? 0) + xpAwarded;
       user.currentStreakDays = streak;
+      user.longestStreakDays = Math.max(user.longestStreakDays ?? 0, streak);
       if (!existing) user.lessonsCompleted = (user.lessonsCompleted ?? 0) + 1;
       user.lastActiveAt = now;
       await manager.getRepository(User).save(user);
+
+      if (xpAwarded > 0) {
+        await this.gamification.recordXp(manager, {
+          userId,
+          amount: xpAwarded,
+          reason: 'lesson_completion',
+          sourceType: 'lesson',
+          sourceId: lessonId,
+          metadata: { correctCount, totalCount },
+        });
+      }
+
+      await this.gamification.awardForUser(manager, userId, {
+        lessonsCompleted: user.lessonsCompleted ?? 0,
+        xp: user.xp ?? 0,
+        longestStreakDays: user.longestStreakDays ?? 0,
+      });
 
       return { completion, xpAwarded, streak, totalXp: user.xp };
     });

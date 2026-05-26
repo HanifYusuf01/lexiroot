@@ -28,6 +28,8 @@ export const api = createApi({
     'Analytics',
     'CulturalContent',
     'CulturalContentStats',
+    'GamificationStats',
+    'TopEarners',
   ],
   endpoints: () => ({}),
 });
