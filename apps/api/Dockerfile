@@ -13,11 +13,11 @@ COPY pnpm-lock.yaml ./
 COPY packages/ ./packages/
 COPY apps/api/ ./apps/api/
 
-# Install all dependencies
+# Install all dependencies (including devDependencies for build)
 RUN pnpm install --frozen-lockfile
 
-# Build shared package FIRST before api
-RUN pnpm --filter @lexiroot/shared build
+# Build shared package using local tsc
+RUN cd packages/shared && npx tsc
 
 # Then build the api
 RUN pnpm --filter api build
