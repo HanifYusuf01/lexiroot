@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "module": "CommonJS",
-    "moduleResolution": "Bundler",
+    "moduleResolution": "Node",
     "target": "ES2022",
     "declaration": true,
     "removeComments": true,
