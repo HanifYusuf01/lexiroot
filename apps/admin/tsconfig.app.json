@@ -7,7 +7,10 @@
     "moduleResolution": "Bundler",
     "useDefineForClassFields": true,
     "noEmit": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@lexiroot/shared": ["../../packages/shared/src/index.ts"]
+    }
   },
   "include": ["src"]
 }
