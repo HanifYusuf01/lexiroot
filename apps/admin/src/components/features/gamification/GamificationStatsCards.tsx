@@ -1,5 +1,6 @@
-import { Award, Flame, Star, Users } from 'lucide-react';
+import { Flame, Star } from 'lucide-react';
 import { StatCard } from '../../ui/StatCard';
+import { XpHexagonIcon, UsersParticipatingIcon } from '../../icons';
 import { formatNumber } from '../../../utils/format';
 import { useGamificationStatsQuery } from '../../../services/gamificationApi';
 
@@ -12,45 +13,45 @@ export function GamificationStatsCards() {
       <StatCard
         label="Total XP earned"
         value={skel ?? formatNumber(data?.totalXpEarned ?? 0)}
-        icon={<Star size={20} className="text-success" fill="currentColor" />}
+        icon={<XpHexagonIcon size={28} />}
         iconBg="#DCFCE7"
         trend={{
-          value: `${formatNumber(data?.newXpThisMonth ?? 0)} new this month`,
+          value: formatNumber(data?.newXpThisMonth ?? 0),
           up: true,
-          comparison: '',
+          comparison: 'new this month',
         }}
       />
       <StatCard
         label="Active Streaks"
         value={skel ?? formatNumber(data?.activeStreaks ?? 0)}
-        icon={<Flame size={20} className="text-primary" />}
+        icon={<Flame size={22} className="text-primary" fill="currentColor" />}
         iconBg="#FCEBE6"
         trend={{
-          value: `${formatNumber(data?.newStreaksThisMonth ?? 0)} this month`,
+          value: formatNumber(data?.newStreaksThisMonth ?? 0),
           up: true,
-          comparison: '',
+          comparison: 'this month',
         }}
       />
       <StatCard
         label="Badges Earned"
         value={skel ?? formatNumber(data?.badgesEarned ?? 0)}
-        icon={<Award size={20} className="text-warning-foreground" />}
+        icon={<Star size={22} className="text-warning" fill="currentColor" />}
         iconBg="#FFF4D5"
         trend={{
-          value: `${formatNumber(data?.newBadgesThisMonth ?? 0)} this month`,
+          value: formatNumber(data?.newBadgesThisMonth ?? 0),
           up: true,
-          comparison: '',
+          comparison: 'this month',
         }}
       />
       <StatCard
         label="Users Participating"
         value={skel ?? formatNumber(data?.usersParticipating ?? 0)}
-        icon={<Users size={20} className="text-[#7B61FF]" />}
+        icon={<UsersParticipatingIcon size={26} />}
         iconBg="#E5E4FF"
         trend={{
-          value: `${formatNumber(data?.newParticipantsThisMonth ?? 0)} this month`,
+          value: formatNumber(data?.newParticipantsThisMonth ?? 0),
           up: true,
-          comparison: '',
+          comparison: 'this month',
         }}
       />
     </div>

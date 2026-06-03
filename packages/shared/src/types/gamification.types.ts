@@ -64,6 +64,14 @@ export interface StreakOverview {
   thirtyDayStreakUsers: number;
 }
 
+export interface RecentBadge {
+  code: AchievementCode;
+  title: string;
+  description: string;
+  iconKey: string;
+  earnedByUsers: number;
+}
+
 export interface GamificationStats {
   totalXpEarned: number;
   newXpThisMonth: number;
@@ -75,6 +83,7 @@ export interface GamificationStats {
   newParticipantsThisMonth: number;
   xpDistribution: XpDistributionBucket[];
   streakOverview: StreakOverview;
+  recentBadges: RecentBadge[];
 }
 
 export interface TopXpEarner {

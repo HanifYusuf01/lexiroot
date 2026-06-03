@@ -12,17 +12,19 @@ interface StatCardProps {
 export function StatCard({ label, value, icon, iconBg, trend }: StatCardProps) {
   return (
     <div className="rounded-2xl border border-border bg-white p-5">
-      <div className="flex items-start justify-between gap-3">
-        <span className="text-base font-semibold text-neutral-variant">{label}</span>
+      <div className="flex items-center gap-3">
         <span
           className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
           style={{ backgroundColor: iconBg }}
         >
           {icon}
         </span>
-      </div>
-      <div className="mt-2 font-display text-2xl font-extrabold text-neutral sm:text-3xl">
-        {value}
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-neutral-variant">{label}</div>
+          <div className="font-display text-2xl font-extrabold text-neutral sm:text-3xl">
+            {value}
+          </div>
+        </div>
       </div>
       {trend ? (
         <div

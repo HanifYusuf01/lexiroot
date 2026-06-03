@@ -33,19 +33,14 @@ export default function PracticeTab() {
   const tier: LearningLevel = user?.level ?? 'beginner';
   const lessonsQuery = useListLessonsQuery({ limit: 100 });
   const progressQuery = useGetProgressQuery();
-  const nuggetQuery = useListCulturalContentQuery({ tier, limit: 10 });
+  // The card shows just the most recent proverb for the learner's tier — the
+  // list endpoint already orders by created_at DESC, so the first item is it.
+  const nuggetQuery = useListCulturalContentQuery({ type: 'proverb', tier, limit: 1 });
 
   const completedIds = progressQuery.data?.completedLessonIds ?? [];
   const streak = progressQuery.data?.streak ?? 0;
 
-  const latestNugget = useMemo(() => {
-    const items = [...(nuggetQuery.data?.items ?? [])].sort((a, b) => {
-      const aT = a.publishedAt ?? a.createdAt;
-      const bT = b.publishedAt ?? b.createdAt;
-      return bT.localeCompare(aT);
-    });
-    return items.find((c) => !!c.audioUrl) ?? items[0] ?? null;
-  }, [nuggetQuery.data]);
+  const latestNugget = nuggetQuery.data?.items[0] ?? null;
 
   const progressBySkill = useMemo(() => {
     const items = lessonsQuery.data?.items ?? [];

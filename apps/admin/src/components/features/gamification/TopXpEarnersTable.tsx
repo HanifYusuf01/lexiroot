@@ -16,6 +16,7 @@ interface Props {
   items: TopXpEarner[];
   loading?: boolean;
   showEmail?: boolean;
+  minWidth?: number;
 }
 
 function rankBadge(rank: number) {
@@ -25,10 +26,10 @@ function rankBadge(rank: number) {
   return <span className="font-bold text-neutral">{rank}</span>;
 }
 
-export function TopXpEarnersTable({ items, loading, showEmail = false }: Props) {
+export function TopXpEarnersTable({ items, loading, showEmail = false, minWidth = 720 }: Props) {
   return (
     <TableContainer>
-      <Table minWidth={720}>
+      <Table minWidth={minWidth}>
         <TableHead>
           <tr>
             <TableHeaderCell className="w-16">Rank</TableHeaderCell>

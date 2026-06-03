@@ -45,10 +45,12 @@ export default function Home() {
   });
   const { data: savedProgress } = useGetLessonProgressQuery();
   const { data: lessonsPage } = useListLessonsQuery({ tier, limit: 100 });
+  // The card shows just the most recent proverb for the learner's tier — the
+  // list endpoint already orders by created_at DESC, so the first item is it.
   const { data: nuggetPage } = useListCulturalContentQuery({
     type: 'proverb',
     tier,
-    limit: 10,
+    limit: 1,
   });
 
   const completedIds = useMemo(
@@ -104,14 +106,7 @@ export default function Home() {
 
   const activeSubsDone = activeSubs.filter((s) => completedIds.has(s.id)).length;
 
-  const latestNugget = useMemo(() => {
-    const items = [...(nuggetPage?.items ?? [])].sort((a, b) => {
-      const aT = a.publishedAt ?? a.createdAt;
-      const bT = b.publishedAt ?? b.createdAt;
-      return bT.localeCompare(aT);
-    });
-    return items.find((c) => !!c.audioUrl) ?? items[0] ?? null;
-  }, [nuggetPage]);
+  const latestNugget = nuggetPage?.items[0] ?? null;
 
   const streak = progress?.streak ?? 0;
   const weekday = todayWeekdayIndex();

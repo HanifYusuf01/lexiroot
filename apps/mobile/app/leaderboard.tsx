@@ -113,31 +113,47 @@ function PodiumColumn({
   const isCenter = variant === 'center';
   const columnStyle =
     variant === 'left'
-      ? styles.podiumLeft
+      ? styles.colLeft
       : variant === 'right'
-        ? styles.podiumRight
-        : styles.podiumCenter;
+        ? styles.colRight
+        : styles.colCenter;
+  const bodyStyle =
+    variant === 'left'
+      ? styles.bodyLeft
+      : variant === 'right'
+        ? styles.bodyRight
+        : styles.bodyCenter;
 
   return (
     <View style={[styles.podiumColumn, columnStyle]}>
-      <View style={[styles.podiumTopOval, isCenter && styles.podiumTopOvalCenter]} />
       {entry ? (
-        <View style={[styles.podiumAvatarWrap, isCenter && styles.podiumAvatarWrapCenter]}>
-          <View style={styles.podiumAvatarRing}>
+        <View style={styles.avatarWrap}>
+          <View style={styles.avatarRing}>
             <UserAvatar
               name={entry.displayName}
               avatarUrl={entry.avatarUrl}
-              size={isCenter ? 46 : 42}
+              size={isCenter ? 54 : 48}
             />
           </View>
-          <RankBadge rank={place} size={isCenter ? 28 : 26} style={styles.podiumRankBadge} />
+          <RankBadge rank={place} size={isCenter ? 26 : 24} style={styles.avatarRankBadge} />
         </View>
       ) : null}
-      <View style={styles.podiumTextBlock}>
-        <Text style={[styles.podiumXp, isCenter && styles.podiumXpCenter]}>
+      <View style={[styles.body, bodyStyle]}>
+        <View style={styles.bodyLip} />
+        <Text
+          style={styles.bodyXp}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.7}
+        >
           {entry ? formatNumber(entry.xp) : '0'} XP
         </Text>
-        <Text style={[styles.podiumName, isCenter && styles.podiumNameCenter]} numberOfLines={1}>
+        <Text
+          style={styles.bodyName}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.6}
+        >
           {entry?.displayName ?? 'Learner'}
         </Text>
       </View>
@@ -240,108 +256,98 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   podiumStage: {
-    height: 256,
     alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+    justifyContent: 'flex-end',
+    paddingTop: 10,
   },
   podium: {
     width: podiumWidth,
-    height: 238,
-    marginTop: 18,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   podiumColumn: {
-    position: 'absolute',
-    backgroundColor: colors.primary,
     alignItems: 'center',
-    overflow: 'visible',
   },
-  podiumLeft: {
-    left: 20,
-    bottom: -18,
-    width: 162,
-    height: 116,
-    transform: [{ rotate: '-6deg' }],
-  },
-  podiumCenter: {
-    left: (podiumWidth - 178) / 2,
-    bottom: -8,
-    width: 178,
-    height: 192,
-    zIndex: 3,
-    transform: [{ rotate: '0deg' }],
-  },
-  podiumRight: {
-    right: 18,
-    bottom: -22,
-    width: 158,
-    height: 102,
+  colLeft: {
+    width: 112,
     zIndex: 1,
-    transform: [{ rotate: '5deg' }],
   },
-  podiumTopOval: {
-    position: 'absolute',
-    top: -20,
-    width: '100%',
-    height: 42,
-    borderRadius: 999,
-    backgroundColor: '#962715',
+  colRight: {
+    width: 112,
+    zIndex: 1,
   },
-  podiumTopOvalCenter: {
-    top: -24,
-    height: 52,
+  colCenter: {
+    width: 126,
+    marginHorizontal: -10,
+    zIndex: 3,
   },
-  podiumAvatarWrap: {
-    position: 'absolute',
-    top: -52,
+  avatarWrap: {
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: -16,
     zIndex: 5,
   },
-  podiumAvatarWrapCenter: {
-    top: -70,
-  },
-  podiumAvatarRing: {
+  avatarRing: {
     padding: 3,
     borderRadius: radius.full,
     backgroundColor: colors.white,
     borderWidth: 3,
     borderColor: '#2C8CCB',
   },
-  podiumRankBadge: {
+  avatarRankBadge: {
     position: 'absolute',
-    left: -8,
+    left: -6,
     top: -6,
-    borderWidth: 1,
-    borderColor: '#FFD66B',
+    borderWidth: 2,
+    borderColor: colors.white,
     zIndex: 6,
   },
-  podiumTextBlock: {
-    marginTop: 38,
+  body: {
+    width: '100%',
+    backgroundColor: colors.primary,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     alignItems: 'center',
-    maxWidth: 130,
+    paddingTop: 32,
+    paddingHorizontal: 8,
+    overflow: 'hidden',
   },
-  podiumXp: {
+  bodyCenter: {
+    height: 158,
+  },
+  bodyLeft: {
+    height: 122,
+  },
+  bodyRight: {
+    height: 106,
+  },
+  bodyLip: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 20,
+    backgroundColor: '#B23A22',
+  },
+  bodyXp: {
     fontFamily: fonts.black,
-    fontSize: 17,
+    fontSize: 16,
     color: '#FFD43B',
     textAlign: 'center',
   },
-  podiumXpCenter: {},
-  podiumName: {
+  bodyName: {
     fontFamily: fonts.black,
-    fontSize: 17,
+    fontSize: 15,
     color: '#FFD43B',
     textAlign: 'center',
-    maxWidth: 118,
-  },
-  podiumNameCenter: {
-    maxWidth: 140,
+    marginTop: 2,
+    maxWidth: 112,
   },
   sheet: {
     flex: 1,
     minHeight: 620,
-    marginTop: -2,
+    marginTop: -20,
     backgroundColor: colors.white,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,

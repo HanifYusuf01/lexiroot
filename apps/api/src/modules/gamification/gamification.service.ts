@@ -6,6 +6,7 @@ import {
   type GamificationStats,
   type LeaderboardEntry,
   type LeaderboardPage,
+  type RecentBadge,
   type StreakOverview,
   type TopXpEarner,
   type TopXpEarnersPage,
@@ -72,6 +73,7 @@ export class GamificationService {
         'u.xp',
         'u.currentStreakDays',
       ])
+      .where('u.role != :role', { role: 'admin' })
       .orderBy('u.xp', 'DESC')
       .addOrderBy('u.createdAt', 'ASC')
       .skip(offset)
@@ -136,6 +138,7 @@ export class GamificationService {
       newParticipantsThisMonthRow,
       bucketsRaw,
       streakOverview,
+      recentBadges,
     ] = await Promise.all([
       this.users
         .createQueryBuilder('u')
@@ -184,6 +187,7 @@ export class GamificationService {
         .getRawOne<{ count: string }>(),
       this.xpDistributionRaw(),
       this.streakOverview(monthStart),
+      this.recentBadges(),
     ]);
 
     const totalXpEarned = Number(xpAgg?.sum ?? 0);
@@ -208,7 +212,42 @@ export class GamificationService {
       newParticipantsThisMonth,
       xpDistribution,
       streakOverview,
+      recentBadges,
     };
+  }
+
+  // Badges that have actually been earned, most-recently-awarded first, with a
+  // count of how many users hold each. Drives the "Recent Badges Earned" panel.
+  private async recentBadges(limit = 5): Promise<RecentBadge[]> {
+    // GROUP BY the achievements PK only — Postgres lets us select the other
+    // columns of the same row via functional dependency on the primary key.
+    const rows = await this.userAchievements
+      .createQueryBuilder('ua')
+      .innerJoin('ua.achievement', 'a')
+      .select('a.code', 'code')
+      .addSelect('a.title', 'title')
+      .addSelect('a.description', 'description')
+      .addSelect('a.iconKey', 'iconKey')
+      .addSelect('COUNT(*)', 'earnedByUsers')
+      .addSelect('MAX(ua.earned_at)', 'lastEarnedAt')
+      .groupBy('a.id')
+      .orderBy('"lastEarnedAt"', 'DESC')
+      .limit(limit)
+      .getRawMany<{
+        code: RecentBadge['code'];
+        title: string;
+        description: string;
+        iconKey: string;
+        earnedByUsers: string;
+      }>();
+
+    return rows.map((r) => ({
+      code: r.code,
+      title: r.title,
+      description: r.description,
+      iconKey: r.iconKey,
+      earnedByUsers: Number(r.earnedByUsers),
+    }));
   }
 
   private async xpDistributionRaw(): Promise<{ idx: number; count: number }[]> {
@@ -301,6 +340,7 @@ export class GamificationService {
         'u.xp',
         'u.currentStreakDays',
       ])
+      .where('u.role != :role', { role: 'admin' })
       .orderBy('u.xp', 'DESC')
       .addOrderBy('u.createdAt', 'ASC')
       .skip(offset)
