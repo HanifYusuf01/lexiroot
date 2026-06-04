@@ -161,6 +161,15 @@ export class UsersService {
       streak = 1;
     }
     await this.users.update(id, { lastActiveAt: now, currentStreakDays: streak });
+
+    // Record today's active day (UTC) for DAU/WAU/MAU analytics. Idempotent —
+    // at most one row per user per day.
+    await this.users.manager.query(
+      `INSERT INTO "user_active_days" ("user_id", "day")
+       VALUES ($1, (now() AT TIME ZONE 'UTC')::date)
+       ON CONFLICT DO NOTHING`,
+      [id],
+    );
   }
 
   async paginate(query: ListUsersQueryDto): Promise<PaginatedUsers> {

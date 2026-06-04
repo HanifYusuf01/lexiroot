@@ -1,5 +1,10 @@
-import type { AnalyticsOverview } from '@lexiroot/shared';
+import type { AnalyticsDashboard, AnalyticsOverview } from '@lexiroot/shared';
 import { api } from './api';
+
+interface DashboardArgs {
+  from?: string;
+  to?: string;
+}
 
 export const analyticsApi = api.injectEndpoints({
   endpoints: (build) => ({
@@ -7,7 +12,14 @@ export const analyticsApi = api.injectEndpoints({
       query: () => '/analytics/overview',
       providesTags: ['Analytics'],
     }),
+    getAnalyticsDashboard: build.query<AnalyticsDashboard, DashboardArgs | void>({
+      query: (args) => ({
+        url: '/analytics/dashboard',
+        params: { ...(args ?? {}) },
+      }),
+      providesTags: ['Analytics'],
+    }),
   }),
 });
 
-export const { useGetAnalyticsOverviewQuery } = analyticsApi;
+export const { useGetAnalyticsOverviewQuery, useGetAnalyticsDashboardQuery } = analyticsApi;
