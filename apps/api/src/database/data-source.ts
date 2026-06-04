@@ -7,7 +7,7 @@ loadEnv();
 export default new DataSource({
   type: 'postgres',
   url: process.env.DATABASE_URL,
-  entities: ['src/modules/**/*.entity.{ts,js}'],
-  migrations: ['src/database/migrations/*.{ts,js}'],
+  entities: [__dirname + '/../modules/**/*.entity.{ts,js}'],
+  migrations: [__dirname + '/migrations/*.{ts,js}'],
   synchronize: false,
 });
