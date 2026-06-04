@@ -19,4 +19,4 @@ RUN pnpm --filter api build
 
 EXPOSE 3000
 
-CMD ["node", "apps/api/dist/main.js"]
+CMD ["sh", "-c", "node /app/apps/api/dist/database/migrate.js && node /app/apps/api/dist/main.js"]
