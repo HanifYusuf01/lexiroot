@@ -21,4 +21,10 @@ export class AnalyticsController {
   dashboard(@Query('from') from?: string, @Query('to') to?: string) {
     return this.analytics.dashboard(from, to);
   }
+
+  // Revenue / subscription detail page.
+  @Get('revenue')
+  revenue(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.analytics.revenueDetail(from, to);
+  }
 }

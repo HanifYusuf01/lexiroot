@@ -6,17 +6,31 @@ import {
   LANGUAGE_LABELS,
   LEARNING_LEVELS,
   LEARNING_LEVEL_LABELS,
+  LESSON_TYPES,
+  LESSON_TYPE_LABELS,
   type AnalyticsActiveUsers,
+  type AnalyticsCategoryBreakdown,
   type AnalyticsDailyActivityPoint,
   type AnalyticsDashboard,
   type AnalyticsFunnelStep,
   type AnalyticsKpi,
   type AnalyticsLevelProgress,
   type AnalyticsOverview,
+  type AnalyticsRevenue,
+  type AnalyticsRevenueDetail,
+  type AnalyticsSubscriptionBreakdown,
+  type FunnelInsight,
+  type PaymentProviderStat,
+  type RevenueBreakdownCard,
+  type RevenueOverTimePoint,
+  type SubscriptionGrowthPoint,
+  type SubscriptionPlanBreakdown,
+  type UsersBySubscriptionPoint,
   type AnalyticsTopLanguage,
   type AnalyticsTopLesson,
   type LanguageCode,
   type LearningLevel,
+  type LessonType,
   type XpDistributionBucket,
 } from '@lexiroot/shared';
 import { XpLedgerEntry } from '../gamification/entities/xp-ledger-entry.entity';
@@ -35,6 +49,9 @@ const LANGUAGE_COLORS: Record<LanguageCode, string> = {
   ha: '#F9D506',
 };
 const LESSON_COLORS = ['#16A34A', '#E35336', '#F9D506', '#1FC0E0', '#814231'];
+
+// Donut palette for "lessons completed by category".
+const CATEGORY_COLORS = ['#E35336', '#1FC0E0', '#F9D506', '#16A34A', '#814231', '#7B61FF'];
 
 // XP buckets — kept in sync with the gamification dashboard so the same
 // distribution reads identically across both admin pages.
@@ -332,10 +349,15 @@ export class AnalyticsService {
       wau,
       mau,
       dailyActivity,
+      completionsSpark,
+      xpSpark,
+      lessonsByCategory,
       topLanguages,
       progressByLevel,
       xpDistribution,
       topLessons,
+      subscription,
+      revenue,
       funnel,
     ] = await Promise.all([
       this.distinctActiveUsers(from, to),
@@ -349,23 +371,36 @@ export class AnalyticsService {
       this.distinctActiveUsers(addDaysUtc(today, -6), today),
       this.distinctActiveUsers(addDaysUtc(today, -29), today),
       this.dailyActivityBetween(from, to),
+      this.dailyCompletionsBetween(from, to),
+      this.dailyXpBetween(from, to),
+      this.lessonsByCategory(),
       this.topLanguages(),
       this.progressByLevel(),
       this.xpDistribution(),
       this.topLessons(6),
+      this.subscriptionBreakdown(),
+      this.revenue(days),
       this.funnel(),
     ]);
 
-    const activeUsersKpi: AnalyticsKpi = { value: activeCurr, ...pctChange(activeCurr, activePrev) };
+    const activeSpark = dailyActivity.map((p) => p.active);
 
     const dashboardKpis: AnalyticsDashboard['kpis'] = {
-      activeUsers: activeUsersKpi,
-      lessonsCompleted: { value: lessonsCurr, ...pctChange(lessonsCurr, lessonsPrev) },
-      xpEarned: { value: xpCurr, ...pctChange(xpCurr, xpPrev) },
+      activeUsers: { value: activeCurr, ...pctChange(activeCurr, activePrev), spark: activeSpark },
+      lessonsCompleted: {
+        value: lessonsCurr,
+        ...pctChange(lessonsCurr, lessonsPrev),
+        spark: completionsSpark,
+      },
+      xpEarned: { value: xpCurr, ...pctChange(xpCurr, xpPrev), spark: xpSpark },
       // Streaks aren't stored historically, so the headline is the current
       // active-streak count and the trend mirrors active-user growth (the
       // engagement that keeps streaks alive).
-      dailyStreaks: { value: activeStreaks, ...pctChange(activeCurr, activePrev) },
+      dailyStreaks: {
+        value: activeStreaks,
+        ...pctChange(activeCurr, activePrev),
+        spark: activeSpark,
+      },
     };
 
     const activeUsers: AnalyticsActiveUsers = { dau, wau, mau };
@@ -376,11 +411,112 @@ export class AnalyticsService {
       activeUsers,
       activeStreaks,
       dailyActivity,
+      lessonsByCategory,
       topLanguages,
       progressByLevel,
       xpDistribution,
       topLessons,
+      subscription,
+      revenue,
       funnel,
+    };
+  }
+
+  /** Per-day completion counts aligned to [from, to] (for KPI sparklines). */
+  private async dailyCompletionsBetween(from: Date, to: Date): Promise<number[]> {
+    const rows: { day: string; c: string }[] = await this.completions
+      .createQueryBuilder('c')
+      .select(`to_char(date_trunc('day', c.completed_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`, 'day')
+      .addSelect('COUNT(*)', 'c')
+      .where('c.completed_at >= :start AND c.completed_at < :end', {
+        start: from,
+        end: addDaysUtc(to, 1),
+      })
+      .groupBy('day')
+      .getRawMany();
+    return this.alignDaily(rows, from, to);
+  }
+
+  /** Per-day XP totals aligned to [from, to] (for KPI sparklines). */
+  private async dailyXpBetween(from: Date, to: Date): Promise<number[]> {
+    const rows: { day: string; c: string }[] = await this.xpLedger
+      .createQueryBuilder('x')
+      .select(`to_char(date_trunc('day', x.created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`, 'day')
+      .addSelect('COALESCE(SUM(x.amount), 0)', 'c')
+      .where('x.created_at >= :start AND x.created_at < :end', {
+        start: from,
+        end: addDaysUtc(to, 1),
+      })
+      .groupBy('day')
+      .getRawMany();
+    return this.alignDaily(rows, from, to);
+  }
+
+  private alignDaily(rows: { day: string; c: string }[], from: Date, to: Date): number[] {
+    const map = new Map(rows.map((r) => [r.day, Number(r.c)]));
+    const out: number[] = [];
+    for (let cur = new Date(from); cur <= to; cur = addDaysUtc(cur, 1)) {
+      out.push(map.get(ymd(cur)) ?? 0);
+    }
+    return out;
+  }
+
+  private async lessonsByCategory(): Promise<AnalyticsCategoryBreakdown> {
+    const rows: { type: string; c: string }[] = await this.completions
+      .createQueryBuilder('c')
+      .innerJoin('lessons', 'l', 'l.id = c.lesson_id')
+      .select('l.type', 'type')
+      .addSelect('COUNT(*)', 'c')
+      .groupBy('l.type')
+      .getRawMany();
+
+    const counts = new Map(rows.map((r) => [r.type, Number(r.c)]));
+    const total = rows.reduce((sum, r) => sum + Number(r.c), 0);
+    const denom = Math.max(1, total);
+
+    const items = (LESSON_TYPES as readonly LessonType[])
+      .map((type, i) => {
+        const count = counts.get(type) ?? 0;
+        return {
+          label: LESSON_TYPE_LABELS[type],
+          count,
+          percent: Math.round((count / denom) * 100),
+          color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+        };
+      })
+      .sort((a, b) => b.count - a.count);
+
+    return { total, items };
+  }
+
+  private async subscriptionBreakdown(): Promise<AnalyticsSubscriptionBreakdown> {
+    // No payments module yet — every user is on the free tier. When premium
+    // subscriptions land, source `premium` from the subscriptions table.
+    const total = await this.users.createQueryBuilder('user').where("user.role != 'admin'").getCount();
+    const premium = 0;
+    const free = total - premium;
+    const denom = Math.max(1, total);
+    return {
+      total,
+      free,
+      premium,
+      freePercent: Math.round((free / denom) * 100),
+      premiumPercent: Math.round((premium / denom) * 100),
+    };
+  }
+
+  private revenue(days: number): AnalyticsRevenue {
+    // Placeholder zeros until the payments module exists; the shape is final
+    // so the dashboard cards render correctly today and just light up later.
+    return {
+      totalRevenue: 0,
+      paidSubscriptionRevenue: 0,
+      spark: Array.from({ length: days }, () => 0),
+      plans: [
+        { plan: 'Monthly Plan', users: 0, revenue: 0 },
+        { plan: 'Quarterly Plan', users: 0, revenue: 0 },
+        { plan: 'Annual Plan', users: 0, revenue: 0 },
+      ],
     };
   }
 
@@ -555,5 +691,178 @@ export class AnalyticsService {
         i === 0 || prev <= 0 ? 0 : Math.round(((prev - step.users) / prev) * 1000) / 10;
       return { key: step.key, label: step.label, users: step.users, percentOfTop, dropFromPrev };
     });
+  }
+
+  // ---------- Revenue / subscription detail page ----------
+  //
+  // Revenue, MRR, renewals, provider stats and the payment feed are all zero /
+  // empty until the payments module lands — the shape is final so the page
+  // renders today and lights up later. User counts and the upper funnel steps
+  // are real now.
+  async revenueDetail(fromStr?: string, toStr?: string): Promise<AnalyticsRevenueDetail> {
+    const today = daysAgo(0);
+    const to = parseDayUtc(toStr) ?? today;
+    let from = parseDayUtc(fromStr) ?? addDaysUtc(to, -6);
+    if (from > to) from = addDaysUtc(to, -6);
+    const days = Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1;
+
+    const totalUsers = await this.users
+      .createQueryBuilder('user')
+      .where("user.role != 'admin'")
+      .getCount();
+
+    const revenueOverTime: RevenueOverTimePoint[] = [];
+    for (let cur = new Date(from); cur <= to; cur = addDaysUtc(cur, 1)) {
+      revenueOverTime.push({ label: shortLabel(cur), revenue: 0, mrr: 0, renewals: 0 });
+    }
+
+    const weeks = this.weekLabels(6);
+    const usersBySubscription: UsersBySubscriptionPoint[] = weeks.map((label) => ({
+      label,
+      free: 0,
+      premium: 0,
+    }));
+    const subscriptionGrowth: SubscriptionGrowthPoint[] = weeks.map((label) => ({
+      label,
+      newPremium: 0,
+      cancellations: 0,
+      renewals: 0,
+    }));
+
+    const planBreakdown: SubscriptionPlanBreakdown = {
+      totalPremium: 0,
+      totalPremiumPercent: 0,
+      rows: [
+        { plan: 'Free', users: totalUsers, percent: 100 },
+        { plan: 'Premium Monthly', users: 0, percent: 0 },
+        { plan: 'Premium Annually', users: 0, percent: 0 },
+      ],
+    };
+
+    const revenueBreakdown: RevenueBreakdownCard[] = [
+      { key: 'premium_monthly', label: 'Premium Monthly', value: 0, subLabel: '0 Subscriptions', changePercent: 0, up: true },
+      { key: 'premium_annual', label: 'Premium Annual', value: 0, subLabel: '0 Subscriptions', changePercent: 0, up: true },
+      { key: 'trial_conversions', label: 'Trial Conversions', value: 0, subLabel: '0% conversion rate', changePercent: 0, up: true },
+      { key: 'renewals', label: 'Renewals', value: 0, subLabel: '0% retention rate', changePercent: 0, up: true },
+    ];
+
+    const funnel = await this.subscriptionFunnel();
+    const funnelInsights = this.funnelInsights(funnel);
+
+    const paymentProviders: PaymentProviderStat[] = [
+      { key: 'paystack', provider: 'Paystack', revenue: 0, transactions: 0, successRate: 0, failedPayments: 0 },
+      { key: 'stripe', provider: 'Stripe', revenue: 0, transactions: 0, successRate: 0, failedPayments: 0 },
+      { key: 'apple_iap', provider: 'Apple IAP', revenue: 0, transactions: 0, successRate: 0, failedPayments: 0 },
+      { key: 'google_play', provider: 'Google Play', revenue: 0, transactions: 0, successRate: 0, failedPayments: 0 },
+    ];
+
+    return {
+      range: { from: ymd(from), to: ymd(to), days },
+      revenueOverTime,
+      revenueBreakdown,
+      usersBySubscription,
+      planBreakdown,
+      subscriptionGrowth,
+      funnel,
+      funnelInsights,
+      paymentProviders,
+      recentPayments: [],
+    };
+  }
+
+  private weekLabels(count: number): string[] {
+    return Array.from({ length: count }, (_, i) => `W${i + 1}`);
+  }
+
+  // Free-user → paid-subscriber funnel. Upper steps are real; paywall/trial/
+  // subscribe are 0 until payments exist.
+  private async subscriptionFunnel(): Promise<AnalyticsFunnelStep[]> {
+    const [accountCreated, onboarded, startedLesson, completedLesson] = await Promise.all([
+      this.users.createQueryBuilder('user').where("user.role != 'admin'").getCount(),
+      this.users
+        .createQueryBuilder('user')
+        .where("user.role != 'admin'")
+        .andWhere('user.language IS NOT NULL AND user.level IS NOT NULL')
+        .getCount(),
+      this.progress
+        .createQueryBuilder('p')
+        .select('COUNT(DISTINCT p.user_id)', 'c')
+        .getRawOne<{ c: string }>()
+        .then((r) => Number(r?.c ?? 0)),
+      this.completions
+        .createQueryBuilder('c')
+        .select('COUNT(DISTINCT c.user_id)', 'c')
+        .getRawOne<{ c: string }>()
+        .then((r) => Number(r?.c ?? 0)),
+    ]);
+
+    const raw: { key: string; label: string; users: number }[] = [
+      { key: 'account_created', label: 'Account created', users: accountCreated },
+      { key: 'completed_onboarding', label: 'Completed Onboarding', users: onboarded },
+      { key: 'started_first_lesson', label: 'Started first lesson', users: startedLesson },
+      { key: 'completed_free_lessons', label: 'Completed free lessons', users: completedLesson },
+      { key: 'viewed_paywall', label: 'Viewed paywall', users: 0 },
+      { key: 'started_trial', label: 'Started trial', users: 0 },
+      { key: 'subscribed', label: 'Subscribed', users: 0 },
+    ];
+
+    const top = raw[0]?.users ?? 0;
+    return raw.map((step, i) => {
+      const prev = i > 0 ? raw[i - 1].users : step.users;
+      const percentOfTop = top > 0 ? Math.round((step.users / top) * 1000) / 10 : 0;
+      const dropFromPrev =
+        i === 0 || prev <= 0 ? 0 : Math.round(((prev - step.users) / prev) * 1000) / 10;
+      return { key: step.key, label: step.label, users: step.users, percentOfTop, dropFromPrev };
+    });
+  }
+
+  private funnelInsights(steps: AnalyticsFunnelStep[]): FunnelInsight[] {
+    const insights: FunnelInsight[] = [];
+
+    // Biggest drop-off between consecutive steps.
+    let worst = { drop: -1, i: 1 };
+    for (let i = 1; i < steps.length; i++) {
+      if (steps[i].dropFromPrev > worst.drop) worst = { drop: steps[i].dropFromPrev, i };
+    }
+    if (steps.length > 1) {
+      insights.push({
+        key: 'biggest_drop',
+        label: 'Biggest drop-off point',
+        detail: `${steps[worst.i - 1].label} → ${steps[worst.i].label}`,
+        value: `-${worst.drop}%`,
+        tone: 'negative',
+      });
+    }
+
+    // Best converting consecutive step (highest pass-through).
+    let best = { pass: -1, i: 1 };
+    for (let i = 1; i < steps.length; i++) {
+      const prev = steps[i - 1].users;
+      const pass = prev > 0 ? Math.round((steps[i].users / prev) * 1000) / 10 : 0;
+      if (pass > best.pass) best = { pass, i };
+    }
+    if (steps.length > 1) {
+      insights.push({
+        key: 'best_step',
+        label: 'Best conversion step',
+        detail: `${steps[best.i - 1].label} → ${steps[best.i].label}`,
+        value: `${best.pass}%`,
+        tone: 'positive',
+      });
+    }
+
+    // Overall: first → last.
+    const first = steps[0]?.users ?? 0;
+    const last = steps[steps.length - 1]?.users ?? 0;
+    const overall = first > 0 ? Math.round((last / first) * 1000) / 10 : 0;
+    insights.push({
+      key: 'overall_rate',
+      label: 'Overall funnel rate',
+      detail: `${steps[0]?.label ?? 'Start'} → ${steps[steps.length - 1]?.label ?? 'End'}`,
+      value: `${overall}%`,
+      tone: 'neutral',
+    });
+
+    return insights;
   }
 }

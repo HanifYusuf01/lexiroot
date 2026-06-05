@@ -6,6 +6,7 @@ import { PageHeader } from './components/layout/PageHeader';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { ActivityLogPage } from './pages/ActivityLogPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
+import { RevenueAnalyticsPage } from './pages/RevenueAnalyticsPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { CulturalContentEditorPage } from './pages/CulturalContentEditorPage';
 import { CulturalContentPage } from './pages/CulturalContentPage';
@@ -49,6 +50,7 @@ export function App() {
           <Route path="/lessons/new" element={<LessonEditorPage />} />
           <Route path="/lessons/:id/edit" element={<LessonEditorPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/analytics/revenue" element={<RevenueAnalyticsPage />} />
           <Route path="/cultural-content" element={<CulturalContentPage />} />
           <Route path="/cultural-content/folktales" element={<CulturalContentPage />} />
           <Route path="/cultural-content/proverbs" element={<CulturalContentPage />} />

@@ -36,12 +36,50 @@ export interface AnalyticsOverview {
 
 // ---------- Full analytics dashboard (admin Analytics page) ----------
 
-/** A headline metric with its period-over-period change. */
+/** A headline metric with its period-over-period change + sparkline series. */
 export interface AnalyticsKpi {
   value: number;
   /** Signed % change vs the previous equal-length period. */
   changePercent: number;
   up: boolean;
+  /** Per-day values across the selected range, for the card sparkline. */
+  spark: number[];
+}
+
+/** One slice of the "lessons completed by category" donut. */
+export interface AnalyticsCategorySlice {
+  label: string;
+  count: number;
+  percent: number;
+  color: string;
+}
+
+export interface AnalyticsCategoryBreakdown {
+  total: number;
+  items: AnalyticsCategorySlice[];
+}
+
+/** Free vs premium split. Premium is 0 until the payments module exists. */
+export interface AnalyticsSubscriptionBreakdown {
+  total: number;
+  free: number;
+  premium: number;
+  freePercent: number;
+  premiumPercent: number;
+}
+
+export interface AnalyticsRevenuePlan {
+  plan: string;
+  users: number;
+  revenue: number;
+}
+
+/** Revenue is all-zero until the payments module exists; shape is final. */
+export interface AnalyticsRevenue {
+  totalRevenue: number;
+  paidSubscriptionRevenue: number;
+  spark: number[];
+  plans: AnalyticsRevenuePlan[];
 }
 
 /** Distinct active-user counts over rolling windows (UTC days). */
@@ -76,6 +114,95 @@ export interface AnalyticsRange {
   days: number;
 }
 
+// ---------- Revenue / subscription detail page ----------
+
+export interface RevenueOverTimePoint {
+  label: string;
+  revenue: number;
+  mrr: number;
+  renewals: number;
+}
+
+export interface SubscriptionGrowthPoint {
+  label: string;
+  newPremium: number;
+  cancellations: number;
+  renewals: number;
+}
+
+export interface UsersBySubscriptionPoint {
+  label: string;
+  free: number;
+  premium: number;
+}
+
+export interface RevenueBreakdownCard {
+  key: string;
+  label: string;
+  value: number;
+  /** Secondary line, e.g. "6,241 Subscriptions" or "88.7% conversion rate". */
+  subLabel: string;
+  changePercent: number;
+  up: boolean;
+}
+
+export interface PlanBreakdownRow {
+  plan: string;
+  users: number;
+  percent: number;
+}
+
+export interface SubscriptionPlanBreakdown {
+  totalPremium: number;
+  totalPremiumPercent: number;
+  rows: PlanBreakdownRow[];
+}
+
+export interface FunnelInsight {
+  key: string;
+  label: string;
+  detail: string;
+  value: string;
+  tone: 'negative' | 'positive' | 'neutral';
+}
+
+export interface PaymentProviderStat {
+  key: string;
+  provider: string;
+  revenue: number;
+  transactions: number;
+  successRate: number;
+  failedPayments: number;
+}
+
+export type PaymentActivityType =
+  | 'Upgrade'
+  | 'Renewal'
+  | 'Conversion'
+  | 'Trial'
+  | 'Cancellation';
+
+export interface PaymentActivityItem {
+  id: string;
+  name: string;
+  description: string;
+  type: PaymentActivityType;
+  at: string;
+}
+
+export interface AnalyticsRevenueDetail {
+  range: AnalyticsRange;
+  revenueOverTime: RevenueOverTimePoint[];
+  revenueBreakdown: RevenueBreakdownCard[];
+  usersBySubscription: UsersBySubscriptionPoint[];
+  planBreakdown: SubscriptionPlanBreakdown;
+  subscriptionGrowth: SubscriptionGrowthPoint[];
+  funnel: AnalyticsFunnelStep[];
+  funnelInsights: FunnelInsight[];
+  paymentProviders: PaymentProviderStat[];
+  recentPayments: PaymentActivityItem[];
+}
+
 export interface AnalyticsDashboard {
   range: AnalyticsRange;
   kpis: {
@@ -87,9 +214,12 @@ export interface AnalyticsDashboard {
   activeUsers: AnalyticsActiveUsers;
   activeStreaks: number;
   dailyActivity: AnalyticsDailyActivityPoint[];
+  lessonsByCategory: AnalyticsCategoryBreakdown;
   topLanguages: AnalyticsTopLanguage[];
   progressByLevel: AnalyticsLevelProgress[];
   xpDistribution: XpDistributionBucket[];
   topLessons: AnalyticsTopLesson[];
+  subscription: AnalyticsSubscriptionBreakdown;
+  revenue: AnalyticsRevenue;
   funnel: AnalyticsFunnelStep[];
 }

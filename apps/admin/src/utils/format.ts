@@ -13,6 +13,24 @@ export function formatNumber(n: number): string {
   return n.toLocaleString('en-US');
 }
 
+/** "$23,560.45" */
+export function formatCurrency(n: number): string {
+  return n.toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/** "$10.28M" / "$3.99K" / "$0.00" */
+export function formatCompactCurrency(n: number): string {
+  if (Math.abs(n) >= 1000) {
+    return `$${n.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 2 })}`;
+  }
+  return formatCurrency(n);
+}
+
 /** "10:24 AM" */
 export function formatTimeOfDay(iso: string | null | undefined): string {
   if (!iso) return '—';
