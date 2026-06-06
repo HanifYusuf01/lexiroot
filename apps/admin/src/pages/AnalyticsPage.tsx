@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Info } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { DateRangePicker } from '../components/ui/DateRangePicker';
 import { SearchInput } from '../components/ui/SearchInput';
@@ -81,8 +81,8 @@ export function AnalyticsPage() {
         <RevenueBreakdownCard plans={data?.revenue?.plans ?? []} />
       </div>
 
-      <div className="flex items-center gap-2 rounded-xl bg-primary-soft px-4 py-3 text-xs text-neutral-variant">
-        <Info size={14} className="text-primary" />
+      <div className="flex items-center gap-2 rounded-lg border border-[#FDA29B] bg-[#FFFBFA] px-4 py-3 text-xs text-[#D92D20]">
+        <BarChart3 size={14} className="text-[#D92D20]" />
         Analytics updates every 15 minutes. All times are shown in your local timezone.
       </div>
     </div>

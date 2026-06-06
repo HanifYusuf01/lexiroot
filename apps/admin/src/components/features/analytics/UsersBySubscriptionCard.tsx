@@ -7,7 +7,7 @@ interface Props {
   subscription?: AnalyticsSubscriptionBreakdown;
 }
 
-const FREE_COLOR = '#E35336';
+const FREE_COLOR = '#376DF6';
 const PREMIUM_COLOR = '#1FC0E0';
 const PLACEHOLDER_COLOR = '#F5F5F5';
 

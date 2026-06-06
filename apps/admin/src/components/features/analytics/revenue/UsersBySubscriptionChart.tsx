@@ -14,21 +14,38 @@ interface Props {
   breakdown?: SubscriptionPlanBreakdown;
 }
 
-const FREE_COLOR = '#F3B2A5';
-const PREMIUM_COLOR = '#E35336';
+const CHART_FREE_COLOR = '#EEEEEE';
+const MONTHLY_COLOR = '#E95237';
+const ANNUAL_COLOR = '#F6B4A9';
+
+function percentOf(rows: { plan: string; users: number }[], plan: string, fallback: number): number {
+  const premiumTotal = rows
+    .filter((row) => row.plan.toLowerCase().includes('premium'))
+    .reduce((sum, row) => sum + row.users, 0);
+  const planUsers = rows.find((row) => row.plan === plan)?.users ?? 0;
+  return premiumTotal > 0 ? planUsers / premiumTotal : fallback;
+}
 
 export function UsersBySubscriptionChart({ data, breakdown }: Props) {
   const rows = breakdown?.rows ?? [];
+  const monthlyShare = percentOf(rows, 'Premium Monthly', 0.72);
+  const chartData = data.map((point) => ({
+    ...point,
+    premiumMonthly: Math.round(point.premium * monthlyShare),
+    premiumAnnual: point.premium - Math.round(point.premium * monthlyShare),
+  }));
 
   return (
-    <div className="rounded-2xl border border-border bg-white p-5">
-      <h3 className="text-sm font-bold text-neutral">Users by subscription</h3>
-      <p className="text-xs text-neutral-variant">Free vs Premium distribution</p>
+    <section className="space-y-5">
+      <div>
+        <h3 className="text-base font-extrabold text-black">Users by subscription</h3>
+        <p className="mt-1 text-xs text-neutral-variant">Free vs Premium distribution</p>
+      </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
-        <div className="h-56 w-full">
+      <div className="grid gap-5 rounded-xl border border-border bg-white p-6 sm:grid-cols-[1fr_11rem] sm:items-center">
+        <div className="h-52 w-full">
           <ResponsiveContainer>
-            <BarChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+            <BarChart data={chartData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
               <CartesianGrid stroke="#F1F1F1" vertical={false} />
               <XAxis
                 dataKey="label"
@@ -42,18 +59,38 @@ export function UsersBySubscriptionChart({ data, breakdown }: Props) {
                 tick={{ fontSize: 11, fill: '#7A7878' }}
                 tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : `${v}`)}
               />
-              <Bar dataKey="free" stackId="a" fill={FREE_COLOR} maxBarSize={26} />
-              <Bar dataKey="premium" stackId="a" fill={PREMIUM_COLOR} radius={[4, 4, 0, 0]} maxBarSize={26} />
+              <Bar dataKey="free" stackId="a" fill={CHART_FREE_COLOR} maxBarSize={18} />
+              <Bar dataKey="premiumMonthly" stackId="a" fill={MONTHLY_COLOR} maxBarSize={18} />
+              <Bar
+                dataKey="premiumAnnual"
+                stackId="a"
+                fill={ANNUAL_COLOR}
+                radius={[0, 0, 0, 0]}
+                maxBarSize={18}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="rounded-xl border border-border p-4 sm:w-56">
-          <div className="text-xs font-bold text-neutral">Plan Breakdown</div>
+        <div className="sm:w-44">
+          <div className="text-xs font-extrabold text-black">Plan Breakdown</div>
           <ul className="mt-3 flex flex-col gap-2">
             {rows.map((row) => (
               <li key={row.plan} className="flex items-center justify-between text-xs">
-                <span className="text-neutral-variant">{row.plan}</span>
+                <span className="flex items-center gap-2 text-black">
+                  <span
+                    className="h-2 w-2 rounded-sm"
+                    style={{
+                      backgroundColor:
+                        row.plan === 'Free'
+                          ? CHART_FREE_COLOR
+                          : row.plan === 'Premium Monthly'
+                            ? MONTHLY_COLOR
+                            : ANNUAL_COLOR,
+                    }}
+                  />
+                  {row.plan}
+                </span>
                 <span className="font-semibold text-neutral">
                   {formatNumber(row.users)}{' '}
                   <span className="font-normal text-neutral-variant">{row.percent}%</span>
@@ -61,17 +98,17 @@ export function UsersBySubscriptionChart({ data, breakdown }: Props) {
               </li>
             ))}
           </ul>
-          <div className="mt-3 border-t border-border pt-3">
+          <div className="mt-5 border-t border-border pt-5">
             <div className="text-[11px] text-neutral-variant">Total Premium</div>
             <div className="font-display text-lg font-extrabold text-primary">
               {formatNumber(breakdown?.totalPremium ?? 0)}{' '}
-              <span className="text-xs font-semibold text-neutral-variant">
+              <span className="text-xs font-normal text-neutral-variant">
                 {breakdown?.totalPremiumPercent ?? 0}%
               </span>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
