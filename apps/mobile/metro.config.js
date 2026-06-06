@@ -13,4 +13,9 @@ config.resolver.nodeModulesPaths = [
 ];
 config.resolver.disableHierarchicalLookup = true;
 
+// Resolve @lexiroot/shared from TypeScript source directly
+config.resolver.extraNodeModules = {
+  '@lexiroot/shared': path.resolve(workspaceRoot, 'packages/shared/src'),
+};
+
 module.exports = config;
