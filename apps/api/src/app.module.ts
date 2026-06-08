@@ -11,10 +11,13 @@ import { CulturalContentModule } from './modules/cultural-content/cultural-conte
 import { ExercisesModule } from './modules/exercises/exercises.module';
 import { FeedbackModule } from './modules/feedback/feedback.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
+import { LanguagesModule } from './modules/languages/languages.module';
 import { LessonEntriesModule } from './modules/lesson-entries/lesson-entries.module';
 import { LessonsModule } from './modules/lessons/lessons.module';
+import { PlatformSettingsModule } from './modules/platform-settings/platform-settings.module';
 import { ProgressModule } from './modules/progress/progress.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { UsersModule } from './modules/users/users.module';
 
@@ -45,6 +48,9 @@ import { UsersModule } from './modules/users/users.module';
     UploadsModule,
     AnalyticsModule,
     GamificationModule,
+    LanguagesModule,
+    PlatformSettingsModule,
+    SubscriptionsModule,
   ],
   providers: [
     // Order matters: RLS context first so the GUC is set before any handler

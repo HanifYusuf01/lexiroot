@@ -30,6 +30,8 @@ export const api = createApi({
     'CulturalContentStats',
     'GamificationStats',
     'TopEarners',
+    'PlatformSettings',
+    'SubscriptionPlan',
   ],
   endpoints: () => ({}),
 });

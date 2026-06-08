@@ -16,6 +16,7 @@ import { LessonsPage } from './pages/LessonsPage';
 import { LoginPage } from './pages/LoginPage';
 import { ManageAccountPage } from './pages/ManageAccountPage';
 import { OverviewPage } from './pages/OverviewPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { TopXpEarnersPage } from './pages/TopXpEarnersPage';
 import { UsersPage } from './pages/UsersPage';
 
@@ -59,9 +60,8 @@ export function App() {
           <Route path="/cultural-content/:id/edit" element={<CulturalContentEditorPage />} />
           <Route path="/gamification" element={<GamificationPage />} />
           <Route path="/gamification/top-earners" element={<TopXpEarnersPage />} />
-          <Route path="/subscription" element={<ComingSoon title="Subscription" />} />
           <Route path="/reports" element={<ComingSoon title="Reports" />} />
-          <Route path="/settings" element={<ComingSoon title="Settings" />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/manage-account" element={<ManageAccountPage />} />
           <Route path="/change-password" element={<ChangePasswordPage />} />
           <Route path="/activity-log" element={<ActivityLogPage />} />

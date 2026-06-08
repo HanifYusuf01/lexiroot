@@ -37,9 +37,8 @@ const NAV: NavItemDef[] = [
     ],
   },
   { to: '/gamification', label: 'Gamification' },
-  { to: '/subscription', label: 'Subscription' },
   // { to: '/reports', label: 'Reports' },
-  { to: '/settings', label: 'Settings' },
+  // Settings lives in the profile dropdown (bottom-left), not the main nav.
 ];
 
 function NavItem({ to, label, end, children }: NavItemDef) {
