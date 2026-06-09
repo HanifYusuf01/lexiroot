@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, ChevronDown, KeyRound, LogOut, Settings, UserCog } from 'lucide-react';
+import { Activity, ChevronDown, KeyRound, LogOut, UserCog } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
 import { LogoutModal } from '../features/auth/LogoutModal';
 import { useClickOutside } from '../../hooks/useClickOutside';
@@ -18,7 +18,6 @@ interface MenuItem {
 
 const MENU: MenuItem[] = [
   { label: 'Manage Account', to: '/manage-account', icon: UserCog },
-  { label: 'Settings', to: '/settings', icon: Settings },
   { label: 'Change Password', to: '/change-password', icon: KeyRound },
   { label: 'Activity Log', to: '/activity-log', icon: Activity },
   { label: 'Log out', icon: LogOut, danger: true, action: 'logout' },
