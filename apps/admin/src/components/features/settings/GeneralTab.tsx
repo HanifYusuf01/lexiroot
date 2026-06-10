@@ -9,10 +9,16 @@ import {
 import { usePlatformSettingsDraft } from '../../../hooks/usePlatformSettingsDraft';
 import { formatNumber } from '../../../utils/format';
 import { AddLanguageModal } from './AddLanguageModal';
-import { SettingRow } from './SettingRow';
+import { EditLanguageModal } from './EditLanguageModal';
 import { SettingsFooter } from './SettingsFooter';
 
-function LanguageCard({ language }: { language: TeachingLanguage }) {
+function LanguageCard({
+  language,
+  onEdit,
+}: {
+  language: TeachingLanguage;
+  onEdit: (language: TeachingLanguage) => void;
+}) {
   const connected = language.status === 'connected';
   return (
     <div className="rounded-2xl border border-border bg-white p-4">
@@ -23,7 +29,7 @@ function LanguageCard({ language }: { language: TeachingLanguage }) {
         </Badge>
       </div>
       <div className="mt-3 space-y-0.5 text-xs text-neutral-variant">
-        <p>
+        <p className='font-bold'>
           {connected
             ? `${formatNumber(language.learners)} learners`
             : TEACHING_LANGUAGE_STATUS_LABELS[language.status]}
@@ -32,6 +38,7 @@ function LanguageCard({ language }: { language: TeachingLanguage }) {
       </div>
       <button
         type="button"
+        onClick={() => onEdit(language)}
         className="mt-3 rounded-lg border border-primary px-4 py-1.5 text-xs font-bold text-primary transition hover:bg-primary-soft"
       >
         Edit
@@ -45,6 +52,7 @@ export function GeneralTab() {
   const { data: languages = [] } = useTeachingLanguagesQuery();
   const [createLanguage, { isLoading: creating }] = useCreateTeachingLanguageMutation();
   const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<TeachingLanguage | null>(null);
 
   if (isLoading || !draft) {
     return <div className="py-16 text-center text-sm text-neutral-variant">Loading settings…</div>;
@@ -99,31 +107,10 @@ export function GeneralTab() {
             Add Language
           </button>
         </div>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {languages.map((language) => (
-            <LanguageCard key={language.id} language={language} />
+            <LanguageCard key={language.id} language={language} onEdit={setEditing} />
           ))}
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-base font-bold text-neutral">Maintenance mode</h2>
-        <p className="mt-0.5 text-xs text-neutral-variant">
-          Temporarily take the platform offline for learners
-        </p>
-        <div className="mt-3 divide-y divide-border rounded-2xl border border-border px-5">
-          <SettingRow
-            label="Enable maintenance mode"
-            description="Learners will see a maintenance page. Admin access remains active."
-            checked={draft.maintenanceMode}
-            onChange={(v) => set('maintenanceMode', v)}
-          />
-          <SettingRow
-            label="Show estimated downtime message"
-            description="Display a message or countdown on the maintenance page"
-            checked={draft.showDowntimeMessage}
-            onChange={(v) => set('showDowntimeMessage', v)}
-          />
         </div>
       </section>
 
@@ -143,6 +130,8 @@ export function GeneralTab() {
           await createLanguage(values).unwrap();
         }}
       />
+
+      <EditLanguageModal language={editing} onClose={() => setEditing(null)} />
     </div>
   );
 }

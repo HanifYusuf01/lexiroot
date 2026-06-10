@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, CreditCard, ShieldCheck, SlidersHorizontal } from 'lucide-react';
+import { Bell, CreditCard, Settings, ShieldCheck } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { GeneralTab } from '../components/features/settings/GeneralTab';
 import { NotificationTab } from '../components/features/settings/NotificationTab';
@@ -9,7 +9,7 @@ import { SubscriptionBillingTab } from '../components/features/settings/Subscrip
 type TabKey = 'general' | 'notification' | 'billing' | 'security';
 
 const TABS: { key: TabKey; label: string; icon: typeof Bell }[] = [
-  { key: 'general', label: 'General', icon: SlidersHorizontal },
+  { key: 'general', label: 'General', icon: Settings },
   { key: 'notification', label: 'Notification', icon: Bell },
   { key: 'billing', label: 'Subscription & Billing', icon: CreditCard },
   { key: 'security', label: 'Security and Privacy', icon: ShieldCheck },

@@ -1,6 +1,5 @@
 import { CheckCircle2 } from 'lucide-react';
 import type { SubscriptionPlan } from '@lexiroot/shared';
-import { Badge } from '../../ui/Badge';
 import { formatCurrency } from '../../../utils/format';
 
 interface PlanCardProps {
@@ -18,7 +17,11 @@ export function PlanCard({ plan, editing, onEdit }: PlanCardProps) {
     >
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-bold text-neutral">{plan.name}</h3>
-        {plan.premium ? <Badge tone="warning">Premium</Badge> : null}
+        {plan.premium ? (
+          <span className="inline-flex items-center rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold text-primary">
+            Premium
+          </span>
+        ) : null}
       </div>
 
       <div className="mt-2 flex items-end justify-between gap-2">
