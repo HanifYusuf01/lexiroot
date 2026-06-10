@@ -18,7 +18,7 @@ export function PlanCard({ plan, editing, onEdit }: PlanCardProps) {
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-bold text-neutral">{plan.name}</h3>
         {plan.premium ? (
-          <span className="inline-flex items-center rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold text-primary">
+          <span className="inline-flex items-center rounded-full border border-primary bg-primary-soft px-3 py-1 text-xs font-semibold text-primary">
             Premium
           </span>
         ) : null}
