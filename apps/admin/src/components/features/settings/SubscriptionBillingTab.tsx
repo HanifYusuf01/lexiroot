@@ -1,11 +1,11 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { PLAN_SCOPES, type PlanScope } from '@lexiroot/shared';
 import { SelectMenu } from '../../ui/SelectMenu';
 import { useSubscriptionPlansQuery } from '../../../services/subscriptionPlansApi';
-import { usePlatformSettingsDraft } from '../../../hooks/usePlatformSettingsDraft';
 import { PlanCard } from './PlanCard';
+import { PlanCreateForm } from './PlanCreateForm';
 import { PlanEditForm } from './PlanEditForm';
-import { SettingsFooter } from './SettingsFooter';
 
 const SCOPE_OPTIONS = PLAN_SCOPES.map((value) => ({
   value,
@@ -15,8 +15,8 @@ const SCOPE_OPTIONS = PLAN_SCOPES.map((value) => ({
 export function SubscriptionBillingTab() {
   const [scope, setScope] = useState<PlanScope>('individual');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const { data: plans = [], isLoading } = useSubscriptionPlansQuery(scope);
-  const settings = usePlatformSettingsDraft();
 
   const editingPlan = plans.find((p) => p.id === editingId) ?? null;
 
@@ -28,14 +28,28 @@ export function SubscriptionBillingTab() {
             <h2 className="text-base font-bold text-neutral">Subscription plans</h2>
             <p className="mt-0.5 text-xs text-neutral-variant">Manage learner pricing tiers</p>
           </div>
-          <SelectMenu
-            value={scope}
-            options={SCOPE_OPTIONS}
-            onChange={(next: PlanScope) => {
-              setScope(next);
-              setEditingId(null);
-            }}
-          />
+          <div className="flex items-center gap-3">
+            <SelectMenu
+              value={scope}
+              options={SCOPE_OPTIONS}
+              onChange={(next: PlanScope) => {
+                setScope(next);
+                setEditingId(null);
+                setAdding(false);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setAdding((open) => !open);
+                setEditingId(null);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary/90"
+            >
+              <Plus size={16} />
+              {adding ? 'Close' : 'Add Plan'}
+            </button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -47,27 +61,28 @@ export function SubscriptionBillingTab() {
                 key={plan.id}
                 plan={plan}
                 editing={plan.id === editingId}
-                onEdit={() => setEditingId(plan.id)}
+                onEdit={() => {
+                  setEditingId(plan.id);
+                  setAdding(false);
+                }}
               />
             ))}
           </div>
         )}
 
-        {/* Edit form renders inline BELOW the plan grid (never floating/overlapping). */}
+        {/* Create / edit forms render inline BELOW the plan grid (never floating). */}
+        {adding ? (
+          <div className="mt-6">
+            <PlanCreateForm scope={scope} onClose={() => setAdding(false)} />
+          </div>
+        ) : null}
+
         {editingPlan ? (
           <div className="mt-6">
             <PlanEditForm plan={editingPlan} onClose={() => setEditingId(null)} />
           </div>
         ) : null}
       </section>
-
-      <SettingsFooter
-        dirty={settings.dirty}
-        saving={settings.saving}
-        saved={settings.savedAt !== null}
-        onCancel={settings.reset}
-        onSave={settings.save}
-      />
     </div>
   );
 }

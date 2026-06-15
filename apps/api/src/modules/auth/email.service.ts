@@ -1,21 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ADMIN_ROLE_LABELS, type AdminRole, type PlatformSettings } from '@lexiroot/shared';
-import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { ADMIN_ROLE_LABELS, type AdminRole } from '@lexiroot/shared';
 
 const BRAND_COLOR = '#e35336';
 const TEXT_COLOR = '#3c3c3c';
 const MUTED_COLOR = '#7a7878';
 const PANEL_BG = '#f6f1ee';
-
-/** Platform-settings boolean flags that gate a given email type. */
-type EmailToggle =
-  | 'emailVerificationEmails'
-  | 'adminInvitationEmails'
-  | 'welcomeEmail'
-  | 'subscriptionConfirmation'
-  | 'passwordResetEmails'
-  | 'inactivityReengagement';
 
 interface SendVerificationEmailInput {
   email: string;
@@ -56,16 +46,9 @@ interface SendInactivityReengagementEmailInput {
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
 
-  constructor(
-    private readonly config: ConfigService,
-    private readonly platformSettings: PlatformSettingsService,
-  ) {}
+  constructor(private readonly config: ConfigService) {}
 
   async sendVerificationEmail(input: SendVerificationEmailInput): Promise<void> {
-    if (!(await this.isEnabled('emailVerificationEmails'))) {
-      this.logSkip('email verification', input.email);
-      return;
-    }
     await this.send({
       to: input.email,
       subject: 'Your LexiRoot verification code',
@@ -83,10 +66,6 @@ export class EmailService {
   }
 
   async sendAdminInvitationEmail(input: SendAdminInvitationEmailInput): Promise<void> {
-    if (!(await this.isEnabled('adminInvitationEmails'))) {
-      this.logSkip('admin invitation', input.email);
-      return;
-    }
     await this.send({
       to: input.email,
       subject: 'You have been invited to the LexiRoot dashboard',
@@ -106,10 +85,6 @@ export class EmailService {
   }
 
   async sendWelcomeEmail(input: SendWelcomeEmailInput): Promise<void> {
-    if (!(await this.isEnabled('welcomeEmail'))) {
-      this.logSkip('welcome', input.email);
-      return;
-    }
     await this.send({
       to: input.email,
       subject: 'Welcome to LexiRoot 🌍',
@@ -125,10 +100,6 @@ export class EmailService {
   }
 
   async sendPasswordResetEmail(input: SendPasswordResetEmailInput): Promise<void> {
-    if (!(await this.isEnabled('passwordResetEmails'))) {
-      this.logSkip('password reset', input.email);
-      return;
-    }
     await this.send({
       to: input.email,
       subject: 'Reset your LexiRoot password',
@@ -148,10 +119,6 @@ export class EmailService {
   async sendSubscriptionConfirmationEmail(
     input: SendSubscriptionConfirmationEmailInput,
   ): Promise<void> {
-    if (!(await this.isEnabled('subscriptionConfirmation'))) {
-      this.logSkip('subscription confirmation', input.email);
-      return;
-    }
     await this.send({
       to: input.email,
       subject: 'Your LexiRoot Premium is active',
@@ -169,10 +136,6 @@ export class EmailService {
   async sendInactivityReengagementEmail(
     input: SendInactivityReengagementEmailInput,
   ): Promise<void> {
-    if (!(await this.isEnabled('inactivityReengagement'))) {
-      this.logSkip('inactivity re-engagement', input.email);
-      return;
-    }
     await this.send({
       to: input.email,
       subject: 'Your streak misses you 🔥',
@@ -188,21 +151,6 @@ export class EmailService {
   }
 
   // --- Internals ---
-
-  private async isEnabled(toggle: EmailToggle): Promise<boolean> {
-    try {
-      const settings = await this.platformSettings.getOrCreate();
-      return (settings as PlatformSettings)[toggle] !== false;
-    } catch (err) {
-      // If settings can't be read, fail open so transactional emails still send.
-      this.logger.warn(`Could not read email settings (${toggle}); sending anyway: ${String(err)}`);
-      return true;
-    }
-  }
-
-  private logSkip(kind: string, email: string): void {
-    this.logger.log(`Skipped ${kind} email to ${email} (disabled in platform settings)`);
-  }
 
   private async send(opts: {
     to: string;

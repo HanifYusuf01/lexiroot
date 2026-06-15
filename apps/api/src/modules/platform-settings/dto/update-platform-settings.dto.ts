@@ -77,31 +77,6 @@ export class UpdatePlatformSettingsDto {
   @IsBoolean()
   paymentFailureAlerts?: boolean;
 
-  // Email notifications
-  @IsOptional()
-  @IsBoolean()
-  emailVerificationEmails?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  adminInvitationEmails?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  welcomeEmail?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  subscriptionConfirmation?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  passwordResetEmails?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  inactivityReengagement?: boolean;
-
   // Security & privacy
   @IsOptional()
   @IsBoolean()

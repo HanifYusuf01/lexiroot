@@ -36,13 +36,6 @@ export interface PlatformSettings {
   // System & admin alerts
   criticalErrorAlerts: boolean;
   paymentFailureAlerts: boolean;
-  // Email notifications
-  emailVerificationEmails: boolean;
-  adminInvitationEmails: boolean;
-  welcomeEmail: boolean;
-  subscriptionConfirmation: boolean;
-  passwordResetEmails: boolean;
-  inactivityReengagement: boolean;
   // Security & privacy
   twoFactorAuth: boolean;
   singleSignOn: boolean;

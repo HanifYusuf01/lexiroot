@@ -24,3 +24,13 @@ export interface UpdateSubscriptionPlan {
   premium?: boolean;
   features?: string[];
 }
+
+export interface CreateSubscriptionPlan {
+  scope: PlanScope;
+  name: string;
+  price: number;
+  period?: string;
+  total?: number | null;
+  premium?: boolean;
+  features?: string[];
+}

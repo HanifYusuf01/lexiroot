@@ -1,4 +1,9 @@
-import type { PlanScope, SubscriptionPlan, UpdateSubscriptionPlan } from '@lexiroot/shared';
+import type {
+  CreateSubscriptionPlan,
+  PlanScope,
+  SubscriptionPlan,
+  UpdateSubscriptionPlan,
+} from '@lexiroot/shared';
 import { api } from './api';
 
 export const subscriptionPlansApi = api.injectEndpoints({
@@ -9,6 +14,10 @@ export const subscriptionPlansApi = api.injectEndpoints({
         params: scope ? { scope } : undefined,
       }),
       providesTags: ['SubscriptionPlan'],
+    }),
+    createSubscriptionPlan: build.mutation<SubscriptionPlan, CreateSubscriptionPlan>({
+      query: (body) => ({ url: '/admin/subscription-plans', method: 'POST', body }),
+      invalidatesTags: ['SubscriptionPlan'],
     }),
     updateSubscriptionPlan: build.mutation<
       SubscriptionPlan,
@@ -24,4 +33,8 @@ export const subscriptionPlansApi = api.injectEndpoints({
   }),
 });
 
-export const { useSubscriptionPlansQuery, useUpdateSubscriptionPlanMutation } = subscriptionPlansApi;
+export const {
+  useSubscriptionPlansQuery,
+  useCreateSubscriptionPlanMutation,
+  useUpdateSubscriptionPlanMutation,
+} = subscriptionPlansApi;

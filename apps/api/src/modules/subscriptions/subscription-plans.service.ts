@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { PlanScope, SubscriptionPlan as SubscriptionPlanDto } from '@lexiroot/shared';
 import { SubscriptionPlan } from './entities/subscription-plan.entity';
+import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
 import { UpdateSubscriptionPlanDto } from './dto/update-subscription-plan.dto';
 
 @Injectable()
@@ -18,6 +19,26 @@ export class SubscriptionPlansService {
       order: { scope: 'ASC', sortOrder: 'ASC' },
     });
     return rows.map((row) => this.toDto(row));
+  }
+
+  async create(dto: CreateSubscriptionPlanDto): Promise<SubscriptionPlanDto> {
+    // New plans go to the end of their scope's ordering.
+    const last = await this.plans.findOne({
+      where: { scope: dto.scope },
+      order: { sortOrder: 'DESC' },
+    });
+    const plan = this.plans.create({
+      scope: dto.scope,
+      name: dto.name.trim(),
+      price: dto.price.toFixed(2),
+      period: dto.period?.trim() || 'Month',
+      total: dto.total === undefined || dto.total === null ? null : dto.total.toFixed(2),
+      premium: dto.premium ?? false,
+      features: dto.features ?? [],
+      sortOrder: (last?.sortOrder ?? -1) + 1,
+    });
+    const saved = await this.plans.save(plan);
+    return this.toDto(saved);
   }
 
   async update(id: string, dto: UpdateSubscriptionPlanDto): Promise<SubscriptionPlanDto> {

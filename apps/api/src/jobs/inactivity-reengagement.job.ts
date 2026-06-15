@@ -3,7 +3,6 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { EmailService } from '../modules/auth/email.service';
-import { PlatformSettingsService } from '../modules/platform-settings/platform-settings.service';
 
 interface InactiveRow {
   email: string;
@@ -22,17 +21,10 @@ export class InactivityReengagementJob {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly email: EmailService,
-    private readonly platformSettings: PlatformSettingsService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_9AM)
   async run(): Promise<void> {
-    const settings = await this.platformSettings.getOrCreate();
-    if (!settings.inactivityReengagement) {
-      this.logger.log('Inactivity re-engagement disabled in platform settings; skipping run');
-      return;
-    }
-
     const rows: InactiveRow[] = await this.dataSource.query(
       `SELECT "email", "display_name"
          FROM "users"

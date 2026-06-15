@@ -59,25 +59,6 @@ export class PlatformSettings {
   @Column({ name: 'payment_failure_alerts', type: 'boolean', default: true })
   paymentFailureAlerts!: boolean;
 
-  // Email notifications
-  @Column({ name: 'email_verification_emails', type: 'boolean', default: true })
-  emailVerificationEmails!: boolean;
-
-  @Column({ name: 'admin_invitation_emails', type: 'boolean', default: true })
-  adminInvitationEmails!: boolean;
-
-  @Column({ name: 'welcome_email', type: 'boolean', default: true })
-  welcomeEmail!: boolean;
-
-  @Column({ name: 'subscription_confirmation', type: 'boolean', default: true })
-  subscriptionConfirmation!: boolean;
-
-  @Column({ name: 'password_reset_emails', type: 'boolean', default: true })
-  passwordResetEmails!: boolean;
-
-  @Column({ name: 'inactivity_reengagement', type: 'boolean', default: true })
-  inactivityReengagement!: boolean;
-
   // Security & privacy
   @Column({ name: 'two_factor_auth', type: 'boolean', default: true })
   twoFactorAuth!: boolean;

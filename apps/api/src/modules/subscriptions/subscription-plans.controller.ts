@@ -1,9 +1,20 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { PLAN_SCOPES, type PlanScope } from '@lexiroot/shared';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SubscriptionPlansService } from './subscription-plans.service';
+import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
 import { UpdateSubscriptionPlanDto } from './dto/update-subscription-plan.dto';
 
 @Controller('admin/subscription-plans')
@@ -18,6 +29,11 @@ export class SubscriptionPlansController {
       ? (scope as PlanScope)
       : undefined;
     return this.plans.list(valid);
+  }
+
+  @Post()
+  create(@Body() dto: CreateSubscriptionPlanDto) {
+    return this.plans.create(dto);
   }
 
   @Patch(':id')
