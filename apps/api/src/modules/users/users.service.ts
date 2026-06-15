@@ -8,7 +8,7 @@ import {
   type LearningLevel,
   type LearningReason,
 } from '@lexiroot/shared';
-import { User } from './entities/user.entity';
+import { User, UserRole } from './entities/user.entity';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
@@ -16,6 +16,7 @@ interface CreateUserInput {
   email: string;
   displayName: string;
   passwordHash: string;
+  role?: UserRole;
   language?: LanguageCode | null;
   level?: LearningLevel | null;
   learningReason?: LearningReason | null;
@@ -28,7 +29,7 @@ export interface PublicUser {
   id: string;
   email: string;
   displayName: string;
-  role: 'user' | 'admin';
+  role: UserRole;
   emailVerifiedAt: Date | null;
   language: LanguageCode | null;
   level: LearningLevel | null;
@@ -128,6 +129,7 @@ export class UsersService {
       email: data.email.toLowerCase(),
       displayName: data.displayName,
       passwordHash: data.passwordHash,
+      role: data.role ?? 'user',
       language: data.language ?? null,
       level: data.level ?? null,
       learningReason: data.learningReason ?? null,

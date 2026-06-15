@@ -37,7 +37,12 @@ export class LanguagesService {
       throw new ConflictException(`Language "${code}" already exists`);
     }
     const language = await this.languages.save(
-      this.languages.create({ code, name: dto.name.trim(), status: dto.status ?? 'draft' }),
+      this.languages.create({
+        code,
+        name: dto.name.trim(),
+        country: dto.country.toUpperCase(),
+        status: dto.status ?? 'draft',
+      }),
     );
     return this.toDto(language, {}, {});
   }
@@ -53,6 +58,7 @@ export class LanguagesService {
       language.code = code;
     }
     if (dto.name !== undefined) language.name = dto.name.trim();
+    if (dto.country !== undefined) language.country = dto.country.toUpperCase();
     if (dto.status !== undefined) language.status = dto.status;
 
     const saved = await this.languages.save(language);
@@ -73,6 +79,7 @@ export class LanguagesService {
       id: language.id,
       code: language.code,
       name: language.name,
+      country: language.country,
       status: language.status,
       learners: learnersByCode[language.code] ?? 0,
       lessons: lessonsByCode[language.code] ?? 0,

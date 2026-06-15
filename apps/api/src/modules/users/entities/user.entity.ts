@@ -14,7 +14,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-export type UserRole = 'user' | 'admin';
+export type UserRole = 'user' | 'admin' | 'instructor';
 
 @Entity('users')
 export class User {

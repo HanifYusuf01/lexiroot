@@ -37,6 +37,8 @@ export interface PlatformSettings {
   criticalErrorAlerts: boolean;
   paymentFailureAlerts: boolean;
   // Email notifications
+  emailVerificationEmails: boolean;
+  adminInvitationEmails: boolean;
   welcomeEmail: boolean;
   subscriptionConfirmation: boolean;
   passwordResetEmails: boolean;
@@ -46,9 +48,6 @@ export interface PlatformSettings {
   singleSignOn: boolean;
   adminSessionTimeout: AdminSessionTimeout;
   maxFailedLoginAttempts: number;
-  // Trial / subscription config
-  freeTrialLength: number;
-  trialPlanId: string | null;
   updatedAt: string;
 }
 

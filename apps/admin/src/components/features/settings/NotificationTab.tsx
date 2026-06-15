@@ -35,8 +35,7 @@ export function NotificationTab() {
   return (
     <div className="space-y-10">
       <div className="grid gap-8 lg:grid-cols-2">
-        <div className="space-y-8">
-          <Group title="Push Notifications" subtitle="Sent directly to a user's mobile device">
+        <Group title="Push Notifications" subtitle="Sent directly to a user's mobile device">
             <SettingRow
               label="Daily streak Reminder"
               description="Remind users to keep their streak alive each day"
@@ -88,34 +87,6 @@ export function NotificationTab() {
               onChange={(v) => set('paymentFailureAlerts', v)}
             />
           </Group>
-        </div>
-
-        <Group title="Email notifications" subtitle="Automated emails sent to learners">
-          <SettingRow
-            label="Welcome email"
-            description="Sent immediately after a user registers"
-            checked={draft.welcomeEmail}
-            onChange={(v) => set('welcomeEmail', v)}
-          />
-          <SettingRow
-            label="Subscription confirmation"
-            description="Sent when a user upgrades to Premium"
-            checked={draft.subscriptionConfirmation}
-            onChange={(v) => set('subscriptionConfirmation', v)}
-          />
-          <SettingRow
-            label="Password reset emails"
-            description="Triggered when a user requests a password reset"
-            checked={draft.passwordResetEmails}
-            onChange={(v) => set('passwordResetEmails', v)}
-          />
-          <SettingRow
-            label="Inactivity re-engagement"
-            description="Email users who haven't logged in for 7+ days"
-            checked={draft.inactivityReengagement}
-            onChange={(v) => set('inactivityReengagement', v)}
-          />
-        </Group>
       </div>
 
       <SettingsFooter

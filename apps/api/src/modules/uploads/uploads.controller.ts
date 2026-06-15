@@ -18,28 +18,28 @@ export class UploadsController {
 
   @Post('lesson-audio/signature')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'instructor')
   signLessonAudioUpload() {
     return this.uploads.signLessonMediaUpload('audio');
   }
 
   @Post('lesson-image/signature')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'instructor')
   signLessonImageUpload() {
     return this.uploads.signLessonMediaUpload('image');
   }
 
   @Post('cultural-audio/signature')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'instructor')
   signCulturalAudioUpload() {
     return this.uploads.signCulturalMediaUpload('audio');
   }
 
   @Post('cultural-image/signature')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'instructor')
   signCulturalImageUpload() {
     return this.uploads.signCulturalMediaUpload('image');
   }

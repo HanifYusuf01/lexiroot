@@ -60,6 +60,12 @@ export class PlatformSettings {
   paymentFailureAlerts!: boolean;
 
   // Email notifications
+  @Column({ name: 'email_verification_emails', type: 'boolean', default: true })
+  emailVerificationEmails!: boolean;
+
+  @Column({ name: 'admin_invitation_emails', type: 'boolean', default: true })
+  adminInvitationEmails!: boolean;
+
   @Column({ name: 'welcome_email', type: 'boolean', default: true })
   welcomeEmail!: boolean;
 
@@ -84,13 +90,6 @@ export class PlatformSettings {
 
   @Column({ name: 'max_failed_login_attempts', type: 'int', default: 4 })
   maxFailedLoginAttempts!: number;
-
-  // Trial / subscription config
-  @Column({ name: 'free_trial_length', type: 'int', default: 7 })
-  freeTrialLength!: number;
-
-  @Column({ name: 'trial_plan_id', type: 'uuid', nullable: true })
-  trialPlanId!: string | null;
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt!: Date;

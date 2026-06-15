@@ -11,9 +11,10 @@ const PASSWORD_HELPER =
   'Password must be at least 8 characters long and include 1 capital letter and one symbol.';
 
 interface FormErrors {
+  code?: string;
   password?: string;
   confirm?: string;
-  token?: string;
+  general?: string;
 }
 
 function validatePassword(password: string): boolean {
@@ -26,15 +27,17 @@ function validatePassword(password: string): boolean {
 
 export default function ResetPassword() {
   const router = useRouter();
-  const { token: tokenParam } = useLocalSearchParams<{ token?: string }>();
+  const { email } = useLocalSearchParams<{ email?: string }>();
   const [resetPassword, { isLoading }] = useResetPasswordMutation();
+  const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [errors, setErrors] = useState<FormErrors>({});
 
   async function handleSubmit() {
     const next: FormErrors = {};
-    if (!tokenParam) next.token = 'Reset link is missing or invalid. Request a new one.';
+    if (!email) next.general = 'Something went wrong. Please request a new reset code.';
+    if (!/^\d{6}$/.test(code.trim())) next.code = 'Enter the 6-digit code from your email';
     if (!validatePassword(password)) next.password = PASSWORD_HELPER;
     if (confirm !== password) next.confirm = 'Passwords do not match';
     if (Object.keys(next).length > 0) {
@@ -43,10 +46,14 @@ export default function ResetPassword() {
     }
     setErrors({});
     try {
-      await resetPassword({ token: tokenParam!, newPassword: password }).unwrap();
+      await resetPassword({
+        email: email!.toLowerCase(),
+        code: code.trim(),
+        newPassword: password,
+      }).unwrap();
       router.replace('/login');
     } catch {
-      setErrors({ token: 'This reset link is invalid or has expired. Request a new one.' });
+      setErrors({ code: 'This reset code is invalid or has expired. Request a new one.' });
     }
   }
 
@@ -58,7 +65,18 @@ export default function ResetPassword() {
       >
         <View style={styles.body}>
           <Text style={styles.title}>Create a new{'\n'}Password</Text>
+          <Text style={styles.subtitle}>
+            Enter the 6-digit code we sent{email ? ` to ${email}` : ''} and choose a new password.
+          </Text>
           <View style={styles.fields}>
+            <TextField
+              placeholder="6-digit code"
+              value={code}
+              onChangeText={setCode}
+              error={errors.code}
+              keyboardType="number-pad"
+              maxLength={6}
+            />
             <TextField
               placeholder="New password"
               value={password}
@@ -74,7 +92,7 @@ export default function ResetPassword() {
               isPassword
             />
           </View>
-          {errors.token ? <Text style={styles.tokenError}>{errors.token}</Text> : null}
+          {errors.general ? <Text style={styles.tokenError}>{errors.general}</Text> : null}
         </View>
         <View style={styles.footer}>
           <Button label="Update Password" onPress={handleSubmit} loading={isLoading} />
@@ -98,7 +116,15 @@ const styles = StyleSheet.create({
     lineHeight: 34,
     color: colors.primary,
     textAlign: 'center',
+  },
+  subtitle: {
+    fontFamily: fonts.medium,
+    fontSize: 14,
+    color: colors.neutralVariant,
+    textAlign: 'center',
+    marginTop: spacing.sm,
     marginBottom: spacing.xl,
+    paddingHorizontal: spacing.md,
   },
   fields: {
     gap: spacing.md,

@@ -5,7 +5,7 @@ export interface AdminUser {
   id: string;
   email: string;
   displayName: string;
-  role: 'user' | 'admin';
+  role: 'user' | 'admin' | 'instructor';
   emailVerifiedAt: string | null;
   country: CountryCode | null;
   avatarUrl: string | null;

@@ -15,7 +15,7 @@ export function Toggle({ checked, onChange, disabled, label }: ToggleProps) {
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-50 ${
-        checked ? 'bg-primary' : 'bg-neutral-soft'
+        checked ? 'bg-primary' : 'bg-toggle-off'
       }`}
     >
       <span

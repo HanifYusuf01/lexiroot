@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { PLAN_SCOPES, type PlanScope } from '@lexiroot/shared';
 import { SelectMenu } from '../../ui/SelectMenu';
-import { TextField } from '../../ui/TextField';
 import { useSubscriptionPlansQuery } from '../../../services/subscriptionPlansApi';
 import { usePlatformSettingsDraft } from '../../../hooks/usePlatformSettingsDraft';
 import { PlanCard } from './PlanCard';
@@ -20,9 +19,6 @@ export function SubscriptionBillingTab() {
   const settings = usePlatformSettingsDraft();
 
   const editingPlan = plans.find((p) => p.id === editingId) ?? null;
-  const trialPlanOptions = plans
-    .filter((p) => p.premium)
-    .map((p) => ({ value: p.id, label: `Premium ${p.name}` }));
 
   return (
     <div className="space-y-10">
@@ -63,32 +59,6 @@ export function SubscriptionBillingTab() {
             <PlanEditForm plan={editingPlan} onClose={() => setEditingId(null)} />
           </div>
         ) : null}
-      </section>
-
-      <section>
-        <h2 className="text-base font-bold text-neutral">Free trial</h2>
-        <p className="mt-0.5 text-xs text-neutral-variant">
-          Offer new learners a taste of Premium before they pay
-        </p>
-        <div className="mt-4 grid gap-4 sm:max-w-xl sm:grid-cols-2">
-          <TextField
-            label="Free trial length (Days)"
-            type="number"
-            min={0}
-            max={90}
-            value={settings.draft?.freeTrialLength ?? 7}
-            onChange={(e) => settings.set('freeTrialLength', Number(e.target.value))}
-          />
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-semibold text-neutral">Trial Plan</label>
-            <SelectMenu
-              value={settings.draft?.trialPlanId ?? ''}
-              options={trialPlanOptions}
-              onChange={(id) => settings.set('trialPlanId', id)}
-              align="left"
-            />
-          </div>
-        </div>
       </section>
 
       <SettingsFooter

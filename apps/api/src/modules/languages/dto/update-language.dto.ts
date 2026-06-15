@@ -1,5 +1,9 @@
 import { IsIn, IsOptional, IsString, Length, Matches } from 'class-validator';
-import { TEACHING_LANGUAGE_STATUSES, type TeachingLanguageStatus } from '@lexiroot/shared';
+import {
+  COUNTRY_CODES,
+  TEACHING_LANGUAGE_STATUSES,
+  type TeachingLanguageStatus,
+} from '@lexiroot/shared';
 
 export class UpdateLanguageDto {
   @IsOptional()
@@ -11,6 +15,10 @@ export class UpdateLanguageDto {
   @IsString()
   @Length(2, 60)
   name?: string;
+
+  @IsOptional()
+  @IsIn(COUNTRY_CODES as readonly string[], { message: 'country must be a valid ISO country code' })
+  country?: string;
 
   @IsOptional()
   @IsIn(TEACHING_LANGUAGE_STATUSES as readonly string[])

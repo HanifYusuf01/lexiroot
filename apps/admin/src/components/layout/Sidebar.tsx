@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useMatch } from 'react-router-dom';
 import { ChevronDown, X } from 'lucide-react';
 import { SidebarProfile } from './SidebarProfile';
+import { useAppSelector } from '../../store/hooks';
+import { canAccessPath } from '../../utils/permissions';
 
 interface SidebarProps {
   /** Provided when rendered as a mobile drawer; shows a close (X) button in the header. */
@@ -38,6 +40,7 @@ const NAV: NavItemDef[] = [
   },
   { to: '/gamification', label: 'Gamification' },
   // { to: '/reports', label: 'Reports' },
+  { to: '/admin-management', label: 'Admin Management' },
   { to: '/settings', label: 'Settings' },
 ];
 
@@ -133,6 +136,10 @@ function SubNavLink({ to, label, end }: SubNavItem) {
 }
 
 export function Sidebar({ onClose }: SidebarProps = {}) {
+  const role = useAppSelector((s) => s.auth.user?.role);
+  // Instructors only see the sections they can actually open.
+  const items = NAV.filter((item) => canAccessPath(role, item.to));
+
   return (
     <aside className="flex h-full w-72 flex-col border-r border-border bg-white">
       <div className="flex items-center justify-between px-8 pt-8 pb-10">
@@ -151,7 +158,7 @@ export function Sidebar({ onClose }: SidebarProps = {}) {
 
       <nav className="flex-1 overflow-y-auto pr-4 pb-6">
         <ul className="flex flex-col gap-3">
-          {NAV.map((item) => (
+          {items.map((item) => (
             <NavItem key={item.to} {...item} />
           ))}
         </ul>

@@ -32,6 +32,8 @@ export const api = createApi({
     'TopEarners',
     'PlatformSettings',
     'SubscriptionPlan',
+    'AdminMember',
+    'AdminInvitation',
   ],
   endpoints: () => ({}),
 });

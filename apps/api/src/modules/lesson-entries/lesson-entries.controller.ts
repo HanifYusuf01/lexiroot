@@ -25,7 +25,7 @@ export class LessonEntriesController {
 
   @Put()
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'instructor')
   replace(
     @Param('lessonId', new ParseUUIDPipe()) lessonId: string,
     @Body() dto: ReplaceLessonEntriesDto,

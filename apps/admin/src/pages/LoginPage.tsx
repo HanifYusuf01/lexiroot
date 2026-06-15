@@ -7,6 +7,7 @@ import { useLoginMutation } from '../services/authApi';
 import { useAppDispatch } from '../store/hooks';
 import { setCredentials } from '../store/slices/authSlice';
 import { adminAuthStorage } from '../utils/storage';
+import { isDashboardRole } from '../utils/permissions';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -24,8 +25,8 @@ export function LoginPage() {
         email: email.trim().toLowerCase(),
         password,
       }).unwrap();
-      if (result.user.role !== 'admin') {
-        setError('This account does not have admin access.');
+      if (!isDashboardRole(result.user.role)) {
+        setError('This account does not have dashboard access.');
         return;
       }
       const stored = {

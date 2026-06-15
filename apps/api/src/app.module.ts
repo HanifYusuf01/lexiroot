@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_INTERCEPTOR } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LastActiveInterceptor } from './common/interceptors/last-active.interceptor';
 import { RlsContextInterceptor } from './common/interceptors/rls-context.interceptor';
+import { AdminsModule } from './modules/admins/admins.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CategoriesModule } from './modules/categories/categories.module';
@@ -11,6 +13,7 @@ import { CulturalContentModule } from './modules/cultural-content/cultural-conte
 import { ExercisesModule } from './modules/exercises/exercises.module';
 import { FeedbackModule } from './modules/feedback/feedback.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
+import { JobsModule } from './jobs/jobs.module';
 import { LanguagesModule } from './modules/languages/languages.module';
 import { LessonEntriesModule } from './modules/lesson-entries/lesson-entries.module';
 import { LessonsModule } from './modules/lessons/lessons.module';
@@ -24,6 +27,7 @@ import { UsersModule } from './modules/users/users.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({
@@ -37,6 +41,7 @@ import { UsersModule } from './modules/users/users.module';
     }),
     UsersModule,
     AuthModule,
+    AdminsModule,
     CategoriesModule,
     CulturalContentModule,
     LessonsModule,
@@ -51,6 +56,7 @@ import { UsersModule } from './modules/users/users.module';
     LanguagesModule,
     PlatformSettingsModule,
     SubscriptionsModule,
+    JobsModule,
   ],
   providers: [
     // Order matters: RLS context first so the GUC is set before any handler

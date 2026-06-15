@@ -23,18 +23,30 @@ const PASSWORD_HELPER =
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 interface FormErrors {
-  name?: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
   password?: string;
 }
 
-function validate(name: string, email: string, password: string): FormErrors {
+function validate(
+  firstName: string,
+  lastName: string,
+  email: string,
+  password: string,
+): FormErrors {
   const errors: FormErrors = {};
-  const trimmedName = name.trim();
-  if (trimmedName.length < 2) {
-    errors.name = 'Please enter your full name';
-  } else if (/\d/.test(trimmedName)) {
-    errors.name = 'Full name cannot contain numbers';
+  const trimmedFirst = firstName.trim();
+  const trimmedLast = lastName.trim();
+  if (trimmedFirst.length < 1) {
+    errors.firstName = 'Please enter your first name';
+  } else if (/\d/.test(trimmedFirst)) {
+    errors.firstName = 'First name cannot contain numbers';
+  }
+  if (trimmedLast.length < 1) {
+    errors.lastName = 'Please enter your last name';
+  } else if (/\d/.test(trimmedLast)) {
+    errors.lastName = 'Last name cannot contain numbers';
   }
   if (!EMAIL_PATTERN.test(email.trim())) errors.email = 'Please enter a valid email address';
   const passwordValid =
@@ -51,13 +63,14 @@ export default function EmailSignup() {
   const [signup, { isLoading }] = useSignupMutation();
   const onboarding = useAppSelector((s) => s.onboarding);
 
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<FormErrors>({});
 
   async function handleSubmit() {
-    const v = validate(name, email, password);
+    const v = validate(firstName, lastName, email, password);
     if (Object.keys(v).length > 0) {
       setErrors(v);
       return;
@@ -66,7 +79,7 @@ export default function EmailSignup() {
     try {
       const result = await signup({
         email: email.trim().toLowerCase(),
-        displayName: name.trim(),
+        displayName: `${firstName.trim()} ${lastName.trim()}`,
         password,
         language: onboarding.language ?? undefined,
         level: onboarding.level ? toBackendLevel(onboarding.level) : undefined,
@@ -89,7 +102,7 @@ export default function EmailSignup() {
           const lower = m.toLowerCase();
           if (lower.includes('email')) next.email = m;
           else if (lower.includes('password')) next.password = m;
-          else if (lower.includes('displayname') || lower.includes('full name')) next.name = m;
+          else if (lower.includes('displayname') || lower.includes('name')) next.firstName = m;
         });
         setErrors(next);
       } else {
@@ -111,10 +124,17 @@ export default function EmailSignup() {
         >
           <View style={styles.fields}>
             <TextField
-              placeholder="Full Name"
-              value={name}
-              onChangeText={setName}
-              error={errors.name}
+              placeholder="First Name"
+              value={firstName}
+              onChangeText={setFirstName}
+              error={errors.firstName}
+              autoCapitalize="words"
+            />
+            <TextField
+              placeholder="Last Name"
+              value={lastName}
+              onChangeText={setLastName}
+              error={errors.lastName}
               autoCapitalize="words"
             />
             <TextField

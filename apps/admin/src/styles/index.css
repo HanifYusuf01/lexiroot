@@ -22,6 +22,8 @@
   --color-neutral-variant: #7a7878;
   --color-neutral-soft: #f5f5f5;
   --color-neutral-foreground: #ffffff;
+  /* Ash grey used for the "off" state of toggle switches. */
+  --color-toggle-off: #c9c7c7;
 
   --color-border: #e5e5e5;
 

@@ -18,6 +18,9 @@ export class Language {
   @Column({ type: 'varchar', length: 60 })
   name!: string;
 
+  @Column({ type: 'varchar', length: 2 })
+  country!: string;
+
   @Column({ type: 'varchar', length: 20, default: 'draft' })
   status!: TeachingLanguageStatus;
 

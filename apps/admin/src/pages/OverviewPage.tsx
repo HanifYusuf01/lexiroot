@@ -21,6 +21,7 @@ function defaultRange(): DateRange {
 
 export function OverviewPage() {
   const user = useAppSelector((s) => s.auth.user);
+  const isAdmin = user?.role === 'admin';
   const firstName = user?.displayName?.split(' ')[0] ?? '';
   const [search, setSearch] = useState('');
   const [range, setRange] = useState<DateRange>(defaultRange);
@@ -55,9 +56,11 @@ export function OverviewPage() {
         <div>
           <TopLanguagesChart data={overview?.topLanguages ?? []} />
         </div>
-        <div className="lg:col-span-2">
-          <RecentUsersCard />
-        </div>
+        {isAdmin ? (
+          <div className="lg:col-span-2">
+            <RecentUsersCard />
+          </div>
+        ) : null}
         <div>
           <LessonOverviewCard items={overview?.topLessons ?? []} />
         </div>

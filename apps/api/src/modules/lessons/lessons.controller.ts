@@ -31,7 +31,7 @@ export class LessonsController {
 
   @Get('stats')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'instructor')
   stats() {
     return this.lessons.stats();
   }
@@ -43,21 +43,21 @@ export class LessonsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'instructor')
   create(@CurrentUser() user: User, @Body() dto: CreateLessonDto) {
     return this.lessons.create(dto, user.id);
   }
 
   @Patch(':id')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'instructor')
   update(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: UpdateLessonDto) {
     return this.lessons.update(id, dto);
   }
 
   @Post(':id/archive')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'instructor')
   archive(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.lessons.archive(id);
   }

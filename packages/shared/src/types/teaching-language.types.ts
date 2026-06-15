@@ -11,6 +11,8 @@ export interface TeachingLanguage {
   id: string;
   code: string;
   name: string;
+  /** ISO 3166-1 alpha-2 code of the country this language belongs to (e.g. NG). */
+  country: string;
   status: TeachingLanguageStatus;
   /** Number of learners studying this language (computed from users). */
   learners: number;
@@ -23,6 +25,7 @@ export interface TeachingLanguage {
 export interface CreateTeachingLanguage {
   code: string;
   name: string;
+  country: string;
   status?: TeachingLanguageStatus;
 }
 

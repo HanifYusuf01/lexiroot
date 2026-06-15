@@ -5,7 +5,6 @@ import {
   IsInt,
   IsOptional,
   IsString,
-  IsUUID,
   Length,
   Matches,
   Max,
@@ -81,6 +80,14 @@ export class UpdatePlatformSettingsDto {
   // Email notifications
   @IsOptional()
   @IsBoolean()
+  emailVerificationEmails?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  adminInvitationEmails?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   welcomeEmail?: boolean;
 
   @IsOptional()
@@ -113,15 +120,4 @@ export class UpdatePlatformSettingsDto {
   @Min(1)
   @Max(10)
   maxFailedLoginAttempts?: number;
-
-  // Trial / subscription config
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  @Max(90)
-  freeTrialLength?: number;
-
-  @IsOptional()
-  @IsUUID()
-  trialPlanId?: string | null;
 }

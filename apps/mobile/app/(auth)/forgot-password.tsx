@@ -12,17 +12,17 @@ export default function ForgotPassword() {
   const [requestReset, { isLoading }] = useRequestPasswordResetMutation();
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | undefined>(undefined);
-  const [sent, setSent] = useState(false);
 
   async function handleSubmit() {
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+    const normalized = email.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(normalized)) {
       setError('Please enter a valid email address');
       return;
     }
     setError(undefined);
     try {
-      await requestReset({ email: email.trim().toLowerCase() }).unwrap();
-      setSent(true);
+      await requestReset({ email: normalized }).unwrap();
+      router.push({ pathname: '/reset-password', params: { email: normalized } });
     } catch {
       setError('Something went wrong. Please try again.');
     }
@@ -37,7 +37,7 @@ export default function ForgotPassword() {
         <View style={styles.body}>
           <Text style={styles.title}>Reset your{'\n'}password</Text>
           <Text style={styles.subtitle}>
-            Enter your email and we&apos;ll send you a reset link.
+            Enter your email and we&apos;ll send you a 6-digit reset code.
           </Text>
           <View style={styles.field}>
             <TextField
@@ -47,21 +47,11 @@ export default function ForgotPassword() {
               error={error}
               autoCapitalize="none"
               keyboardType="email-address"
-              editable={!sent}
             />
           </View>
-          {sent ? (
-            <Text style={styles.success}>
-              If an account exists for that email, a reset link is on its way.
-            </Text>
-          ) : null}
         </View>
         <View style={styles.footer}>
-          <Button
-            label={sent ? 'Back to Log in' : 'Send Reset Link'}
-            onPress={sent ? () => router.replace('/login') : handleSubmit}
-            loading={isLoading}
-          />
+          <Button label="Send Reset Code" onPress={handleSubmit} loading={isLoading} />
         </View>
       </KeyboardAvoidingView>
     </ScreenContainer>

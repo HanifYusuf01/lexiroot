@@ -9,7 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { randomBytes, randomInt } from 'crypto';
+import { randomInt } from 'crypto';
 import { UsersService } from '../users/users.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import type {
@@ -32,8 +32,7 @@ import { PendingSignup } from './entities/pending-signup.entity';
 import { PendingSignupsService } from './pending-signups.service';
 
 const BCRYPT_ROUNDS = 12;
-const RESET_TOKEN_BYTES = 32;
-const RESET_TOKEN_TTL_MS = 1000 * 60 * 60;
+const RESET_CODE_TTL_MS = 1000 * 60 * 60;
 const EMAIL_VERIFICATION_TTL_MS = 1000 * 60 * 15;
 
 export interface AuthResponse {
@@ -92,6 +91,16 @@ export class AuthService {
     return { email };
   }
 
+  /**
+   * Issues a session for an already-authenticated/verified user. Used to
+   * auto-login an invitee right after they accept an admin invitation.
+   */
+  async issueSession(user: User): Promise<AuthResponse> {
+    await this.users.touchActivity(user.id);
+    user.lastActiveAt = new Date();
+    return this.toAuthResponse(user);
+  }
+
   async login(dto: LoginDto): Promise<AuthResponse> {
     const user = await this.users.findByEmail(dto.email);
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
@@ -132,6 +141,8 @@ export class AuthService {
       await manager.delete(PendingSignup, { id: pending.id });
       return created;
     });
+
+    await this.email.sendWelcomeEmail({ email: user.email, displayName: user.displayName });
 
     return this.toAuthResponse(user);
   }
@@ -188,25 +199,33 @@ export class AuthService {
 
   async requestPasswordReset(dto: RequestPasswordResetDto): Promise<void> {
     const user = await this.users.findByEmail(dto.email);
+    // Always return without revealing whether the account exists.
     if (!user) {
       return;
     }
-    const token = randomBytes(RESET_TOKEN_BYTES).toString('hex');
-    const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+    const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
+    const expiresAt = new Date(Date.now() + RESET_CODE_TTL_MS);
     await this.users.update(user.id, {
-      passwordResetToken: token,
+      passwordResetToken: code,
       passwordResetExpiresAt: expiresAt,
+    });
+    await this.email.sendPasswordResetEmail({
+      email: user.email,
+      displayName: user.displayName,
+      code,
     });
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<void> {
-    const user = await this.users.findByPasswordResetToken(dto.token);
+    const user = await this.users.findByEmail(dto.email);
     if (
       !user ||
+      !user.passwordResetToken ||
+      user.passwordResetToken !== dto.code ||
       !user.passwordResetExpiresAt ||
       user.passwordResetExpiresAt.getTime() < Date.now()
     ) {
-      throw new BadRequestException('Invalid or expired reset token');
+      throw new BadRequestException('Invalid or expired reset code');
     }
     const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
     await this.users.update(user.id, {

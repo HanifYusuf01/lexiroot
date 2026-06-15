@@ -5,6 +5,7 @@ import { AdminLayout } from './components/layout/AdminLayout';
 import { PageHeader } from './components/layout/PageHeader';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { ActivityLogPage } from './pages/ActivityLogPage';
+import { AdminManagementPage } from './pages/AdminManagementPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { RevenueAnalyticsPage } from './pages/RevenueAnalyticsPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
@@ -16,6 +17,7 @@ import { LessonsPage } from './pages/LessonsPage';
 import { LoginPage } from './pages/LoginPage';
 import { ManageAccountPage } from './pages/ManageAccountPage';
 import { OverviewPage } from './pages/OverviewPage';
+import { RegisterPage } from './pages/RegisterPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { TopXpEarnersPage } from './pages/TopXpEarnersPage';
 import { UsersPage } from './pages/UsersPage';
@@ -43,6 +45,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={token ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<AdminLayout />}>
           <Route path="/" element={<OverviewPage />} />
@@ -61,6 +64,7 @@ export function App() {
           <Route path="/gamification" element={<GamificationPage />} />
           <Route path="/gamification/top-earners" element={<TopXpEarnersPage />} />
           <Route path="/reports" element={<ComingSoon title="Reports" />} />
+          <Route path="/admin-management" element={<AdminManagementPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/manage-account" element={<ManageAccountPage />} />
           <Route path="/change-password" element={<ChangePasswordPage />} />

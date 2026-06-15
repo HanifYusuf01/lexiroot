@@ -31,7 +31,7 @@ export class CulturalContentController {
 
   @Get('stats')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'instructor')
   stats() {
     return this.service.stats();
   }
@@ -43,14 +43,14 @@ export class CulturalContentController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'instructor')
   create(@CurrentUser() user: User, @Body() dto: CreateCulturalContentDto) {
     return this.service.create(dto, user.id);
   }
 
   @Patch(':id')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'instructor')
   update(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateCulturalContentDto,
@@ -60,7 +60,7 @@ export class CulturalContentController {
 
   @Post(':id/archive')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'instructor')
   archive(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.service.archive(id);
   }
