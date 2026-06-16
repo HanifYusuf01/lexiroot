@@ -21,6 +21,8 @@ import {
   TableHeaderCell,
   TableRow,
 } from '../components/ui/Table';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 import { useDebounce } from '../hooks/useDebounce';
 import {
   useArchiveLessonMutation,
@@ -218,7 +220,20 @@ export function LessonsPage() {
 }
 
 function LessonRowItem({ lesson }: { lesson: LessonRow }) {
+  const toast = useToast();
   const [archive, { isLoading: archiving }] = useArchiveLessonMutation();
+  const [confirmArchive, setConfirmArchive] = useState(false);
+
+  async function handleArchive() {
+    try {
+      await archive(lesson.id).unwrap();
+      toast.success(`"${lesson.title}" archived`);
+      setConfirmArchive(false);
+    } catch {
+      toast.error('Could not archive this lesson');
+      setConfirmArchive(false);
+    }
+  }
 
   return (
     <TableRow>
@@ -256,13 +271,29 @@ function LessonRowItem({ lesson }: { lesson: LessonRow }) {
           <button
             type="button"
             disabled={lesson.status === 'archived' || archiving}
-            onClick={() => archive(lesson.id)}
+            onClick={() => setConfirmArchive(true)}
             className="rounded p-1.5 hover:bg-error/10 hover:text-error disabled:opacity-40"
             title={lesson.status === 'archived' ? 'Already archived' : 'Archive'}
           >
             <Trash2 size={16} />
           </button>
         </div>
+
+        <ConfirmDialog
+          open={confirmArchive}
+          title="Archive this lesson?"
+          message={
+            <>
+              <span className="font-semibold text-neutral">{lesson.title}</span> will be hidden from
+              learners. You can republish it later.
+            </>
+          }
+          confirmLabel="Archive"
+          destructive
+          loading={archiving}
+          onConfirm={handleArchive}
+          onClose={() => setConfirmArchive(false)}
+        />
       </TableCell>
     </TableRow>
   );

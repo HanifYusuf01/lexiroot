@@ -8,6 +8,7 @@ import { Checkbox } from '../components/ui/Checkbox';
 import { CountrySelect } from '../components/ui/CountrySelect';
 import { SectionCard } from '../components/ui/SectionCard';
 import { TextField } from '../components/ui/TextField';
+import { useToast } from '../components/ui/Toast';
 import { useSignAvatarUploadMutation, useUpdateMeMutation } from '../services/authApi';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { setCredentials } from '../store/slices/authSlice';
@@ -28,6 +29,7 @@ interface FormErrors {
 const DEFAULT_COUNTRY: CountryCode = 'NG';
 
 export function ManageAccountPage() {
+  const toast = useToast();
   const user = useAppSelector((s) => s.auth.user);
   const token = useAppSelector((s) => s.auth.token);
   const dispatch = useAppDispatch();
@@ -46,7 +48,6 @@ export function ManageAccountPage() {
     weeklyReports: true,
   });
   const [errors, setErrors] = useState<FormErrors>({});
-  const [savedAt, setSavedAt] = useState<number | null>(null);
 
   // Re-seed when the cached user changes (e.g. after first /auth/me load).
   useEffect(() => {
@@ -76,7 +77,7 @@ export function ManageAccountPage() {
         adminAuthStorage.set({ token, user: result });
         dispatch(setCredentials({ token, user: result }));
       }
-      setSavedAt(Date.now());
+      toast.success('Account updated');
     } catch (err) {
       const e2 = err as { status?: number; data?: { message?: string | string[] } };
       if (e2.status === 409) {
@@ -116,8 +117,6 @@ export function ManageAccountPage() {
     }
   }
 
-  const showSavedToast = savedAt && Date.now() - savedAt < 4000;
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -156,9 +155,6 @@ export function ManageAccountPage() {
                 <Button type="submit" loading={saving}>
                   Save Changes
                 </Button>
-                {showSavedToast ? (
-                  <span className="text-xs font-semibold text-success">Saved.</span>
-                ) : null}
               </div>
             </div>
           </SectionCard>

@@ -4,6 +4,7 @@ import type { SubscriptionPlan, UpdateSubscriptionPlan } from '@lexiroot/shared'
 import { Button } from '../../ui/Button';
 import { TextField } from '../../ui/TextField';
 import { Toggle } from '../../ui/Toggle';
+import { useToast } from '../../ui/Toast';
 import { useUpdateSubscriptionPlanMutation } from '../../../services/subscriptionPlansApi';
 
 interface PlanEditFormProps {
@@ -12,6 +13,7 @@ interface PlanEditFormProps {
 }
 
 export function PlanEditForm({ plan, onClose }: PlanEditFormProps) {
+  const toast = useToast();
   const [update, { isLoading: saving }] = useUpdateSubscriptionPlanMutation();
   const [name, setName] = useState(plan.name);
   const [price, setPrice] = useState(String(plan.price));
@@ -38,6 +40,7 @@ export function PlanEditForm({ plan, onClose }: PlanEditFormProps) {
     };
     try {
       await update({ id: plan.id, changes }).unwrap();
+      toast.success(`${changes.name || plan.name} plan updated`);
       onClose();
     } catch {
       setError('Could not save the plan. Please try again.');

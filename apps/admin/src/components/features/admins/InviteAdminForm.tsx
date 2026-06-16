@@ -11,6 +11,7 @@ import { Button } from '../../ui/Button';
 import { CountrySelect } from '../../ui/CountrySelect';
 import { SelectMenu } from '../../ui/SelectMenu';
 import { TextField } from '../../ui/TextField';
+import { useToast } from '../../ui/Toast';
 import { useCreateAdminInvitationMutation } from '../../../services/adminsApi';
 
 interface InviteAdminFormProps {
@@ -20,13 +21,13 @@ interface InviteAdminFormProps {
 const ROLE_OPTIONS = ADMIN_ROLES.map((value) => ({ value, label: ADMIN_ROLE_LABELS[value] }));
 
 export function InviteAdminForm({ onClose }: InviteAdminFormProps) {
+  const toast = useToast();
   const [createInvitation, { isLoading }] = useCreateAdminInvitationMutation();
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<AdminRole>('instructor');
   const [country, setCountry] = useState<CountryCode | null>(null);
   const [error, setError] = useState<string | undefined>();
-  const [sentTo, setSentTo] = useState<string | undefined>();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -39,14 +40,15 @@ export function InviteAdminForm({ onClose }: InviteAdminFormProps) {
       setError('Please enter a valid email address');
       return;
     }
+    const recipient = email.trim().toLowerCase();
     try {
       await createInvitation({
         displayName: displayName.trim(),
-        email: email.trim().toLowerCase(),
+        email: recipient,
         role,
         country,
       }).unwrap();
-      setSentTo(email.trim().toLowerCase());
+      toast.success(`Invitation sent to ${recipient}`);
       setDisplayName('');
       setEmail('');
       setRole('instructor');
@@ -106,9 +108,6 @@ export function InviteAdminForm({ onClose }: InviteAdminFormProps) {
       </div>
 
       {error ? <p className="text-xs font-medium text-error">{error}</p> : null}
-      {sentTo ? (
-        <p className="text-xs font-medium text-success">Invitation sent to {sentTo}.</p>
-      ) : null}
 
       <div className="flex justify-end gap-3">
         <Button type="button" variant="secondary" onClick={onClose}>

@@ -5,15 +5,16 @@ import { Button } from '../components/ui/Button';
 import { PasswordField } from '../components/ui/PasswordField';
 import { SectionCard } from '../components/ui/SectionCard';
 import { PasswordStrengthMeter } from '../components/features/account/PasswordStrengthMeter';
+import { useToast } from '../components/ui/Toast';
 import { useChangePasswordMutation } from '../services/authApi';
 import { evaluatePassword } from '../utils/password';
 
 export function ChangePasswordPage() {
+  const toast = useToast();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | undefined>(undefined);
-  const [success, setSuccess] = useState(false);
   const [changePassword, { isLoading: saving }] = useChangePasswordMutation();
 
   async function handleSubmit(e: FormEvent) {
@@ -24,13 +25,12 @@ export function ChangePasswordPage() {
     }
     if (next !== confirm) return setError('Passwords do not match');
     setError(undefined);
-    setSuccess(false);
     try {
       await changePassword({ currentPassword: current, newPassword: next }).unwrap();
       setCurrent('');
       setNext('');
       setConfirm('');
-      setSuccess(true);
+      toast.success('Password updated');
     } catch (err) {
       const e2 = err as { status?: number; data?: { message?: string | string[] } };
       if (e2.status === 401) {
@@ -79,9 +79,6 @@ export function ChangePasswordPage() {
               autoComplete="new-password"
             />
             {error ? <p className="text-xs font-medium text-error">{error}</p> : null}
-            {success ? (
-              <p className="text-xs font-semibold text-success">Password updated.</p>
-            ) : null}
             <div>
               <Button type="submit" loading={saving}>
                 Apply Now

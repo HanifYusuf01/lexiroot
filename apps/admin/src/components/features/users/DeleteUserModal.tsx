@@ -1,6 +1,7 @@
 import { Trash2 } from 'lucide-react';
 import { Modal } from '../../ui/Modal';
 import { Button } from '../../ui/Button';
+import { useToast } from '../../ui/Toast';
 import { useDeleteUserMutation, UserRow } from '../../../services/usersApi';
 
 interface Props {
@@ -9,15 +10,18 @@ interface Props {
 }
 
 export function DeleteUserModal({ user, onClose }: Props) {
+  const toast = useToast();
   const [deleteUser, { isLoading }] = useDeleteUserMutation();
 
   async function handleConfirm() {
     if (!user) return;
+    const name = user.displayName;
     try {
       await deleteUser(user.id).unwrap();
+      toast.success(`${name} deleted`);
       onClose();
     } catch {
-      /* leave modal open; RTK Query holds the error if we want to surface it */
+      toast.error('Could not delete this user. Please try again.');
     }
   }
 

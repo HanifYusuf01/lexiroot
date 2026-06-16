@@ -7,6 +7,7 @@ import {
 } from '@lexiroot/shared';
 import { Badge } from '../../ui/Badge';
 import { TextField } from '../../ui/TextField';
+import { useToast } from '../../ui/Toast';
 import {
   useCreateTeachingLanguageMutation,
   useDeleteTeachingLanguageMutation,
@@ -84,6 +85,7 @@ function errorMessage(err: unknown): string {
 }
 
 export function GeneralTab() {
+  const toast = useToast();
   const settings = usePlatformSettingsDraft();
   const { data: languages = [] } = useTeachingLanguagesQuery();
   const [createLanguage, { isLoading: creating }] = useCreateTeachingLanguageMutation();
@@ -92,7 +94,6 @@ export function GeneralTab() {
 
   const [langDraft, setLangDraft] = useState<LanguageDraft | null>(null);
   const [langError, setLangError] = useState<string | undefined>();
-  const [savedAt, setSavedAt] = useState<number | null>(null);
 
   if (settings.isLoading || !settings.draft) {
     return <div className="py-16 text-center text-sm text-neutral-variant">Loading settings…</div>;
@@ -102,13 +103,11 @@ export function GeneralTab() {
 
   function setSetting<K extends keyof typeof draft>(key: K, value: (typeof draft)[K]) {
     settings.set(key as never, value as never);
-    setSavedAt(null);
   }
 
   function patchLanguage(patch: Partial<LanguageDraft>) {
     setLangDraft((prev) => (prev ? { ...prev, ...patch } : prev));
     setLangError(undefined);
-    setSavedAt(null);
   }
 
   function toggleAdd() {
@@ -160,39 +159,44 @@ export function GeneralTab() {
         country: langDraft.country as CountryCode,
         status: langDraft.status,
       };
+      const wasAdd = langDraft.mode === 'add';
       try {
-        if (langDraft.mode === 'add') {
+        if (wasAdd) {
           await createLanguage(payload).unwrap();
         } else {
           await updateLanguage({ id: langDraft.id!, changes: payload }).unwrap();
         }
         setLangDraft(null);
         setLangError(undefined);
+        toast.success(wasAdd ? `${payload.name} added` : `${payload.name} updated`);
       } catch (err) {
         setLangError(errorMessage(err));
         return;
       }
     }
 
-    if (settings.dirty) await settings.save();
-    setSavedAt(Date.now());
+    if (settings.dirty) {
+      await settings.save();
+      toast.success('Settings saved');
+    }
   }
 
   function handleCancel() {
     settings.reset();
     setLangDraft(null);
     setLangError(undefined);
-    setSavedAt(null);
   }
 
   async function handleDelete() {
     if (!langDraft?.id) return;
+    const name = langDraft.name;
     try {
       await deleteLanguage(langDraft.id).unwrap();
       setLangDraft(null);
       setLangError(undefined);
+      toast.success(`${name || 'Language'} deleted`);
     } catch (err) {
-      setLangError(errorMessage(err));
+      toast.error(errorMessage(err));
     }
   }
 
@@ -269,7 +273,6 @@ export function GeneralTab() {
       <SettingsFooter
         dirty={dirty}
         saving={saving}
-        saved={savedAt !== null}
         onCancel={handleCancel}
         onSave={handleSave}
       />

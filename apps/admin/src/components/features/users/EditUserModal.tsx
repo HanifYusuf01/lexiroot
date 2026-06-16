@@ -12,6 +12,7 @@ import { Modal } from '../../ui/Modal';
 import { Avatar } from '../../ui/Avatar';
 import { Badge } from '../../ui/Badge';
 import { Button } from '../../ui/Button';
+import { useToast } from '../../ui/Toast';
 import { UserRow, useUpdateUserMutation } from '../../../services/usersApi';
 import { formatDate, formatNumber } from '../../../utils/format';
 
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export function EditUserModal({ user, onClose }: Props) {
+  const toast = useToast();
   const [updateUser, { isLoading }] = useUpdateUserMutation();
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState<'user' | 'admin'>('user');
@@ -50,9 +52,10 @@ export function EditUserModal({ user, onClose }: Props) {
         language: language || undefined,
         level: level || undefined,
       }).unwrap();
+      toast.success(`${displayName} updated`);
       onClose();
     } catch {
-      /* error stays in mutation state; submit again to retry */
+      toast.error('Could not save changes. Please try again.');
     }
   }
 

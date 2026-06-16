@@ -6,6 +6,7 @@ import {
 } from '@lexiroot/shared';
 import { SelectMenu } from '../../ui/SelectMenu';
 import { TextField } from '../../ui/TextField';
+import { useToast } from '../../ui/Toast';
 import { usePlatformSettingsDraft } from '../../../hooks/usePlatformSettingsDraft';
 import { SettingRow } from './SettingRow';
 import { SettingsFooter } from './SettingsFooter';
@@ -26,7 +27,13 @@ function Group({ title, subtitle, children }: { title: string; subtitle: string;
 }
 
 export function NotificationTab() {
-  const { draft, isLoading, saving, dirty, savedAt, set, save, reset } = usePlatformSettingsDraft();
+  const toast = useToast();
+  const { draft, isLoading, saving, dirty, set, save, reset } = usePlatformSettingsDraft();
+
+  async function handleSave() {
+    await save();
+    toast.success('Settings saved');
+  }
 
   if (isLoading || !draft) {
     return <div className="py-16 text-center text-sm text-neutral-variant">Loading settings…</div>;
@@ -89,13 +96,7 @@ export function NotificationTab() {
           </Group>
       </div>
 
-      <SettingsFooter
-        dirty={dirty}
-        saving={saving}
-        saved={savedAt !== null}
-        onCancel={reset}
-        onSave={save}
-      />
+      <SettingsFooter dirty={dirty} saving={saving} onCancel={reset} onSave={handleSave} />
     </div>
   );
 }

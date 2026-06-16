@@ -5,6 +5,7 @@ import {
 } from '@lexiroot/shared';
 import { SelectMenu } from '../../ui/SelectMenu';
 import { TextField } from '../../ui/TextField';
+import { useToast } from '../../ui/Toast';
 import { usePlatformSettingsDraft } from '../../../hooks/usePlatformSettingsDraft';
 import { SettingRow } from './SettingRow';
 import { SettingsFooter } from './SettingsFooter';
@@ -15,7 +16,13 @@ const TIMEOUT_OPTIONS = ADMIN_SESSION_TIMEOUTS.map((value) => ({
 }));
 
 export function SecurityPrivacyTab() {
-  const { draft, isLoading, saving, dirty, savedAt, set, save, reset } = usePlatformSettingsDraft();
+  const toast = useToast();
+  const { draft, isLoading, saving, dirty, set, save, reset } = usePlatformSettingsDraft();
+
+  async function handleSave() {
+    await save();
+    toast.success('Settings saved');
+  }
 
   if (isLoading || !draft) {
     return <div className="py-16 text-center text-sm text-neutral-variant">Loading settings…</div>;
@@ -66,13 +73,7 @@ export function SecurityPrivacyTab() {
         </div>
       </section>
 
-      <SettingsFooter
-        dirty={dirty}
-        saving={saving}
-        saved={savedAt !== null}
-        onCancel={reset}
-        onSave={save}
-      />
+      <SettingsFooter dirty={dirty} saving={saving} onCancel={reset} onSave={handleSave} />
     </div>
   );
 }

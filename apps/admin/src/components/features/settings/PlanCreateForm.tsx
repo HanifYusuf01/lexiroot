@@ -4,6 +4,7 @@ import type { CreateSubscriptionPlan, PlanScope } from '@lexiroot/shared';
 import { Button } from '../../ui/Button';
 import { TextField } from '../../ui/TextField';
 import { Toggle } from '../../ui/Toggle';
+import { useToast } from '../../ui/Toast';
 import { useCreateSubscriptionPlanMutation } from '../../../services/subscriptionPlansApi';
 
 interface PlanCreateFormProps {
@@ -12,6 +13,7 @@ interface PlanCreateFormProps {
 }
 
 export function PlanCreateForm({ scope, onClose }: PlanCreateFormProps) {
+  const toast = useToast();
   const [create, { isLoading: saving }] = useCreateSubscriptionPlanMutation();
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
@@ -43,6 +45,7 @@ export function PlanCreateForm({ scope, onClose }: PlanCreateFormProps) {
     };
     try {
       await create(body).unwrap();
+      toast.success(`${body.name} plan created`);
       onClose();
     } catch {
       setError('Could not create the plan. Please try again.');

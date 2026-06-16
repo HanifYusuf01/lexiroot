@@ -5,7 +5,7 @@ import {
   type CountryCode,
   type TeachingLanguageStatus,
 } from '@lexiroot/shared';
-import { Button } from '../../ui/Button';
+import { ConfirmDialog } from '../../ui/ConfirmDialog';
 import { CountrySelect } from '../../ui/CountrySelect';
 import { SelectMenu } from '../../ui/SelectMenu';
 import { TextField } from '../../ui/TextField';
@@ -105,37 +105,34 @@ export function LanguageForm({
 
       {isEdit ? (
         <div className="flex items-center border-t border-border pt-4">
-          {confirmDelete ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-error">Delete this language?</span>
-              <Button
-                type="button"
-                variant="ghost"
-                className="!h-9 !px-3 !text-error"
-                loading={deleting}
-                onClick={onDelete}
-              >
-                Confirm
-              </Button>
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(false)}
-                className="text-xs font-semibold text-neutral-variant hover:text-neutral"
-              >
-                Keep
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setConfirmDelete(true)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-error hover:underline"
-            >
-              <Trash2 size={14} /> Delete
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            className="flex items-center gap-1.5 text-xs font-semibold text-error hover:underline"
+          >
+            <Trash2 size={14} /> Delete
+          </button>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete this language?"
+        message={
+          <>
+            <span className="font-semibold text-neutral">{draft.name || 'This language'}</span> and
+            its availability for learners will be removed. This can&apos;t be undone.
+          </>
+        }
+        confirmLabel="Delete"
+        destructive
+        loading={deleting}
+        onConfirm={() => {
+          onDelete();
+          setConfirmDelete(false);
+        }}
+        onClose={() => setConfirmDelete(false)}
+      />
     </div>
   );
 }
