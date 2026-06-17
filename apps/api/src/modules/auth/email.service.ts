@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ADMIN_ROLE_LABELS, type AdminRole } from '@lexiroot/shared';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 
 const BRAND_COLOR = '#e35336';
 const TEXT_COLOR = '#3c3c3c';
@@ -46,14 +47,17 @@ interface SendInactivityReengagementEmailInput {
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly platformSettings: PlatformSettingsService,
+  ) {}
 
   async sendVerificationEmail(input: SendVerificationEmailInput): Promise<void> {
     await this.send({
       to: input.email,
       subject: 'Your LexiRoot verification code',
       devHint: `code: ${input.code}`,
-      html: this.layout({
+      html: await this.layout({
         heading: 'Confirm your email',
         bodyHtml: `
           <p>Hi ${escapeHtml(input.displayName)},</p>
@@ -70,7 +74,7 @@ export class EmailService {
       to: input.email,
       subject: 'You have been invited to the LexiRoot dashboard',
       devHint: `invite url: ${input.inviteUrl}`,
-      html: this.layout({
+      html: await this.layout({
         heading: 'Join the LexiRoot team',
         bodyHtml: `
           <p>Hi ${escapeHtml(input.displayName)},</p>
@@ -88,7 +92,7 @@ export class EmailService {
     await this.send({
       to: input.email,
       subject: 'Welcome to LexiRoot 🌍',
-      html: this.layout({
+      html: await this.layout({
         heading: `Welcome, ${escapeHtml(input.displayName.split(' ')[0] ?? '')}!`,
         bodyHtml: `
           <p>Your account is ready. LexiRoot helps you learn African languages and cultures — gamified, audio-first, and built for the whole family.</p>
@@ -104,7 +108,7 @@ export class EmailService {
       to: input.email,
       subject: 'Reset your LexiRoot password',
       devHint: `reset code: ${input.code}`,
-      html: this.layout({
+      html: await this.layout({
         heading: 'Reset your password',
         bodyHtml: `
           <p>Hi ${escapeHtml(input.displayName)},</p>
@@ -122,7 +126,7 @@ export class EmailService {
     await this.send({
       to: input.email,
       subject: 'Your LexiRoot Premium is active',
-      html: this.layout({
+      html: await this.layout({
         heading: 'You’re all set — welcome to Premium',
         bodyHtml: `
           <p>Hi ${escapeHtml(input.displayName)},</p>
@@ -139,7 +143,7 @@ export class EmailService {
     await this.send({
       to: input.email,
       subject: 'Your streak misses you 🔥',
-      html: this.layout({
+      html: await this.layout({
         heading: 'Pick up where you left off',
         bodyHtml: `
           <p>Hi ${escapeHtml(input.displayName)},</p>
@@ -185,9 +189,12 @@ export class EmailService {
     }
   }
 
-  /** Wraps body content in the branded LexiRoot header/footer shell. */
-  private layout(opts: { heading: string; bodyHtml: string }): string {
+  /** Wraps body content in the branded header/footer shell (name/tagline from Settings). */
+  private async layout(opts: { heading: string; bodyHtml: string }): Promise<string> {
     const year = new Date().getFullYear();
+    const settings = await this.platformSettings.getCached();
+    const name = escapeHtml(settings.platformName || 'LexiRoot');
+    const tagline = escapeHtml(settings.platformTagline || 'Your language. Your roots.');
     return `
       <div style="margin:0;padding:0;background:${PANEL_BG};">
         <div style="max-width:520px;margin:0 auto;padding:24px;">
@@ -200,7 +207,7 @@ export class EmailService {
                   </svg>
                 </td>
                 <td style="vertical-align:middle;">
-                  <span style="font-family:Arial,Helvetica,sans-serif;color:#ffffff;font-size:24px;font-weight:800;letter-spacing:0.4px;">LexiRoot</span>
+                  <span style="font-family:Arial,Helvetica,sans-serif;color:#ffffff;font-size:24px;font-weight:800;letter-spacing:0.4px;">${name}</span>
                 </td>
               </tr>
             </table>
@@ -210,7 +217,7 @@ export class EmailService {
             ${opts.bodyHtml}
           </div>
           <p style="text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:${MUTED_COLOR};margin-top:16px;">
-            © ${year} LexiRoot · Your language. Your roots.
+            © ${year} ${name} · ${tagline}
           </p>
         </div>
       </div>

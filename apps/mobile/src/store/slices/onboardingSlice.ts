@@ -1,12 +1,12 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type {
   CountryCode,
-  LanguageCode,
   LearningLevel as BackendLearningLevel,
   LearningReason,
 } from '@lexiroot/shared';
 
-export type LearningLanguage = LanguageCode;
+/** A language code from the runtime catalog (admin Settings), e.g. "yo". */
+export type LearningLanguage = string;
 export type { LearningReason };
 
 /** UI-facing level: keeps "starting" and "a-little" as separate options for nicer UX. */

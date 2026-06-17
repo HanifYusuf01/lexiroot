@@ -70,6 +70,14 @@ export class User {
   lastActiveAt!: Date | null;
 
   @Exclude()
+  @Column({ name: 'failed_login_attempts', type: 'int', default: 0 })
+  failedLoginAttempts!: number;
+
+  @Exclude()
+  @Column({ name: 'locked_until', type: 'timestamptz', nullable: true })
+  lockedUntil!: Date | null;
+
+  @Exclude()
   @Index()
   @Column({ name: 'password_reset_token', type: 'varchar', length: 128, nullable: true })
   passwordResetToken!: string | null;

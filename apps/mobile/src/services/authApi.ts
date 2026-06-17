@@ -1,11 +1,6 @@
 import { api } from './api';
 import type { AuthUser } from '../store/slices/authSlice';
-import type {
-  CountryCode,
-  LanguageCode,
-  LearningLevel,
-  LearningReason,
-} from '@lexiroot/shared';
+import type { CountryCode, LearningLevel, LearningReason } from '@lexiroot/shared';
 
 interface AuthResponse {
   token: string;
@@ -24,7 +19,7 @@ interface SignupBody {
   email: string;
   displayName: string;
   password: string;
-  language?: LanguageCode;
+  language?: string;
   level?: LearningLevel;
   reason?: LearningReason;
   country?: CountryCode;
@@ -44,7 +39,7 @@ interface ChangePendingEmailBody {
 interface UpdateMeBody {
   displayName?: string;
   email?: string;
-  language?: LanguageCode;
+  language?: string;
   level?: LearningLevel;
   reason?: LearningReason;
   country?: CountryCode;

@@ -11,6 +11,8 @@ import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { randomInt } from 'crypto';
 import { UsersService } from '../users/users.service';
+import { LanguagesService } from '../languages/languages.service';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import type {
   CountryCode,
@@ -34,6 +36,7 @@ import { PendingSignupsService } from './pending-signups.service';
 const BCRYPT_ROUNDS = 12;
 const RESET_CODE_TTL_MS = 1000 * 60 * 60;
 const EMAIL_VERIFICATION_TTL_MS = 1000 * 60 * 15;
+const LOCKOUT_MS = 1000 * 60 * 15;
 
 export interface AuthResponse {
   token: string;
@@ -61,8 +64,18 @@ export class AuthService {
     private readonly pendingSignups: PendingSignupsService,
     private readonly jwt: JwtService,
     private readonly email: EmailService,
+    private readonly languagesService: LanguagesService,
+    private readonly platformSettings: PlatformSettingsService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
+
+  /** Rejects a language code that isn't a connected language in the catalog. */
+  private async assertSelectableLanguage(code: string | undefined): Promise<void> {
+    if (!code) return;
+    if (!(await this.languagesService.isSelectable(code))) {
+      throw new BadRequestException('Selected language is not available');
+    }
+  }
 
   async signup(dto: SignupDto): Promise<{ email: string }> {
     const email = dto.email.toLowerCase();
@@ -70,13 +83,14 @@ export class AuthService {
     if (existingUser) {
       throw new ConflictException('Email already in use');
     }
+    await this.assertSelectableLanguage(dto.language);
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
     const verification = this.createEmailVerification();
     await this.pendingSignups.upsert({
       email,
       passwordHash,
       displayName: dto.displayName,
-      language: dto.language ?? null,
+      language: (dto.language ?? null) as LanguageCode | null,
       level: dto.level ?? null,
       learningReason: dto.reason ?? null,
       country: dto.country ?? null,
@@ -103,11 +117,37 @@ export class AuthService {
 
   async login(dto: LoginDto): Promise<AuthResponse> {
     const user = await this.users.findByEmail(dto.email);
-    if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
+    if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
+    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+      throw new ForbiddenException(
+        'Account temporarily locked due to too many failed attempts. Try again later.',
+      );
+    }
+
+    const passwordMatches = await bcrypt.compare(dto.password, user.passwordHash);
+    if (!passwordMatches) {
+      const { maxFailedLoginAttempts } = await this.platformSettings.getCached();
+      const attempts = (user.failedLoginAttempts ?? 0) + 1;
+      if (attempts >= maxFailedLoginAttempts) {
+        await this.users.update(user.id, {
+          failedLoginAttempts: 0,
+          lockedUntil: new Date(Date.now() + LOCKOUT_MS),
+        });
+      } else {
+        await this.users.update(user.id, { failedLoginAttempts: attempts });
+      }
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
     if (!user.emailVerifiedAt) {
       throw new ForbiddenException('Email is not verified');
+    }
+
+    // Successful login — clear any failed-attempt state.
+    if (user.failedLoginAttempts > 0 || user.lockedUntil) {
+      await this.users.update(user.id, { failedLoginAttempts: 0, lockedUntil: null });
     }
     await this.users.touchActivity(user.id);
     user.lastActiveAt = new Date();
@@ -257,7 +297,10 @@ export class AuthService {
       user.emailVerifiedAt = null;
     }
     if (dto.displayName !== undefined) user.displayName = dto.displayName;
-    if (dto.language !== undefined) user.language = dto.language;
+    if (dto.language !== undefined) {
+      await this.assertSelectableLanguage(dto.language);
+      user.language = dto.language as LanguageCode;
+    }
     if (dto.level !== undefined) user.level = dto.level;
     if (dto.reason !== undefined) user.learningReason = dto.reason;
     if (dto.country !== undefined) user.country = dto.country;

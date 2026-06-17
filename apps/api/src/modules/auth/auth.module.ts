@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule, JwtSignOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { LanguagesModule } from '../languages/languages.module';
+import { PlatformSettingsModule } from '../platform-settings/platform-settings.module';
 import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -14,6 +16,8 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 @Module({
   imports: [
     UsersModule,
+    PlatformSettingsModule,
+    LanguagesModule,
     PassportModule,
     TypeOrmModule.forFeature([PendingSignup]),
     JwtModule.registerAsync({

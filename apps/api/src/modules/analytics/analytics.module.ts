@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { XpLedgerEntry } from '../gamification/entities/xp-ledger-entry.entity';
+import { Language } from '../languages/entities/language.entity';
 import { Lesson } from '../lessons/entities/lesson.entity';
 import { LessonCompletion } from '../progress/entities/lesson-completion.entity';
 import { LessonProgress } from '../progress/entities/lesson-progress.entity';
@@ -18,6 +19,7 @@ import { UserActiveDay } from './entities/user-active-day.entity';
       LessonProgress,
       XpLedgerEntry,
       UserActiveDay,
+      Language,
     ]),
   ],
   controllers: [AnalyticsController],

@@ -45,3 +45,11 @@ export interface PlatformSettings {
 }
 
 export type UpdatePlatformSettings = Partial<Omit<PlatformSettings, 'updatedAt'>>;
+
+/** Subset of settings safe to expose to unauthenticated clients (mobile). */
+export interface PublicPlatformSettings {
+  platformName: string;
+  platformTagline: string;
+  maintenanceMode: boolean;
+  showDowntimeMessage: boolean;
+}

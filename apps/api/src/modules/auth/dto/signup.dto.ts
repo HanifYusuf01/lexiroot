@@ -10,11 +10,9 @@ import {
 import { Transform } from 'class-transformer';
 import {
   COUNTRY_CODES,
-  LANGUAGE_CODES,
   LEARNING_LEVELS,
   LEARNING_REASONS,
   type CountryCode,
-  type LanguageCode,
   type LearningLevel,
   type LearningReason,
 } from '@lexiroot/shared';
@@ -40,9 +38,12 @@ export class SignupDto {
   })
   password!: string;
 
+  // Languages are a runtime catalog (admin Settings), so we only shape-check
+  // here; the service validates the code against the DB.
   @IsOptional()
-  @IsIn(LANGUAGE_CODES as readonly string[])
-  language?: LanguageCode;
+  @IsString()
+  @Matches(/^[a-z]{2,3}$/, { message: 'language must be a 2–3 letter code' })
+  language?: string;
 
   @IsOptional()
   @IsIn(LEARNING_LEVELS as readonly string[])

@@ -1,9 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import {
-  LANGUAGE_LABELS,
-  LEARNING_LEVEL_LABELS,
-} from '@lexiroot/shared';
+import { languageLabel, LEARNING_LEVEL_LABELS } from '@lexiroot/shared';
 import { Button } from '../../src/components/ui/Button';
 import { MascotIcon } from '../../src/components/icons/MascotIcon';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
@@ -49,7 +46,7 @@ export default function SetupScreen() {
           ) : null}
           {language ? (
             <Text style={styles.summaryLine}>
-              Learning <Text style={styles.pick}>{LANGUAGE_LABELS[language]}</Text>
+              Learning <Text style={styles.pick}>{language ? languageLabel(language) : ''}</Text>
             </Text>
           ) : null}
         </View>

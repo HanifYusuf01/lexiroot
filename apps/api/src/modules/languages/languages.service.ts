@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import type { TeachingLanguage } from '@lexiroot/shared';
+import type { PublicLanguage, TeachingLanguage } from '@lexiroot/shared';
 import { Language } from './entities/language.entity';
 import { CreateLanguageDto } from './dto/create-language.dto';
 import { UpdateLanguageDto } from './dto/update-language.dto';
@@ -12,6 +12,18 @@ export class LanguagesService {
     @InjectRepository(Language)
     private readonly languages: Repository<Language>,
   ) {}
+
+  /** Lean catalog for public consumers (mobile onboarding, etc.). */
+  async catalog(): Promise<PublicLanguage[]> {
+    const rows = await this.languages.find({ order: { createdAt: 'ASC' } });
+    return rows.map((l) => ({ code: l.code, name: l.name, status: l.status }));
+  }
+
+  /** A language a learner may pick: it exists in the catalog and is connected. */
+  async isSelectable(code: string): Promise<boolean> {
+    const lang = await this.languages.findOne({ where: { code: code.toLowerCase() } });
+    return !!lang && lang.status === 'connected';
+  }
 
   async list(): Promise<TeachingLanguage[]> {
     const [languages, learnerRows, lessonRows] = await Promise.all([

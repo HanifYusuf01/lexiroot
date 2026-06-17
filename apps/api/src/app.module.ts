@@ -4,6 +4,7 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LastActiveInterceptor } from './common/interceptors/last-active.interceptor';
+import { MaintenanceInterceptor } from './common/interceptors/maintenance.interceptor';
 import { RlsContextInterceptor } from './common/interceptors/rls-context.interceptor';
 import { AdminsModule } from './modules/admins/admins.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
@@ -59,6 +60,11 @@ import { UsersModule } from './modules/users/users.module';
     JobsModule,
   ],
   providers: [
+    // Maintenance gate runs first so blocked traffic short-circuits early.
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: MaintenanceInterceptor,
+    },
     // Order matters: RLS context first so the GUC is set before any handler
     // touches an RLS-protected table; LastActive runs after.
     {

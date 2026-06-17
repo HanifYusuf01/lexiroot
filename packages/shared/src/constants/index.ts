@@ -7,6 +7,14 @@ export const LANGUAGE_LABELS: Record<LanguageCode, string> = {
   ha: 'Hausa',
 };
 
+/**
+ * Display label for any language code. Languages are now a runtime catalog
+ * (admin Settings), so codes beyond the seed set fall back to the raw code.
+ */
+export function languageLabel(code: string): string {
+  return (LANGUAGE_LABELS as Record<string, string>)[code] ?? code;
+}
+
 export const LEARNING_LEVELS = ['beginner', 'intermediate', 'advanced'] as const;
 export type LearningLevel = (typeof LEARNING_LEVELS)[number];
 

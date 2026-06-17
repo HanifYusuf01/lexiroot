@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
   ACTIVE_WINDOW_DAYS,
-  LANGUAGE_LABELS,
   LEARNING_LEVELS,
   LEARNING_LEVEL_LABELS,
   LESSON_TYPES,
@@ -34,6 +33,7 @@ import {
   type XpDistributionBucket,
 } from '@lexiroot/shared';
 import { XpLedgerEntry } from '../gamification/entities/xp-ledger-entry.entity';
+import { Language } from '../languages/entities/language.entity';
 import { Lesson } from '../lessons/entities/lesson.entity';
 import { User } from '../users/entities/user.entity';
 import { LessonCompletion } from '../progress/entities/lesson-completion.entity';
@@ -48,6 +48,9 @@ const LANGUAGE_COLORS: Record<LanguageCode, string> = {
   ig: '#1FC0E0',
   ha: '#F9D506',
 };
+
+// Used for languages added beyond the original seed set, which have no brand colour.
+const LANGUAGE_FALLBACK_COLORS = ['#814231', '#BF9828', '#16A34A', '#7A7878', '#9333EA', '#0EA5E9'];
 const LESSON_COLORS = ['#16A34A', '#E35336', '#F9D506', '#1FC0E0', '#814231'];
 
 // Donut palette for "lessons completed by category".
@@ -137,6 +140,8 @@ export class AnalyticsService {
     private readonly xpLedger: Repository<XpLedgerEntry>,
     @InjectRepository(UserActiveDay)
     private readonly activeDays: Repository<UserActiveDay>,
+    @InjectRepository(Language)
+    private readonly languages: Repository<Language>,
   ) {}
 
   async overview(): Promise<AnalyticsOverview> {
@@ -253,39 +258,38 @@ export class AnalyticsService {
   }
 
   private async topLanguages(): Promise<AnalyticsTopLanguage[]> {
-    const rows: LangRow[] = await this.users
-      .createQueryBuilder('user')
-      .select('user.language', 'language')
-      .addSelect('COUNT(*)', 'count')
-      .where('user.language IS NOT NULL')
-      .groupBy('user.language')
-      .getRawMany();
+    // The teaching-languages catalog (admin Settings) is the source of truth for
+    // which languages exist; usage counts come from users.language.
+    const [catalog, rows] = await Promise.all([
+      this.languages.find({ order: { createdAt: 'ASC' } }),
+      this.users
+        .createQueryBuilder('user')
+        .select('user.language', 'language')
+        .addSelect('COUNT(*)', 'count')
+        .where('user.language IS NOT NULL')
+        .groupBy('user.language')
+        .getRawMany<LangRow>(),
+    ]);
 
-    const total = rows.reduce((sum, r) => sum + Number(r.count), 0);
-    const seen = new Set<string>();
-    const out: AnalyticsTopLanguage[] = [];
+    const counts = new Map<string, number>();
+    let total = 0;
     for (const r of rows) {
-      const code = r.language as LanguageCode;
-      if (!code || !(code in LANGUAGE_LABELS)) continue;
-      seen.add(code);
-      const percent = total > 0 ? Math.round((Number(r.count) / total) * 100) : 0;
-      out.push({
-        language: LANGUAGE_LABELS[code],
-        code,
-        percent,
-        color: LANGUAGE_COLORS[code] ?? '#7A7878',
-      });
+      if (!r.language) continue;
+      const n = Number(r.count);
+      counts.set(r.language, n);
+      total += n;
     }
-    // Backfill remaining supported languages at 0% so the chart shows all options.
-    for (const code of Object.keys(LANGUAGE_LABELS) as LanguageCode[]) {
-      if (seen.has(code)) continue;
-      out.push({
-        language: LANGUAGE_LABELS[code],
-        code,
-        percent: 0,
-        color: LANGUAGE_COLORS[code] ?? '#7A7878',
-      });
-    }
+
+    const out: AnalyticsTopLanguage[] = catalog.map((lang, index) => {
+      const n = counts.get(lang.code) ?? 0;
+      return {
+        language: lang.name,
+        code: lang.code as LanguageCode,
+        percent: total > 0 ? Math.round((n / total) * 100) : 0,
+        color: LANGUAGE_COLORS[lang.code as LanguageCode] ?? LANGUAGE_FALLBACK_COLORS[index % LANGUAGE_FALLBACK_COLORS.length],
+      };
+    });
+
     out.sort((a, b) => b.percent - a.percent);
     return out;
   }

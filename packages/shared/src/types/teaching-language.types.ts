@@ -22,6 +22,13 @@ export interface TeachingLanguage {
   updatedAt: string;
 }
 
+/** Lean language entry exposed publicly (e.g. mobile onboarding picker). */
+export interface PublicLanguage {
+  code: string;
+  name: string;
+  status: TeachingLanguageStatus;
+}
+
 export interface CreateTeachingLanguage {
   code: string;
   name: string;
