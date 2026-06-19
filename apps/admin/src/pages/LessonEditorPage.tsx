@@ -467,17 +467,6 @@ export function LessonEditorPage() {
               </Field>
             </div>
 
-            <Field label="Offline Availability" className="mt-4">
-              <SegmentedControl
-                value={form.offlineAvailable ? 'offline' : 'online'}
-                options={[
-                  { value: 'offline', label: 'Available Offline' },
-                  { value: 'online', label: 'Online Only' },
-                ]}
-                onChange={(v) => update('offlineAvailable', v === 'offline')}
-              />
-            </Field>
-
             <Field label="Status" required className="mt-4">
               <NativeSelect
                 value={form.status}
@@ -689,30 +678,3 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (next: boolean)
   );
 }
 
-function SegmentedControl({
-  value,
-  options,
-  onChange,
-}: {
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (next: string) => void;
-}) {
-  return (
-    <div className="inline-flex flex-wrap items-center gap-2">
-      {options.map((o) => {
-        const active = o.value === value;
-        return (
-          <button
-            key={o.value}
-            type="button"
-            onClick={() => onChange(o.value)}
-            className={pillClass(active)}
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
