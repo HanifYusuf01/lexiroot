@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StreakBadge } from '../../src/components/dashboard/StreakBadge';
+import { DownloadLevelButton } from '../../src/components/features/DownloadLevelButton';
 import { Button } from '../../src/components/ui/Button';
 import { colors, fonts, radius, spacing } from '../../src/constants/theme';
 import { useAppSelector } from '../../src/store/hooks';
@@ -156,6 +157,9 @@ export default function LevelsIndex() {
                   xpToUnlock={xpToUnlock}
                   lessonsDone={lessonsDone}
                   lessonsTotal={lvl.subs.length}
+                  downloadableIds={lvl.subs
+                    .filter((s) => s.offlineAvailable)
+                    .map((s) => s.id)}
                   onPress={() => {
                     if (!unlocked) return;
                     router.push(`/levels/${tier}/${lvl.level}` as never);
@@ -181,6 +185,7 @@ interface LevelRowProps {
   xpToUnlock: number;
   lessonsDone: number;
   lessonsTotal: number;
+  downloadableIds: string[];
   onPress: () => void;
 }
 
@@ -195,6 +200,7 @@ function LevelRow({
   xpToUnlock,
   lessonsDone,
   lessonsTotal,
+  downloadableIds,
   onPress,
 }: LevelRowProps) {
   if (completed) {
@@ -213,6 +219,7 @@ function LevelRow({
             <Text style={styles.completedMeta}>Completed · +{targetXp} XP</Text>
           </View>
         </View>
+        <DownloadLevelButton lessonIds={downloadableIds} />
         <Ionicons name="chevron-forward" size={18} color={colors.neutralVariant} />
       </Pressable>
     );
@@ -236,6 +243,7 @@ function LevelRow({
           <Text style={styles.activeXp}>
             {currentXp}/{targetXp} XP
           </Text>
+          <DownloadLevelButton lessonIds={downloadableIds} />
         </View>
         <View style={styles.activeTrack}>
           <View style={[styles.activeFill, { width: `${progress * 100}%` }]} />

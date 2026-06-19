@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { colors, radius, spacing, type SkillTheme } from '../../constants/theme';
+import { useOfflineMediaUri } from '../../hooks/useOfflineMediaUri';
 
 type OptionState = 'idle' | 'selected' | 'correct' | 'incorrect';
 
@@ -19,6 +20,7 @@ export function ImageOptionCard({
   onPress,
   disabled,
 }: ImageOptionCardProps) {
+  const resolvedUri = useOfflineMediaUri(imageUrl);
   let borderColor: string = colors.border;
   let backgroundColor: string = colors.white;
 
@@ -48,7 +50,7 @@ export function ImageOptionCard({
           <Ionicons name="checkmark-circle" size={18} color={colors.success} />
         </View>
       ) : null}
-      <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="contain" />
+      <Image source={{ uri: resolvedUri ?? imageUrl }} style={styles.image} resizeMode="contain" />
     </Pressable>
   );
 }

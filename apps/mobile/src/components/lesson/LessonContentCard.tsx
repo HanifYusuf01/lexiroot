@@ -1,5 +1,6 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, radius, spacing } from '../../constants/theme';
+import { useOfflineMediaUri } from '../../hooks/useOfflineMediaUri';
 
 interface LetterCardProps {
   variant: 'letter';
@@ -39,6 +40,10 @@ type LessonContentCardProps =
   | RecognitionCardProps;
 
 export function LessonContentCard(props: LessonContentCardProps) {
+  // Hook must run unconditionally; only the recognition variant has an image.
+  const recognitionImageUri = useOfflineMediaUri(
+    props.variant === 'recognition' ? props.imageUrl : null,
+  );
   if (props.variant === 'letter') {
     return (
       <View style={[styles.card, styles.cardCompact]}>
@@ -85,8 +90,8 @@ export function LessonContentCard(props: LessonContentCardProps) {
   // recognition
   return (
     <View style={styles.cardWide}>
-      {props.imageUrl ? (
-        <Image source={{ uri: props.imageUrl }} style={styles.image} resizeMode="contain" />
+      {recognitionImageUri ? (
+        <Image source={{ uri: recognitionImageUri }} style={styles.image} resizeMode="contain" />
       ) : (
         <View style={[styles.image, styles.imagePlaceholder]} />
       )}

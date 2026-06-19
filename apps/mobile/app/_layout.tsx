@@ -1,6 +1,7 @@
 import { ReactNode, useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { Provider } from 'react-redux';
+import { PersistGate } from 'redux-persist/integration/react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import {
@@ -13,10 +14,13 @@ import {
   Nunito_900Black,
   useFonts,
 } from '@expo-google-fonts/nunito';
-import { store } from '../src/store';
+import { persistor, store } from '../src/store';
 import { useAppSelector } from '../src/store/hooks';
 import { useAuthBootstrap } from '../src/hooks/useAuthBootstrap';
+import { startConnectivityMonitor } from '../src/services/connectivity';
+import { flushOutbox } from '../src/store/outboxFlush';
 import { SplashScreenView } from '../src/components/ui/SplashScreenView';
+import { OfflineBanner } from '../src/components/ui/OfflineBanner';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -30,8 +34,26 @@ function Bootstrap({ children }: { children: ReactNode }) {
     }
   }, [hydrated]);
 
+  // Track connectivity and drain any queued offline writes on reconnect.
+  useEffect(() => {
+    startConnectivityMonitor({
+      dispatch: store.dispatch,
+      getState: store.getState,
+      onReconnect: () => {
+        void store.dispatch(flushOutbox());
+      },
+    });
+    // Also attempt a flush on launch in case writes were queued last session.
+    void store.dispatch(flushOutbox());
+  }, []);
+
   if (!hydrated) return <SplashScreenView />;
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <OfflineBanner />
+    </>
+  );
 }
 
 export default function RootLayout() {
@@ -50,9 +72,11 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <Provider store={store}>
-        <Bootstrap>
-          <Stack screenOptions={{ headerShown: false }} />
-        </Bootstrap>
+        <PersistGate loading={<SplashScreenView />} persistor={persistor}>
+          <Bootstrap>
+            <Stack screenOptions={{ headerShown: false }} />
+          </Bootstrap>
+        </PersistGate>
       </Provider>
     </SafeAreaProvider>
   );

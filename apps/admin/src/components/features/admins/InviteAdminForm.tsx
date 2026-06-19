@@ -23,7 +23,8 @@ const ROLE_OPTIONS = ADMIN_ROLES.map((value) => ({ value, label: ADMIN_ROLE_LABE
 export function InviteAdminForm({ onClose }: InviteAdminFormProps) {
   const toast = useToast();
   const [createInvitation, { isLoading }] = useCreateAdminInvitationMutation();
-  const [displayName, setDisplayName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<AdminRole>('instructor');
   const [country, setCountry] = useState<CountryCode | null>(null);
@@ -32,8 +33,12 @@ export function InviteAdminForm({ onClose }: InviteAdminFormProps) {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(undefined);
-    if (displayName.trim().length < 2) {
-      setError('Please enter the person’s full name');
+    if (firstName.trim().length < 1) {
+      setError('Please enter the person’s first name');
+      return;
+    }
+    if (lastName.trim().length < 1) {
+      setError('Please enter the person’s last name');
       return;
     }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
@@ -41,15 +46,17 @@ export function InviteAdminForm({ onClose }: InviteAdminFormProps) {
       return;
     }
     const recipient = email.trim().toLowerCase();
+    const displayName = `${firstName.trim()} ${lastName.trim()}`;
     try {
       await createInvitation({
-        displayName: displayName.trim(),
+        displayName,
         email: recipient,
         role,
         country,
       }).unwrap();
       toast.success(`Invitation sent to ${recipient}`);
-      setDisplayName('');
+      setFirstName('');
+      setLastName('');
       setEmail('');
       setRole('instructor');
       setCountry(null);
@@ -87,10 +94,16 @@ export function InviteAdminForm({ onClose }: InviteAdminFormProps) {
 
       <div className="grid gap-5 sm:grid-cols-2">
         <TextField
-          label="Full name"
-          placeholder="e.g. Ada Obi"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
+          label="First name"
+          placeholder="e.g. Ada"
+          value={firstName}
+          onChange={(e) => setFirstName(e.target.value)}
+        />
+        <TextField
+          label="Last name"
+          placeholder="e.g. Obi"
+          value={lastName}
+          onChange={(e) => setLastName(e.target.value)}
         />
         <TextField
           label="Email address"

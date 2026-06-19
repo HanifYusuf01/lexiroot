@@ -7,6 +7,7 @@ import { ExerciseLessonHeader } from '../../components/exercise/ExerciseLessonHe
 import { ExerciseTopBar } from '../../components/exercise/ExerciseTopBar';
 import { OptionCard } from '../../components/exercise/OptionCard';
 import { colors, fonts, radius, spacing, type SkillTheme } from '../../constants/theme';
+import { useOfflineMediaUri } from '../../hooks/useOfflineMediaUri';
 
 interface NameOption {
   id: string;
@@ -44,6 +45,7 @@ export function NameFromImageExercise({
 }: NameFromImageExerciseProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>('answering');
+  const resolvedImageUri = useOfflineMediaUri(imageUrl);
 
   const handleCheck = () => {
     if (!selectedId) return;
@@ -94,7 +96,7 @@ export function NameFromImageExercise({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.imageCard}>
-          <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="contain" />
+          <Image source={{ uri: resolvedImageUri ?? imageUrl }} style={styles.image} resizeMode="contain" />
         </View>
 
         <View style={styles.prompt}>

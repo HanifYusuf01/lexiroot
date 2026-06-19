@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
+import { useOfflineMediaUri } from './useOfflineMediaUri';
 
 interface PlaybackHandle {
   play: () => void;
@@ -37,7 +38,9 @@ async function configureAudioModeOnce() {
  * can drive a progress UI synced to the audio (rather than a faked timer).
  */
 export function useAudioPlayback(url: string | null | undefined): PlaybackHandle {
-  const cleanUrl = typeof url === 'string' && url.length > 0 ? url : null;
+  // Prefer a downloaded local copy when one exists so playback works offline
+  // (and loads instantly online). Falls back to the remote URL otherwise.
+  const cleanUrl = useOfflineMediaUri(url);
   const player = useAudioPlayer(cleanUrl ? { uri: cleanUrl } : null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
