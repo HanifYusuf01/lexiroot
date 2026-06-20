@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import type { CountryCode } from '@lexiroot/shared';
+import type { CountryCode, LearningLevel } from '@lexiroot/shared';
 
 const AUTH_KEY = 'lexiroot.auth';
 const PENDING_KEY = 'lexiroot.pendingEmail';
@@ -11,6 +11,7 @@ export interface StoredAuthUser {
   emailVerifiedAt: string | null;
   country: CountryCode | null;
   avatarUrl: string | null;
+  level?: LearningLevel | null;
   xp?: number;
   currentStreakDays?: number;
   lessonsCompleted?: number;

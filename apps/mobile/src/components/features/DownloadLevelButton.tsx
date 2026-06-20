@@ -1,10 +1,14 @@
 import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import type { LearningLevel } from '@lexiroot/shared';
 import { colors, radius } from '../../constants/theme';
 import { useDownloadLesson, useGroupDownloadStatus } from '../../hooks/useDownloadLesson';
 import { useIsOnline } from '../../hooks/useIsOnline';
 
 interface DownloadLevelButtonProps {
+  /** Tier + level identify the list query the player reads offline. */
+  tier: LearningLevel;
+  level: number;
   /** Sub-lesson IDs that make up the level. */
   lessonIds: string[];
 }
@@ -15,7 +19,7 @@ interface DownloadLevelButtonProps {
  * spinner while in progress, filled cloud once everything is cached. Hidden
  * when the level has no downloadable content.
  */
-export function DownloadLevelButton({ lessonIds }: DownloadLevelButtonProps) {
+export function DownloadLevelButton({ tier, level, lessonIds }: DownloadLevelButtonProps) {
   const status = useGroupDownloadStatus(lessonIds);
   const download = useDownloadLesson();
   const isOnline = useIsOnline();
@@ -25,7 +29,7 @@ export function DownloadLevelButton({ lessonIds }: DownloadLevelButtonProps) {
   const handlePress = () => {
     if (status === 'downloading' || status === 'ready') return;
     if (!isOnline) return; // can't fetch new content while offline
-    void download(lessonIds);
+    void download({ tier, level, lessonIds });
   };
 
   if (status === 'downloading') {

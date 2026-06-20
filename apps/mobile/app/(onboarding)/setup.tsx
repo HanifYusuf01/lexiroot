@@ -51,7 +51,7 @@ export default function SetupScreen() {
           ) : null}
         </View>
       </View>
-      <Button label="Continue" onPress={() => router.push('/creating-path')} />
+      <Button label="Continue" onPress={() => router.push('/signup-email')} />
     </ScreenContainer>
   );
 }

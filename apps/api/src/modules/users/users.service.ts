@@ -179,6 +179,9 @@ export class UsersService {
     const limit = query.limit ?? 20;
     const cutoff = activeCutoff();
     const qb = this.users.createQueryBuilder('user');
+    // The Users page is the learner roster — staff (admin/instructor) are
+    // managed separately, so never list them here.
+    qb.where("user.role = 'user'");
     if (query.search) {
       qb.andWhere('(LOWER(user.email) LIKE :s OR LOWER(user.display_name) LIKE :s)', {
         s: `%${query.search.toLowerCase()}%`,
@@ -210,10 +213,11 @@ export class UsersService {
   async stats(): Promise<UserStats> {
     const cutoff = activeCutoff();
     const [total, active] = await Promise.all([
-      this.users.count(),
+      this.users.count({ where: { role: 'user' } }),
       this.users
         .createQueryBuilder('user')
-        .where('user.last_active_at IS NOT NULL AND user.last_active_at >= :cutoff', { cutoff })
+        .where("user.role = 'user'")
+        .andWhere('user.last_active_at IS NOT NULL AND user.last_active_at >= :cutoff', { cutoff })
         .getCount(),
     ]);
     return { total, active, inactive: total - active };

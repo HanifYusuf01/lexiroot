@@ -4,27 +4,16 @@ import { Button } from '../../src/components/ui/Button';
 import { MascotHeadIcon } from '../../src/components/icons/MascotHeadIcon';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
 import { colors, fonts, spacing } from '../../src/constants/theme';
-import { useUpdateMeMutation } from '../../src/services/authApi';
-import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
-import { completeOnboarding, toBackendLevel } from '../../src/store/slices/onboardingSlice';
+import { useAppDispatch } from '../../src/store/hooks';
+import { completeOnboarding } from '../../src/store/slices/onboardingSlice';
 
 export default function ReadyScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const onboarding = useAppSelector((s) => s.onboarding);
-  const [updateMe, { isLoading }] = useUpdateMeMutation();
 
-  async function handleStart() {
-    try {
-      await updateMe({
-        language: onboarding.language ?? undefined,
-        level: onboarding.level ? toBackendLevel(onboarding.level) : undefined,
-        reason: onboarding.reason ?? undefined,
-        country: onboarding.country ?? undefined,
-      }).unwrap();
-    } catch {
-      /* don't block the user from starting if the save fails — they can resume later */
-    }
+  function handleStart() {
+    // Onboarding details were already persisted with the account at signup,
+    // so there is nothing to save here — just enter the app.
     dispatch(completeOnboarding());
     router.replace('/home');
   }
@@ -38,7 +27,7 @@ export default function ReadyScreen() {
         <Text style={styles.title}>You are ready!</Text>
         <Text style={styles.subtitle}>Start your first lesson and earn your first XP.</Text>
       </View>
-      <Button label="Start Lesson" onPress={handleStart} loading={isLoading} />
+      <Button label="Start Lesson" onPress={handleStart} />
     </ScreenContainer>
   );
 }

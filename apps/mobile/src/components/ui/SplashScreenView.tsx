@@ -1,17 +1,16 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { MascotHeadIcon } from '../icons/MascotHeadIcon';
+import { LexiRootLogo } from '../icons/LexiRootLogo';
 import { colors, fonts, spacing } from '../../constants/theme';
 
 // First-paint splash shown while the auth store hydrates. Matches the static
-// Expo splash so the transition into the app is seamless.
+// Expo splash (white "L" on the brand orange) so the transition into the app is
+// seamless, then adds the wordmark + tagline.
 export function SplashScreenView() {
   return (
     <View style={styles.root}>
-      <View style={styles.mascot}>
-        <MascotHeadIcon size={150} />
-      </View>
-      <Text style={styles.title}>Lexiroot</Text>
-      <Text style={styles.subtitle}>Your language. Your roots.</Text>
+      <LexiRootLogo size={92} color={colors.white} />
+      <Text style={styles.title}>LexiRoot</Text>
+      <Text style={styles.tagline}>LANGUAGE. LEARNING. ROOTED IN YOU.</Text>
     </View>
   );
 }
@@ -22,19 +21,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingBottom: spacing.xxl * 2,
-  },
-  mascot: {
-    marginBottom: spacing.xxl * 2,
   },
   title: {
     fontFamily: fonts.extrabold,
-    fontSize: 42,
+    fontSize: 44,
     color: colors.white,
+    marginTop: spacing.lg,
   },
-  subtitle: {
-    fontFamily: fonts.medium,
-    fontSize: 14,
+  tagline: {
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    letterSpacing: 1.5,
     color: colors.white,
     opacity: 0.85,
     marginTop: spacing.xs,

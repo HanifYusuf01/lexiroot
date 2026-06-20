@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import type { LearningLevel } from '@lexiroot/shared';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { lessonsApi } from '../services/lessonsApi';
 import { collectMediaUrls, downloadMedia } from '../services/mediaCache';
@@ -57,13 +58,31 @@ export function useDownloadLesson() {
   );
 
   return useCallback(
-    async (lessonIds: string[]): Promise<void> => {
+    async ({ tier, level, lessonIds }: DownloadLevelArgs): Promise<void> => {
+      // Pin the list query the level player uses to enumerate this level's
+      // sub-lessons. Its cache key is the exact arg object, so these must match
+      // the player's `useListLessonsQuery({ tier, level, limit: 20 })` call —
+      // otherwise the subs can't be found offline and the player shows the
+      // empty "More levels coming soon" screen.
+      await dispatch(
+        lessonsApi.endpoints.listLessons.initiate(
+          { tier, level, limit: 20 },
+          { forceRefetch: true },
+        ),
+      ).unwrap();
       for (const id of lessonIds) {
         await downloadOne(id);
       }
     },
-    [downloadOne],
+    [downloadOne, dispatch],
   );
+}
+
+export interface DownloadLevelArgs {
+  tier: LearningLevel;
+  level: number;
+  /** Sub-lesson IDs that make up the level. */
+  lessonIds: string[];
 }
 
 /**

@@ -68,7 +68,9 @@ export default function CheckEmail() {
       await pendingSignupStorage.clear();
       await authStorage.set(stored);
       dispatch(setCredentials(stored));
-      router.replace('/intro');
+      // Onboarding details were collected before signup and saved with the
+      // account, so go straight to the celebration — no personalization step.
+      router.replace('/creating-path');
     } catch {
       setError('That code is invalid or expired.');
     }

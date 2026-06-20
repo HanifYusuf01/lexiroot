@@ -23,7 +23,7 @@ export default function SignupOptions() {
         <SocialButton
           label="Sign up with Email"
           iconName="mail-outline"
-          onPress={() => router.push('/signup-email')}
+          onPress={() => router.push('/intro')}
         />
         <View style={styles.divider}>
           <View style={styles.dividerLine} />

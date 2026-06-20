@@ -147,6 +147,7 @@ export default function LevelsIndex() {
               return (
                 <LevelRow
                   key={lvl.level}
+                  tier={tier}
                   level={lvl.level}
                   title={lvl.title}
                   unlocked={unlocked}
@@ -175,6 +176,7 @@ export default function LevelsIndex() {
 }
 
 interface LevelRowProps {
+  tier: LearningLevel;
   level: number;
   title: string;
   unlocked: boolean;
@@ -190,6 +192,7 @@ interface LevelRowProps {
 }
 
 function LevelRow({
+  tier,
   level,
   title,
   unlocked,
@@ -219,7 +222,7 @@ function LevelRow({
             <Text style={styles.completedMeta}>Completed · +{targetXp} XP</Text>
           </View>
         </View>
-        <DownloadLevelButton lessonIds={downloadableIds} />
+        <DownloadLevelButton tier={tier} level={level} lessonIds={downloadableIds} />
         <Ionicons name="chevron-forward" size={18} color={colors.neutralVariant} />
       </Pressable>
     );
@@ -243,7 +246,7 @@ function LevelRow({
           <Text style={styles.activeXp}>
             {currentXp}/{targetXp} XP
           </Text>
-          <DownloadLevelButton lessonIds={downloadableIds} />
+          <DownloadLevelButton tier={tier} level={level} lessonIds={downloadableIds} />
         </View>
         <View style={styles.activeTrack}>
           <View style={[styles.activeFill, { width: `${progress * 100}%` }]} />
