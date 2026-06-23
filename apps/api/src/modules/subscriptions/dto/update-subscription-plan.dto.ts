@@ -2,6 +2,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -9,6 +10,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { PLAN_FEATURE_KEYS, type PlanFeatureKey } from '@lexiroot/shared';
 
 export class UpdateSubscriptionPlanDto {
   @IsOptional()
@@ -39,8 +41,10 @@ export class UpdateSubscriptionPlanDto {
 
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(12)
-  @IsString({ each: true })
-  @Length(1, 120, { each: true })
-  features?: string[];
+  @ArrayMaxSize(PLAN_FEATURE_KEYS.length)
+  @IsIn(PLAN_FEATURE_KEYS as readonly string[], {
+    each: true,
+    message: 'features must be valid plan feature keys',
+  })
+  features?: PlanFeatureKey[];
 }

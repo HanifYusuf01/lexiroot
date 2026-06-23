@@ -1,10 +1,11 @@
 import { FormEvent, useState } from 'react';
-import { Plus, X } from 'lucide-react';
-import type { SubscriptionPlan, UpdateSubscriptionPlan } from '@lexiroot/shared';
+import type { PlanFeatureKey, SubscriptionPlan, UpdateSubscriptionPlan } from '@lexiroot/shared';
+import { PLAN_FEATURE_KEYS } from '@lexiroot/shared';
 import { Button } from '../../ui/Button';
 import { TextField } from '../../ui/TextField';
 import { Toggle } from '../../ui/Toggle';
 import { useToast } from '../../ui/Toast';
+import { PlanFeatureSelector } from './PlanFeatureSelector';
 import { useUpdateSubscriptionPlanMutation } from '../../../services/subscriptionPlansApi';
 
 interface PlanEditFormProps {
@@ -20,23 +21,24 @@ export function PlanEditForm({ plan, onClose }: PlanEditFormProps) {
   const [period, setPeriod] = useState(plan.period);
   const [total, setTotal] = useState(plan.total != null ? String(plan.total) : '');
   const [premium, setPremium] = useState(plan.premium);
-  const [features, setFeatures] = useState<string[]>(plan.features);
+  // Keep only known catalog keys — legacy free-text features (from before the
+  // catalog) are dropped so the selector reflects valid, gateable choices.
+  const [features, setFeatures] = useState<PlanFeatureKey[]>(() =>
+    plan.features.filter((f): f is PlanFeatureKey =>
+      (PLAN_FEATURE_KEYS as readonly string[]).includes(f),
+    ),
+  );
   const [error, setError] = useState<string | undefined>();
-
-  function setFeature(index: number, value: string) {
-    setFeatures((prev) => prev.map((f, i) => (i === index ? value : f)));
-  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const cleanedFeatures = features.map((f) => f.trim()).filter(Boolean);
     const changes: UpdateSubscriptionPlan = {
       name: name.trim(),
       price: Number(price) || 0,
       period: period.trim() || 'Month',
       total: total.trim() === '' ? null : Number(total) || 0,
       premium,
-      features: cleanedFeatures,
+      features,
     };
     try {
       await update({ id: plan.id, changes }).unwrap();
@@ -85,33 +87,7 @@ export function PlanEditForm({ plan, onClose }: PlanEditFormProps) {
       </div>
 
       <div className="mt-5">
-        <p className="text-sm font-semibold text-neutral">Features</p>
-        <div className="mt-2 space-y-2">
-          {features.map((feature, index) => (
-            <div key={index} className="flex items-center gap-2">
-              <TextField
-                className="flex-1"
-                value={feature}
-                onChange={(e) => setFeature(index, e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={() => setFeatures((prev) => prev.filter((_, i) => i !== index))}
-                className="rounded-md p-2 text-neutral-variant transition hover:bg-neutral-soft hover:text-error"
-                aria-label="Remove feature"
-              >
-                <X size={16} />
-              </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={() => setFeatures((prev) => [...prev, ''])}
-            className="flex items-center gap-1 rounded-md border border-dashed border-border px-3 py-1.5 text-xs font-semibold text-neutral-variant transition hover:border-primary hover:text-primary"
-          >
-            <Plus size={14} /> Add feature
-          </button>
-        </div>
+        <PlanFeatureSelector selected={features} onChange={setFeatures} />
       </div>
 
       {error ? <p className="mt-3 text-xs font-medium text-error">{error}</p> : null}

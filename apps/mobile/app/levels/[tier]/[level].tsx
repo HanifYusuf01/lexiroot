@@ -20,6 +20,7 @@ import { PadlockUnlockedIcon } from '../../../src/components/icons/PadlockUnlock
 import { LessonContentCard } from '../../../src/components/lesson/LessonContentCard';
 import { LessonFullCenterScreen } from '../../../src/components/lesson/LessonFullCenterScreen';
 import { LessonProgressHeader } from '../../../src/components/lesson/LessonProgressHeader';
+import { UpgradeGateScreen } from '../../../src/components/lesson/UpgradeGateScreen';
 import { Button } from '../../../src/components/ui/Button';
 import { PlayButton } from '../../../src/components/exercise/PlayButton';
 import { CorrectMeaningExercise } from '../../../src/screens/practice/CorrectMeaningExercise';
@@ -30,6 +31,8 @@ import { WordArrangeExercise } from '../../../src/screens/practice/WordArrangeEx
 import { neutralExerciseTheme, type SkillTheme } from '../../../src/constants/theme';
 import { colors, fonts, radius, spacing } from '../../../src/constants/theme';
 import { useAudioPlayback } from '../../../src/hooks/useAudioPlayback';
+import { useHasFeature } from '../../../src/hooks/useEntitlements';
+import { FREE_ACCESS_LEVEL } from '../../../src/constants/entitlements';
 import { useAppSelector } from '../../../src/store/hooks';
 import {
   useListEntriesQuery,
@@ -78,19 +81,16 @@ const TIER_INTRO: Record<string, { title: string; body: string }> = {
   },
 };
 
-// Free-tier limit: on the first beginner level (Letters & Numbers), allow only
-// 4 content items and 4 exercise questions before the upgrade prompt.
-const FREE_TIER_CONTENT_LIMIT = 4;
-const FREE_TIER_EXERCISE_LIMIT = 4;
+/**
+ * A learner who lacks `unlimited_lessons` is capped at the free access level:
+ * finishing it (or trying to open a later level) sends them to the upgrade gate.
+ */
+function isFreeBoundaryLevel(level: number, hasUnlimited: boolean): boolean {
+  return !hasUnlimited && level === FREE_ACCESS_LEVEL;
+}
 
-function isFreeTrialBoundary(_tier: LearningLevel, _level: number): boolean {
-  // Subscription/paywall is bypassed during development — payments aren't wired up yet.
-  // Re-enable: return tier === 'beginner' && level === 1;
-  // When restoring, also re-apply FREE_TIER_CONTENT_LIMIT / FREE_TIER_EXERCISE_LIMIT
-  // (will need a redesign for the multi-sub-lesson flow).
-  void FREE_TIER_CONTENT_LIMIT;
-  void FREE_TIER_EXERCISE_LIMIT;
-  return false;
+function isPremiumLevel(level: number, hasUnlimited: boolean): boolean {
+  return !hasUnlimited && level > FREE_ACCESS_LEVEL;
 }
 
 // Each (tier, level) plays through these content types in fixed order.
@@ -116,6 +116,7 @@ export default function LevelPlayer() {
 
   const user = useAppSelector((s) => s.auth.user);
   const firstName = user?.displayName?.split(' ')[0] ?? 'friend';
+  const hasUnlimited = useHasFeature('unlimited_lessons');
 
   const { data: lessonsPage, isLoading: loadingList } = useListLessonsQuery({
     tier,
@@ -268,6 +269,12 @@ export default function LevelPlayer() {
 
   const close = () => router.back();
 
+  // Block entry to a premium level for free learners — they land on the upgrade
+  // gate instead of playing it. (List/practice taps and deep links all pass here.)
+  if (isPremiumLevel(level, hasUnlimited)) {
+    return <UpgradeGateScreen onClose={close} />;
+  }
+
   function advanceFromIntro() {
     if (loadingEntries || loadingExercises) return;
     if (entries.length > 0) setStep({ kind: 'content', index: 0 });
@@ -339,7 +346,7 @@ export default function LevelPlayer() {
       return;
     }
 
-    if (isFreeTrialBoundary(tier, level)) {
+    if (isFreeBoundaryLevel(level, hasUnlimited)) {
       setStep({ kind: 'upgrade' });
       return;
     }
@@ -513,19 +520,8 @@ export default function LevelPlayer() {
     );
   }
 
-  // upgrade — kept for when payments integrate. Currently unreachable
-  // because isFreeTrialBoundary always returns false.
-  return (
-    <LessonFullCenterScreen
-      onClose={close}
-      footer={
-        <Button label="Upgrade" onPress={() => router.push('/upgrade' as never)} />
-      }
-    >
-      <Text style={styles.unlockTagline}>You&apos;ve unlocked a new level! 🎉</Text>
-      <Text style={styles.heroTitle}>Upgrade to Premium to continue learning.</Text>
-    </LessonFullCenterScreen>
-  );
+  // upgrade — free learner finished the free access level (see isFreeBoundaryLevel).
+  return <UpgradeGateScreen onClose={close} />;
 }
 
 // -- Content step ------------------------------------------------------------

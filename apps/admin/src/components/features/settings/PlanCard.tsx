@@ -1,5 +1,5 @@
 import { CheckCircle2 } from 'lucide-react';
-import type { SubscriptionPlan } from '@lexiroot/shared';
+import { planFeatureLabel, type SubscriptionPlan } from '@lexiroot/shared';
 import { formatCurrency } from '../../../utils/format';
 
 interface PlanCardProps {
@@ -38,7 +38,7 @@ export function PlanCard({ plan, editing, onEdit }: PlanCardProps) {
         {plan.features.map((feature) => (
           <li key={feature} className="flex items-start gap-2 text-xs text-neutral">
             <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-primary" />
-            <span>{feature}</span>
+            <span>{planFeatureLabel(feature)}</span>
           </li>
         ))}
       </ul>

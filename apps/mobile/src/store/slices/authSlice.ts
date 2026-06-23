@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import type { CountryCode, LearningLevel } from '@lexiroot/shared';
+import type { CountryCode, LearningLevel, PlanFeatureKey } from '@lexiroot/shared';
 
 export interface AuthUser {
   id: string;
@@ -12,6 +12,12 @@ export interface AuthUser {
   xp?: number;
   currentStreakDays?: number;
   lessonsCompleted?: number;
+  /**
+   * Feature keys granted by the user's active subscription plan. Populated from
+   * `/auth/me` once the subscription backend exists; until then it is absent and
+   * entitlement checks fall back to the free-tier baseline (see useEntitlements).
+   */
+  features?: PlanFeatureKey[];
 }
 
 interface AuthState {

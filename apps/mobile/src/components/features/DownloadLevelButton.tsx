@@ -1,9 +1,11 @@
 import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import type { LearningLevel } from '@lexiroot/shared';
 import { colors, radius } from '../../constants/theme';
 import { useDownloadLesson, useGroupDownloadStatus } from '../../hooks/useDownloadLesson';
 import { useIsOnline } from '../../hooks/useIsOnline';
+import { useHasFeature } from '../../hooks/useEntitlements';
 
 interface DownloadLevelButtonProps {
   /** Tier + level identify the list query the player reads offline. */
@@ -23,8 +25,26 @@ export function DownloadLevelButton({ tier, level, lessonIds }: DownloadLevelBut
   const status = useGroupDownloadStatus(lessonIds);
   const download = useDownloadLesson();
   const isOnline = useIsOnline();
+  const canDownload = useHasFeature('offline_downloads');
+  const router = useRouter();
 
   if (lessonIds.length === 0) return null;
+
+  // Offline downloads are a premium feature — non-entitled users see a locked
+  // control that routes to the upgrade flow instead of downloading.
+  if (!canDownload) {
+    return (
+      <Pressable
+        onPress={() => router.push('/upgrade' as never)}
+        hitSlop={8}
+        style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+        accessibilityRole="button"
+        accessibilityLabel="Download for offline (premium)"
+      >
+        <Ionicons name="lock-closed" size={18} color={colors.neutralVariant} />
+      </Pressable>
+    );
+  }
 
   const handlePress = () => {
     if (status === 'downloading' || status === 'ready') return;

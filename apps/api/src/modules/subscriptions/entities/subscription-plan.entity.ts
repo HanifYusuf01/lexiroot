@@ -5,7 +5,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import type { PlanScope } from '@lexiroot/shared';
+import type { PlanFeatureKey, PlanScope } from '@lexiroot/shared';
 
 @Entity('subscription_plans')
 export class SubscriptionPlan {
@@ -31,7 +31,7 @@ export class SubscriptionPlan {
   premium!: boolean;
 
   @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
-  features!: string[];
+  features!: PlanFeatureKey[];
 
   @Column({ name: 'sort_order', type: 'int', default: 0 })
   sortOrder!: number;

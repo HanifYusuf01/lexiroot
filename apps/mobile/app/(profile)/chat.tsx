@@ -1,117 +1,204 @@
-import { useRef, useState } from 'react';
-import {
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ChatBubble } from '../../src/components/ui/ChatBubble';
 import { ScreenHeader } from '../../src/components/ui/ScreenHeader';
 import { colors, fonts, radius, spacing } from '../../src/constants/theme';
+import {
+  SUPPORT_EMAIL,
+  SUPPORT_TOPICS,
+  type FaqEntry,
+  type FaqTopic,
+} from '../../src/constants/supportFaq';
 
 interface Message {
   id: string;
   role: 'bot' | 'user';
   text: string;
-  timestamp: string;
 }
 
-const SAMPLE_BOT_REPLY =
-  'Thanks for letting me know.\n\nIf you were offline, your progress is saved on your device and will sync automatically when you’re back online.';
+/** Which set of options to show in the picker panel below the conversation. */
+type PanelView =
+  | { kind: 'topics' }
+  | { kind: 'questions'; topic: FaqTopic }
+  | { kind: 'followup' }
+  | { kind: 'contact' };
+
+const GREETING =
+  "Hi! I'm the LexiRoot helper. 👋\n\nPick a topic below and I'll answer the most common questions. If you can't find what you need, you can reach a human.";
+
+const CONTACT_REPLY = `No problem — our team is happy to help.\n\nEmail us at ${SUPPORT_EMAIL} and we'll get back to you. Tap the button below to start an email.`;
 
 export default function ChatScreen() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [draft, setDraft] = useState('');
+  const [messages, setMessages] = useState<Message[]>([{ id: 'greeting', role: 'bot', text: GREETING }]);
+  const [view, setView] = useState<PanelView>({ kind: 'topics' });
   const listRef = useRef<FlatList<Message>>(null);
+  const counter = useRef(0);
 
-  function send() {
-    const text = draft.trim();
-    if (!text) return;
-    const now = new Date().toISOString();
-    const userMsg: Message = { id: `u-${Date.now()}`, role: 'user', text, timestamp: now };
-    setMessages((prev) => [...prev, userMsg]);
-    setDraft('');
-
-    // Demo bot reply so the bot bubble UI shows up — swap for real chat backend later.
-    setTimeout(() => {
-      const reply: Message = {
-        id: `b-${Date.now()}`,
-        role: 'bot',
-        text: SAMPLE_BOT_REPLY,
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, reply]);
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
-    }, 600);
+  function nextId(prefix: string) {
+    counter.current += 1;
+    return `${prefix}-${counter.current}`;
   }
 
-  const isEmpty = messages.length === 0;
+  function append(...newMessages: Message[]) {
+    setMessages((prev) => [...prev, ...newMessages]);
+  }
+
+  useEffect(() => {
+    const t = setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 60);
+    return () => clearTimeout(t);
+  }, [messages]);
+
+  function pickTopic(topic: FaqTopic) {
+    setView({ kind: 'questions', topic });
+  }
+
+  function pickQuestion(entry: FaqEntry) {
+    append(
+      { id: nextId('u'), role: 'user', text: entry.question },
+      { id: nextId('b'), role: 'bot', text: entry.answer },
+    );
+    setView({ kind: 'followup' });
+  }
+
+  function contactSupport() {
+    append(
+      { id: nextId('u'), role: 'user', text: 'I need to talk to someone' },
+      { id: nextId('b'), role: 'bot', text: CONTACT_REPLY },
+    );
+    setView({ kind: 'contact' });
+  }
+
+  function openEmail() {
+    const subject = encodeURIComponent('LexiRoot support request');
+    void Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}`);
+  }
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <ScreenHeader title="Chat With Us" />
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
-      >
-        {isEmpty ? (
-          <View style={styles.emptyWrap}>
-            <View style={styles.emptyIcon}>
-              <Ionicons name="chatbubble" size={28} color={colors.primary} />
-            </View>
-            <Text style={styles.emptyTitle}>Need Help?</Text>
-            <Text style={styles.emptySubtitle}>
-              Ask us anything about your lessons, progress, or account.
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            ref={listRef}
-            data={messages}
-            keyExtractor={(m) => m.id}
-            renderItem={({ item }) => (
-              <ChatBubble role={item.role} text={item.text} timestamp={item.timestamp} />
-            )}
-            contentContainerStyle={styles.list}
-            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-            showsVerticalScrollIndicator={false}
-          />
-        )}
+      <View style={styles.flex}>
+        <FlatList
+          ref={listRef}
+          data={messages}
+          keyExtractor={(m) => m.id}
+          renderItem={({ item }) => <ChatBubble role={item.role} text={item.text} timestamp="" />}
+          contentContainerStyle={styles.list}
+          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+          showsVerticalScrollIndicator={false}
+        />
 
-        <View style={styles.inputRow}>
-          <View style={styles.inputWrap}>
-            <TextInput
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="Enter a message"
-              placeholderTextColor={colors.neutralVariant}
-              style={styles.input}
-              onSubmitEditing={send}
-              returnKeyType="send"
-            />
-          </View>
-          <Pressable
-            onPress={send}
-            disabled={!draft.trim()}
-            hitSlop={8}
-            style={({ pressed }) => [styles.sendBtn, pressed && styles.pressed]}
-          >
-            <Ionicons
-              name="send"
-              size={20}
-              color={draft.trim() ? colors.primary : colors.neutralVariant}
-            />
-          </Pressable>
+        <View style={styles.panel}>
+          <OptionPanel
+            view={view}
+            onPickTopic={pickTopic}
+            onPickQuestion={pickQuestion}
+            onBackToTopics={() => setView({ kind: 'topics' })}
+            onContact={contactSupport}
+            onOpenEmail={openEmail}
+          />
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
+  );
+}
+
+interface OptionPanelProps {
+  view: PanelView;
+  onPickTopic: (topic: FaqTopic) => void;
+  onPickQuestion: (entry: FaqEntry) => void;
+  onBackToTopics: () => void;
+  onContact: () => void;
+  onOpenEmail: () => void;
+}
+
+function OptionPanel({
+  view,
+  onPickTopic,
+  onPickQuestion,
+  onBackToTopics,
+  onContact,
+  onOpenEmail,
+}: OptionPanelProps) {
+  if (view.kind === 'topics') {
+    return (
+      <>
+        <Text style={styles.prompt}>Choose a topic</Text>
+        {SUPPORT_TOPICS.map((topic) => (
+          <OptionButton
+            key={topic.id}
+            icon={topic.icon}
+            label={topic.label}
+            onPress={() => onPickTopic(topic)}
+          />
+        ))}
+        <OptionButton icon="mail-outline" label="Contact a human" variant="muted" onPress={onContact} />
+      </>
+    );
+  }
+
+  if (view.kind === 'questions') {
+    return (
+      <>
+        <Text style={styles.prompt}>{view.topic.label}</Text>
+        {view.topic.questions.map((entry) => (
+          <OptionButton key={entry.id} label={entry.question} onPress={() => onPickQuestion(entry)} />
+        ))}
+        <OptionButton icon="arrow-back" label="Back to topics" variant="muted" onPress={onBackToTopics} />
+      </>
+    );
+  }
+
+  if (view.kind === 'contact') {
+    return (
+      <>
+        <OptionButton icon="mail" label={`Email ${SUPPORT_EMAIL}`} onPress={onOpenEmail} />
+        <OptionButton icon="arrow-back" label="Back to topics" variant="muted" onPress={onBackToTopics} />
+      </>
+    );
+  }
+
+  // followup
+  return (
+    <>
+      <Text style={styles.prompt}>Did that help?</Text>
+      <OptionButton icon="help-circle-outline" label="Ask another question" onPress={onBackToTopics} />
+      <OptionButton icon="mail-outline" label="Contact a human" variant="muted" onPress={onContact} />
+    </>
+  );
+}
+
+interface OptionButtonProps {
+  label: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  variant?: 'default' | 'muted';
+  onPress: () => void;
+}
+
+function OptionButton({ label, icon, variant = 'default', onPress }: OptionButtonProps) {
+  const muted = variant === 'muted';
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.option,
+        muted && styles.optionMuted,
+        pressed && styles.pressed,
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      {icon ? (
+        <Ionicons
+          name={icon}
+          size={18}
+          color={muted ? colors.neutralVariant : colors.primary}
+          style={styles.optionIcon}
+        />
+      ) : null}
+      <Text style={[styles.optionLabel, muted && styles.optionLabelMuted]}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -123,66 +210,51 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-  emptyWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-    gap: spacing.sm,
-  },
-  emptyIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.md,
-    backgroundColor: colors.primarySofter,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-  },
-  emptyTitle: {
-    fontFamily: fonts.extrabold,
-    fontSize: 18,
-    color: colors.primary,
-  },
-  emptySubtitle: {
-    fontFamily: fonts.medium,
-    fontSize: 13,
-    color: colors.neutralVariant,
-    textAlign: 'center',
-    lineHeight: 19,
-  },
   list: {
     paddingVertical: spacing.md,
   },
-  inputRow: {
+  panel: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+  },
+  prompt: {
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    color: colors.neutralVariant,
+    marginBottom: spacing.xs,
+  },
+  option: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
-  },
-  inputWrap: {
-    flex: 1,
-    height: 48,
-    borderRadius: radius.full,
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
     borderWidth: 1.5,
     borderColor: colors.primaryBorder,
-    backgroundColor: colors.white,
-    paddingHorizontal: spacing.md,
-    justifyContent: 'center',
+    backgroundColor: colors.primarySofter,
   },
-  input: {
-    fontFamily: fonts.regular,
+  optionMuted: {
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  optionIcon: {
+    marginRight: spacing.sm,
+  },
+  optionLabel: {
+    flex: 1,
+    fontFamily: fonts.semibold,
     fontSize: 14,
     color: colors.neutral,
-    padding: 0,
   },
-  sendBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+  optionLabelMuted: {
+    fontFamily: fonts.medium,
+    color: colors.neutralVariant,
   },
   pressed: {
     opacity: 0.6,

@@ -1,10 +1,10 @@
 import { FormEvent, useState } from 'react';
-import { Plus, X } from 'lucide-react';
-import type { CreateSubscriptionPlan, PlanScope } from '@lexiroot/shared';
+import type { CreateSubscriptionPlan, PlanFeatureKey, PlanScope } from '@lexiroot/shared';
 import { Button } from '../../ui/Button';
 import { TextField } from '../../ui/TextField';
 import { Toggle } from '../../ui/Toggle';
 import { useToast } from '../../ui/Toast';
+import { PlanFeatureSelector } from './PlanFeatureSelector';
 import { useCreateSubscriptionPlanMutation } from '../../../services/subscriptionPlansApi';
 
 interface PlanCreateFormProps {
@@ -20,12 +20,8 @@ export function PlanCreateForm({ scope, onClose }: PlanCreateFormProps) {
   const [period, setPeriod] = useState('Month');
   const [total, setTotal] = useState('');
   const [premium, setPremium] = useState(false);
-  const [features, setFeatures] = useState<string[]>(['']);
+  const [features, setFeatures] = useState<PlanFeatureKey[]>([]);
   const [error, setError] = useState<string | undefined>();
-
-  function setFeature(index: number, value: string) {
-    setFeatures((prev) => prev.map((f, i) => (i === index ? value : f)));
-  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -33,7 +29,6 @@ export function PlanCreateForm({ scope, onClose }: PlanCreateFormProps) {
       setError('Please enter a plan name');
       return;
     }
-    const cleanedFeatures = features.map((f) => f.trim()).filter(Boolean);
     const body: CreateSubscriptionPlan = {
       scope,
       name: name.trim(),
@@ -41,7 +36,7 @@ export function PlanCreateForm({ scope, onClose }: PlanCreateFormProps) {
       period: period.trim() || 'Month',
       total: total.trim() === '' ? null : Number(total) || 0,
       premium,
-      features: cleanedFeatures,
+      features,
     };
     try {
       await create(body).unwrap();
@@ -96,34 +91,7 @@ export function PlanCreateForm({ scope, onClose }: PlanCreateFormProps) {
       </div>
 
       <div className="mt-5">
-        <p className="text-sm font-semibold text-neutral">Features</p>
-        <div className="mt-2 space-y-2">
-          {features.map((feature, index) => (
-            <div key={index} className="flex items-center gap-2">
-              <TextField
-                className="flex-1"
-                placeholder="e.g. Unlimited lessons"
-                value={feature}
-                onChange={(e) => setFeature(index, e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={() => setFeatures((prev) => prev.filter((_, i) => i !== index))}
-                className="rounded-md p-2 text-neutral-variant transition hover:bg-neutral-soft hover:text-error"
-                aria-label="Remove feature"
-              >
-                <X size={16} />
-              </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={() => setFeatures((prev) => [...prev, ''])}
-            className="flex items-center gap-1 rounded-md border border-dashed border-border px-3 py-1.5 text-xs font-semibold text-neutral-variant transition hover:border-primary hover:text-primary"
-          >
-            <Plus size={14} /> Add feature
-          </button>
-        </div>
+        <PlanFeatureSelector selected={features} onChange={setFeatures} />
       </div>
 
       {error ? <p className="mt-3 text-xs font-medium text-error">{error}</p> : null}

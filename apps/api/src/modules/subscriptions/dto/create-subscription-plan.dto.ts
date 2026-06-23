@@ -10,7 +10,12 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { PLAN_SCOPES, type PlanScope } from '@lexiroot/shared';
+import {
+  PLAN_FEATURE_KEYS,
+  PLAN_SCOPES,
+  type PlanFeatureKey,
+  type PlanScope,
+} from '@lexiroot/shared';
 
 export class CreateSubscriptionPlanDto {
   @IsIn(PLAN_SCOPES as readonly string[], { message: 'scope must be individual or family' })
@@ -42,8 +47,10 @@ export class CreateSubscriptionPlanDto {
 
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(12)
-  @IsString({ each: true })
-  @Length(1, 120, { each: true })
-  features?: string[];
+  @ArrayMaxSize(PLAN_FEATURE_KEYS.length)
+  @IsIn(PLAN_FEATURE_KEYS as readonly string[], {
+    each: true,
+    message: 'features must be valid plan feature keys',
+  })
+  features?: PlanFeatureKey[];
 }

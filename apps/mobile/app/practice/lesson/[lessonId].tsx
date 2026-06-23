@@ -13,6 +13,9 @@ import type {
 import { useGetLessonQuery, useListExercisesQuery } from '../../../src/services/lessonsApi';
 import { useCompleteLessonMutation } from '../../../src/services/progressApi';
 import { useAppSelector } from '../../../src/store/hooks';
+import { useHasFeature } from '../../../src/hooks/useEntitlements';
+import { FREE_ACCESS_LEVEL } from '../../../src/constants/entitlements';
+import { UpgradeGateScreen } from '../../../src/components/lesson/UpgradeGateScreen';
 import { CorrectMeaningExercise } from '../../../src/screens/practice/CorrectMeaningExercise';
 import { ListenSelectExercise } from '../../../src/screens/practice/ListenSelectExercise';
 import { NameFromImageExercise } from '../../../src/screens/practice/NameFromImageExercise';
@@ -53,6 +56,7 @@ function findCorrectId<T extends { id: string; isCorrect: boolean }>(items: T[])
 export default function LessonPracticeScreen() {
   const { lessonId } = useLocalSearchParams<{ lessonId: string }>();
   const user = useAppSelector((s) => s.auth.user);
+  const hasUnlimited = useHasFeature('unlimited_lessons');
   const lessonQuery = useGetLessonQuery(lessonId ?? '', { skip: !lessonId });
   const exercisesQuery = useListExercisesQuery(lessonId ?? '', { skip: !lessonId });
   const [completeLesson] = useCompleteLessonMutation();
@@ -92,6 +96,16 @@ export default function LessonPracticeScreen() {
       <SafeAreaView style={styles.fallback} edges={['top']}>
         <Text style={styles.fallbackText}>Couldn&apos;t load lesson</Text>
       </SafeAreaView>
+    );
+  }
+
+  // Free learners only get the free access level of practice — later levels gate.
+  if (!hasUnlimited && level > FREE_ACCESS_LEVEL) {
+    return (
+      <View style={styles.root}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <UpgradeGateScreen onClose={() => router.back()} />
+      </View>
     );
   }
 

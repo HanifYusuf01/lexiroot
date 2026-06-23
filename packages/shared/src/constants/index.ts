@@ -1,3 +1,5 @@
+export * from './plan-features';
+
 export const LANGUAGE_CODES = ['yo', 'ig', 'ha'] as const;
 export type LanguageCode = (typeof LANGUAGE_CODES)[number];
 
