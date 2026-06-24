@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  FlatList,
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ChatBubble } from '../../src/components/ui/ChatBubble';
@@ -26,13 +36,21 @@ type PanelView =
   | { kind: 'contact' };
 
 const GREETING =
-  "Hi! I'm the LexiRoot helper. 👋\n\nPick a topic below and I'll answer the most common questions. If you can't find what you need, you can reach a human.";
+  "Hi! I'm the LexiRoot helper. 👋\n\nSend me a message to get started and I'll show you everything I can help with.";
+
+const START_REPLY = "Great — here's what I can help with. Pick a topic below. 👇";
+
+const FREEFORM_REPLY =
+  "I'm best with the topics below — pick one and I'll answer right away, or reach a human.";
 
 const CONTACT_REPLY = `No problem — our team is happy to help.\n\nEmail us at ${SUPPORT_EMAIL} and we'll get back to you. Tap the button below to start an email.`;
 
 export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([{ id: 'greeting', role: 'bot', text: GREETING }]);
   const [view, setView] = useState<PanelView>({ kind: 'topics' });
+  // Options stay hidden until the customer sends their first message.
+  const [started, setStarted] = useState(false);
+  const [input, setInput] = useState('');
   const listRef = useRef<FlatList<Message>>(null);
   const counter = useRef(0);
 
@@ -75,10 +93,26 @@ export default function ChatScreen() {
     void Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}`);
   }
 
+  function handleSend() {
+    const text = input.trim();
+    if (!text) return;
+    const reply = started ? FREEFORM_REPLY : START_REPLY;
+    append(
+      { id: nextId('u'), role: 'user', text },
+      { id: nextId('b'), role: 'bot', text: reply },
+    );
+    setStarted(true);
+    setView({ kind: 'topics' });
+    setInput('');
+  }
+
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <ScreenHeader title="Chat With Us" />
-      <View style={styles.flex}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         <FlatList
           ref={listRef}
           data={messages}
@@ -89,17 +123,45 @@ export default function ChatScreen() {
           showsVerticalScrollIndicator={false}
         />
 
-        <View style={styles.panel}>
-          <OptionPanel
-            view={view}
-            onPickTopic={pickTopic}
-            onPickQuestion={pickQuestion}
-            onBackToTopics={() => setView({ kind: 'topics' })}
-            onContact={contactSupport}
-            onOpenEmail={openEmail}
+        {started ? (
+          <View style={styles.panel}>
+            <OptionPanel
+              view={view}
+              onPickTopic={pickTopic}
+              onPickQuestion={pickQuestion}
+              onBackToTopics={() => setView({ kind: 'topics' })}
+              onContact={contactSupport}
+              onOpenEmail={openEmail}
+            />
+          </View>
+        ) : null}
+
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.input}
+            value={input}
+            onChangeText={setInput}
+            placeholder="Type a message…"
+            placeholderTextColor={colors.neutralVariant}
+            returnKeyType="send"
+            onSubmitEditing={handleSend}
+            blurOnSubmit={false}
           />
+          <Pressable
+            onPress={handleSend}
+            disabled={input.trim().length === 0}
+            style={({ pressed }) => [
+              styles.sendButton,
+              input.trim().length === 0 && styles.sendButtonDisabled,
+              pressed && styles.pressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Send message"
+          >
+            <Ionicons name="send" size={18} color={colors.white} />
+          </Pressable>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -258,5 +320,40 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.6,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  input: {
+    flex: 1,
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    fontFamily: fonts.medium,
+    fontSize: 14,
+    color: colors.neutral,
+  },
+  sendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+  },
+  sendButtonDisabled: {
+    backgroundColor: colors.neutralVariant,
   },
 });
