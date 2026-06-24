@@ -20,7 +20,7 @@ export default function UpgradeHero() {
             />
             <Button
               label="Start Free Trial"
-              onPress={() => router.push('/upgrade/plans' as never)}
+              onPress={() => router.push('/upgrade/pricing' as never)}
             />
             <Text style={styles.fineprint}>7-day free trial · Cancel anytime</Text>
           </View>

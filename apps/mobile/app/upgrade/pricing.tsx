@@ -11,17 +11,44 @@ import { formatPrice } from '../../src/utils/format';
 
 type Audience = 'individual' | 'family';
 
-// Idle headline-price colour by position: orange, golden, chocolate.
+// Headline-price colour by position when the card is unfilled: orange, golden, chocolate.
 const PRICE_COLORS = [colors.primary, colors.tertiary, colors.secondary];
+
+// Family shows a fixed tier treatment for every card at once (see design):
+// Monthly = white/outlined, Quarterly = orange, Yearly = chocolate.
+const FAMILY_FILLS = [colors.white, colors.primary, colors.secondary];
+
+interface CardVisual {
+  bg: string;
+  /** Whether the card is colour-filled (light text + golden price). */
+  onFill: boolean;
+  priceColor: string;
+}
+
+function cardVisual(audience: Audience, index: number, selected: boolean): CardVisual {
+  const priceByPosition = PRICE_COLORS[Math.min(index, PRICE_COLORS.length - 1)];
+  if (audience === 'family') {
+    const bg = FAMILY_FILLS[Math.min(index, FAMILY_FILLS.length - 1)];
+    const onFill = bg !== colors.white;
+    return { bg, onFill, priceColor: onFill ? colors.tertiary : priceByPosition };
+  }
+  // Individual: only the selected card fills (orange), the rest stay outlined.
+  return {
+    bg: selected ? colors.primary : colors.white,
+    onFill: selected,
+    priceColor: selected ? colors.tertiary : priceByPosition,
+  };
+}
 
 export default function UpgradePricing() {
   const [audience, setAudience] = useState<Audience>('individual');
   const { data: plans, isLoading } = useSubscriptionPlansQuery();
 
+  // Free is the default entitlement, not a purchasable card — show paid plans only.
   const visible = useMemo(
     () =>
       (plans ?? [])
-        .filter((p) => p.scope === audience)
+        .filter((p) => p.scope === audience && p.premium)
         .slice()
         .sort((a, b) => a.sortOrder - b.sortOrder),
     [plans, audience],
@@ -40,9 +67,6 @@ export default function UpgradePricing() {
       setSelectedId(visible[Math.min(1, visible.length - 1)].id);
     }
   }, [visible, selectedId]);
-
-  // Selected card tint follows the audience: orange for Individual, brown for Family.
-  const selectedTint = audience === 'family' ? colors.secondary : colors.primary;
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -78,16 +102,18 @@ export default function UpgradePricing() {
           <Text style={styles.stateText}>No plans available yet.</Text>
         ) : (
           <View style={styles.plans}>
-            {visible.map((plan, index) => (
-              <PlanCard
-                key={plan.id}
-                plan={plan}
-                selected={selectedId === plan.id}
-                tint={selectedTint}
-                priceColor={PRICE_COLORS[Math.min(index, PRICE_COLORS.length - 1)]}
-                onPress={() => setSelectedId(plan.id)}
-              />
-            ))}
+            {visible.map((plan, index) => {
+              const selected = selectedId === plan.id;
+              const visual = cardVisual(audience, index, selected);
+              return (
+                <PlanCard
+                  key={plan.id}
+                  plan={plan}
+                  visual={visual}
+                  onPress={() => setSelectedId(plan.id)}
+                />
+              );
+            })}
           </View>
         )}
 
@@ -127,32 +153,25 @@ function AudienceChip({
 
 function PlanCard({
   plan,
-  selected,
-  tint,
-  priceColor,
+  visual,
   onPress,
 }: {
   plan: SubscriptionPlan;
-  selected: boolean;
-  tint: string;
-  priceColor: string;
+  visual: CardVisual;
   onPress: () => void;
 }) {
+  const { bg, onFill, priceColor } = visual;
   return (
     <Pressable
       onPress={onPress}
       style={[
         styles.planCard,
-        selected
-          ? [styles.planCardSelected, { backgroundColor: tint, borderColor: tint }]
-          : styles.planCardIdle,
+        { backgroundColor: bg, borderColor: onFill ? bg : colors.primaryBorder },
       ]}
     >
-      <Text style={[styles.planPrice, { color: selected ? colors.tertiary : priceColor }]}>
-        {formatPrice(plan.price)}
-      </Text>
-      <Text style={[styles.planTitle, selected && styles.planTitleSelected]}>{plan.name}</Text>
-      <Text style={[styles.planSub, selected && styles.planSubSelected]}>
+      <Text style={[styles.planPrice, { color: priceColor }]}>{formatPrice(plan.price)}</Text>
+      <Text style={[styles.planTitle, onFill && styles.planTitleSelected]}>{plan.name}</Text>
+      <Text style={[styles.planSub, onFill && styles.planSubSelected]}>
         {plan.total != null
           ? `${formatPrice(plan.total)} billed per ${plan.period.toLowerCase()}`
           : `Billed per ${plan.period.toLowerCase()}`}
@@ -225,13 +244,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     gap: 2,
     alignItems: 'center',
-  },
-  planCardIdle: {
-    borderColor: colors.primaryBorder,
-    backgroundColor: colors.white,
-  },
-  planCardSelected: {
-    // backgroundColor / borderColor supplied inline via the audience tint.
   },
   planPrice: {
     fontFamily: fonts.extrabold,
