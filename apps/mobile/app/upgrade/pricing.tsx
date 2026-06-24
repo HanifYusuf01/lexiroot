@@ -1,33 +1,48 @@
+import type { SubscriptionPlan } from '@lexiroot/shared';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../src/components/ui/Button';
 import { colors, fonts, radius, spacing } from '../../src/constants/theme';
+import { useSubscriptionPlansQuery } from '../../src/services/subscriptionPlansApi';
+import { formatPrice } from '../../src/utils/format';
 
 type Audience = 'individual' | 'family';
-type PlanKey = 'monthly' | 'quarterly' | 'yearly';
 
-const PLANS: Array<{ key: PlanKey; price: string; title: string; sub: string }> = [
-  { key: 'monthly', price: '$20', title: 'Monthly Plan', sub: 'Flexible, cancel anytime' },
-  {
-    key: 'quarterly',
-    price: '$55',
-    title: 'Quarterly Plan',
-    sub: 'Commit quarterly, save over monthly',
-  },
-  {
-    key: 'yearly',
-    price: '$220',
-    title: 'Yearly Plan',
-    sub: 'Best Value for long-term learning',
-  },
-];
+// Idle headline-price colour by position: orange, golden, chocolate.
+const PRICE_COLORS = [colors.primary, colors.tertiary, colors.secondary];
 
 export default function UpgradePricing() {
   const [audience, setAudience] = useState<Audience>('individual');
-  const [selected, setSelected] = useState<PlanKey>('quarterly');
+  const { data: plans, isLoading } = useSubscriptionPlansQuery();
+
+  const visible = useMemo(
+    () =>
+      (plans ?? [])
+        .filter((p) => p.scope === audience)
+        .slice()
+        .sort((a, b) => a.sortOrder - b.sortOrder),
+    [plans, audience],
+  );
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Default to the middle (recommended) plan whenever the visible set changes,
+  // e.g. on first load or when toggling Individual/Family.
+  useEffect(() => {
+    if (visible.length === 0) {
+      setSelectedId(null);
+      return;
+    }
+    if (!visible.some((p) => p.id === selectedId)) {
+      setSelectedId(visible[Math.min(1, visible.length - 1)].id);
+    }
+  }, [visible, selectedId]);
+
+  // Selected card tint follows the audience: orange for Individual, brown for Family.
+  const selectedTint = audience === 'family' ? colors.secondary : colors.primary;
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -57,24 +72,31 @@ export default function UpgradePricing() {
           <Text style={styles.audienceHint}>· Allows up to 3 users</Text>
         ) : null}
 
-        <View style={styles.plans}>
-          {PLANS.map((p) => (
-            <PlanCard
-              key={p.key}
-              price={p.price}
-              title={p.title}
-              sub={p.sub}
-              selected={selected === p.key}
-              onPress={() => setSelected(p.key)}
-            />
-          ))}
-        </View>
+        {isLoading ? (
+          <ActivityIndicator color={colors.primary} style={styles.state} />
+        ) : visible.length === 0 ? (
+          <Text style={styles.stateText}>No plans available yet.</Text>
+        ) : (
+          <View style={styles.plans}>
+            {visible.map((plan, index) => (
+              <PlanCard
+                key={plan.id}
+                plan={plan}
+                selected={selectedId === plan.id}
+                tint={selectedTint}
+                priceColor={PRICE_COLORS[Math.min(index, PRICE_COLORS.length - 1)]}
+                onPress={() => setSelectedId(plan.id)}
+              />
+            ))}
+          </View>
+        )}
 
         <View style={styles.cta}>
           <Button
             label="Start 7-day free trial"
+            disabled={selectedId === null}
             onPress={() => {
-              // TODO: hand off to billing flow
+              // TODO: hand off to billing flow with the selected plan id.
               router.dismissAll();
             }}
           />
@@ -95,10 +117,7 @@ function AudienceChip({
   onPress: () => void;
 }) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={[styles.audienceChip, active && styles.audienceChipActive]}
-    >
+    <Pressable onPress={onPress} style={[styles.audienceChip, active && styles.audienceChipActive]}>
       <Text style={[styles.audienceChipText, active && styles.audienceChipTextActive]}>
         {label}
       </Text>
@@ -107,26 +126,37 @@ function AudienceChip({
 }
 
 function PlanCard({
-  price,
-  title,
-  sub,
+  plan,
   selected,
+  tint,
+  priceColor,
   onPress,
 }: {
-  price: string;
-  title: string;
-  sub: string;
+  plan: SubscriptionPlan;
   selected: boolean;
+  tint: string;
+  priceColor: string;
   onPress: () => void;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.planCard, selected ? styles.planCardSelected : styles.planCardIdle]}
+      style={[
+        styles.planCard,
+        selected
+          ? [styles.planCardSelected, { backgroundColor: tint, borderColor: tint }]
+          : styles.planCardIdle,
+      ]}
     >
-      <Text style={[styles.planPrice, selected && styles.planPriceSelected]}>{price}</Text>
-      <Text style={[styles.planTitle, selected && styles.planTitleSelected]}>{title}</Text>
-      <Text style={[styles.planSub, selected && styles.planSubSelected]}>{sub}</Text>
+      <Text style={[styles.planPrice, { color: selected ? colors.tertiary : priceColor }]}>
+        {formatPrice(plan.price)}
+      </Text>
+      <Text style={[styles.planTitle, selected && styles.planTitleSelected]}>{plan.name}</Text>
+      <Text style={[styles.planSub, selected && styles.planSubSelected]}>
+        {plan.total != null
+          ? `${formatPrice(plan.total)} billed per ${plan.period.toLowerCase()}`
+          : `Billed per ${plan.period.toLowerCase()}`}
+      </Text>
     </Pressable>
   );
 }
@@ -142,9 +172,10 @@ const styles = StyleSheet.create({
   close: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   heading: {
     fontFamily: fonts.extrabold,
-    fontSize: 26,
+    fontSize: 32,
     color: colors.primary,
     marginTop: spacing.xs,
+    textAlign: 'center',
   },
   audienceWrap: {
     flexDirection: 'row',
@@ -152,7 +183,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
     borderRadius: radius.full,
     padding: 4,
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
   },
   audienceChip: {
     paddingHorizontal: spacing.md,
@@ -176,6 +207,14 @@ const styles = StyleSheet.create({
     color: colors.neutralVariant,
     textAlign: 'center',
   },
+  state: { marginTop: spacing.lg },
+  stateText: {
+    fontFamily: fonts.medium,
+    fontSize: 14,
+    color: colors.neutralVariant,
+    textAlign: 'center',
+    marginTop: spacing.lg,
+  },
   plans: {
     gap: spacing.sm,
   },
@@ -192,16 +231,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   planCardSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary,
+    // backgroundColor / borderColor supplied inline via the audience tint.
   },
   planPrice: {
     fontFamily: fonts.extrabold,
     fontSize: 22,
-    color: colors.neutral,
-  },
-  planPriceSelected: {
-    color: colors.white,
   },
   planTitle: {
     fontFamily: fonts.bold,
