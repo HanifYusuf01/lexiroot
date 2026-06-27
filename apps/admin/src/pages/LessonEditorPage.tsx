@@ -62,7 +62,6 @@ interface FormState {
   shortDescription: string;
   estimatedDuration: DurationBucket | '';
   xpReward: number;
-  orderInUnit: number;
   type: LessonType;
   speechRequired: boolean;
   offlineAvailable: boolean;
@@ -84,7 +83,6 @@ const DEFAULT_FORM: FormState = {
   shortDescription: '',
   estimatedDuration: '3-5 minutes',
   xpReward: 20,
-  orderInUnit: 0,
   type: 'vocabulary',
   speechRequired: false,
   offlineAvailable: true,
@@ -198,7 +196,6 @@ export function LessonEditorPage() {
       shortDescription: existing.shortDescription,
       estimatedDuration: existing.estimatedDuration ?? '',
       xpReward: existing.xpReward,
-      orderInUnit: existing.orderInUnit,
       type: existing.type,
       speechRequired: existing.speechRequired,
       offlineAvailable: existing.offlineAvailable,
@@ -243,7 +240,6 @@ export function LessonEditorPage() {
       shortDescription: form.shortDescription,
       estimatedDuration: (form.estimatedDuration || undefined) as DurationBucket | undefined,
       xpReward: form.xpReward,
-      orderInUnit: form.orderInUnit,
       type: form.type,
       speechRequired: form.speechRequired,
       offlineAvailable: form.offlineAvailable,
@@ -402,7 +398,7 @@ export function LessonEditorPage() {
               </div>
             </Field>
 
-            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Estimated Duration">
                 <NativeSelect
                   value={form.estimatedDuration}
@@ -423,15 +419,6 @@ export function LessonEditorPage() {
                     XP
                   </span>
                 </div>
-              </Field>
-              <Field label="Order in Units" required>
-                <input
-                  type="number"
-                  min={0}
-                  value={form.orderInUnit}
-                  onChange={(e) => update('orderInUnit', Number(e.target.value) || 0)}
-                  className="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-neutral outline-none focus:border-primary"
-                />
               </Field>
             </div>
           </Section>

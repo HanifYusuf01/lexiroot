@@ -28,11 +28,17 @@ export function DownloadLevelButton({ tier, level, lessonIds }: DownloadLevelBut
   const canDownload = useHasFeature('offline_downloads');
   const router = useRouter();
 
+  // TESTING: offline downloads are temporarily open to all users (incl. free
+  // trial) while we exercise the download feature in development. To re-enable
+  // the premium gate, delete this override and the `|| downloadsOpenForTesting`
+  // below so the `!canDownload` branch routes to the upgrade flow again.
+  const downloadsOpenForTesting = true;
+
   if (lessonIds.length === 0) return null;
 
   // Offline downloads are a premium feature — non-entitled users see a locked
   // control that routes to the upgrade flow instead of downloading.
-  if (!canDownload) {
+  if (!canDownload && !downloadsOpenForTesting) {
     return (
       <Pressable
         onPress={() => router.push('/upgrade' as never)}

@@ -38,7 +38,7 @@ export default function SkillPathScreen() {
   const user = useAppSelector((s) => s.auth.user);
   const lessonsQuery = useListLessonsQuery(
     { language: user?.country ? undefined : undefined, limit: 100 },
-    { skip: !skill },
+    { skip: !skill, refetchOnMountOrArgChange: true },
   );
   const progressQuery = useGetProgressQuery(undefined, { skip: !skill });
 

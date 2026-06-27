@@ -23,7 +23,6 @@ import { RecognitionExercise } from '../../../src/screens/practice/RecognitionEx
 import { WordArrangeExercise } from '../../../src/screens/practice/WordArrangeExercise';
 import { LessonFailureScreen } from '../../../src/screens/practice/LessonFailureScreen';
 import { LessonSuccessScreen } from '../../../src/screens/practice/LessonSuccessScreen';
-import { XpTransitionScreen } from '../../../src/screens/practice/XpTransitionScreen';
 import {
   colors,
   fonts,
@@ -33,7 +32,7 @@ import {
   type SkillTheme,
 } from '../../../src/constants/theme';
 
-type Phase = 'exercise' | 'xp-correct' | 'xp-incorrect' | 'success' | 'failure';
+type Phase = 'exercise' | 'success' | 'failure';
 
 function pickTheme(lessonType: string | undefined): SkillTheme {
   if (lessonType === 'sentence') return skillThemes.sentence;
@@ -60,15 +59,26 @@ export default function LessonPracticeScreen() {
   const lessonQuery = useGetLessonQuery(lessonId ?? '', { skip: !lessonId });
   const exercisesQuery = useListExercisesQuery(lessonId ?? '', { skip: !lessonId });
   const [completeLesson] = useCompleteLessonMutation();
-  const [index, setIndex] = useState(0);
-  const [correctCount, setCorrectCount] = useState(0);
+  // `roundQueue` is the list of exercise indices to present in the current
+  // round. null on the first pass means "play them all"; a retry sets it to
+  // just the indices the learner missed. `missed` accumulates the indices
+  // answered wrong in the round currently in progress.
+  const [roundQueue, setRoundQueue] = useState<number[] | null>(null);
+  const [pos, setPos] = useState(0);
+  const [missed, setMissed] = useState<number[]>([]);
   const [phase, setPhase] = useState<Phase>('exercise');
   const [awardedXp, setAwardedXp] = useState(0);
 
-  const exercises = exercisesQuery.data ?? [];
+  const exercises = useMemo(() => exercisesQuery.data ?? [], [exercisesQuery.data]);
   const lesson = lessonQuery.data;
   const total = exercises.length;
-  const current = exercises[index];
+  const queue = useMemo(
+    () => roundQueue ?? exercises.map((_, i) => i),
+    [roundQueue, exercises],
+  );
+  const roundLen = queue.length;
+  const currentExerciseIndex = queue[pos];
+  const current = exercises[currentExerciseIndex];
   const theme = useMemo(() => pickTheme(lesson?.type), [lesson]);
   const skillTitle = useMemo(() => skillTitleFor(lesson?.type), [lesson]);
   const level = lesson?.level ?? 1;
@@ -117,8 +127,11 @@ export default function LessonPracticeScreen() {
     );
   }
 
-  async function finishLesson(finalCorrect: number) {
-    const allCorrect = finalCorrect === total;
+  // Records the completion on the learner's first full pass through the lesson
+  // (the backend awards the lesson XP exactly once, on this first call).
+  async function finishLesson(missedThisRound: number[]) {
+    const allCorrect = missedThisRound.length === 0;
+    const finalCorrect = total - missedThisRound.length;
     try {
       const result = await completeLesson({
         lessonId: lessonId!,
@@ -132,24 +145,39 @@ export default function LessonPracticeScreen() {
     setPhase(allCorrect ? 'success' : 'failure');
   }
 
-  function handleExerciseContinue(wasCorrect: boolean) {
-    const nextCorrect = correctCount + (wasCorrect ? 1 : 0);
-    setCorrectCount(nextCorrect);
-    setPhase(wasCorrect ? 'xp-correct' : 'xp-incorrect');
-    if (wasCorrect) {
-      // hold corrected count for use in finishLesson if this is last exercise
+  function finishRound(finalMissed: number[]) {
+    // First pass through the whole lesson — record it (XP, streak, etc.).
+    if (roundQueue === null) {
+      finishLesson(finalMissed);
+      return;
     }
-    return nextCorrect;
+    // Retry round: the learner only replayed the questions they had missed.
+    if (finalMissed.length === 0) {
+      // Caught up on every outstanding question. Re-send the completion as a
+      // perfect score so the stored record reflects it — this is idempotent
+      // and awards no extra XP, so keep the XP captured on the first pass.
+      completeLesson({ lessonId: lessonId!, correctCount: total, totalCount: total });
+      setPhase('success');
+      return;
+    }
+    // Still missed some — back to the failure screen. Try again will replay
+    // the now-smaller set.
+    setPhase('failure');
   }
 
-  function handleXpContinue() {
-    const isLast = index + 1 >= total;
-    if (isLast) {
-      finishLesson(correctCount);
-    } else {
-      setIndex(index + 1);
-      setPhase('exercise');
-    }
+  // Answering a question moves straight to the next one (or the result screen).
+  // There's no per-question XP interstitial — XP is only shown cumulatively on
+  // the success screen once the practice is finished.
+  function handleExerciseContinue(wasCorrect: boolean) {
+    const nextMissed =
+      wasCorrect || missed.includes(currentExerciseIndex)
+        ? missed
+        : [...missed, currentExerciseIndex];
+    if (!wasCorrect) setMissed(nextMissed);
+
+    const isLast = pos + 1 >= roundLen;
+    if (isLast) finishRound(nextMissed);
+    else setPos(pos + 1);
   }
 
   function handleClose() {
@@ -157,8 +185,10 @@ export default function LessonPracticeScreen() {
   }
 
   function handleTryAgain() {
-    setIndex(0);
-    setCorrectCount(0);
+    // Replay only the questions missed in the round just finished.
+    setRoundQueue(missed);
+    setPos(0);
+    setMissed([]);
     setPhase('exercise');
   }
 
@@ -176,6 +206,8 @@ export default function LessonPracticeScreen() {
   }
 
   if (phase === 'failure') {
+    // Cumulative across rounds: everything except the questions still outstanding.
+    const cumulativeCorrect = total - missed.length;
     return (
       <View style={styles.root}>
         <Stack.Screen options={{ headerShown: false }} />
@@ -183,9 +215,9 @@ export default function LessonPracticeScreen() {
           skillTitle={skillTitle}
           level={level}
           userName={user?.displayName?.split(' ')[0] ?? 'there'}
-          correctCount={correctCount}
+          correctCount={cumulativeCorrect}
           totalCount={total}
-          xpEarned={correctCount * perExerciseXp}
+          xpEarned={cumulativeCorrect * perExerciseXp}
           xpTarget={xpReward}
           progress={1}
           xpReward={xpReward}
@@ -196,21 +228,8 @@ export default function LessonPracticeScreen() {
     );
   }
 
-  if (phase === 'xp-correct' || phase === 'xp-incorrect') {
-    return (
-      <View style={styles.root}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <XpTransitionScreen
-          xp={phase === 'xp-correct' ? perExerciseXp : 0}
-          variant={phase === 'xp-correct' ? 'correct' : 'incorrect'}
-          onContinue={handleXpContinue}
-        />
-      </View>
-    );
-  }
-
   if (!current) return null;
-  const progress = (index + 1) / total;
+  const progress = roundLen > 0 ? (pos + 1) / roundLen : 0;
 
   return (
     <View style={styles.root}>

@@ -51,6 +51,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="lessons"
+        options={{
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'library' : 'library-outline'} size={24} color={color} />
+          ),
+          tabBarLabel: (props) => <TabLabel {...props} label="Lessons" />,
+        }}
+      />
+      <Tabs.Screen
         name="culture"
         options={{
           tabBarIcon: ({ color }) => (
@@ -68,7 +77,6 @@ export default function TabsLayout() {
           tabBarLabel: (props) => <TabLabel {...props} label="Profile" />,
         }}
       />
-      <Tabs.Screen name="lessons" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { LessonMeta, LessonStatus } from '@lexiroot/shared';
+import { LESSON_TYPE_LABELS } from '@lexiroot/shared';
 import { Lesson } from './entities/lesson.entity';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
@@ -128,6 +129,7 @@ export class LessonsService {
   }
 
   async create(dto: CreateLessonDto, createdById: string | null): Promise<LessonRow> {
+    await this.assertNoTypeClash(dto.language, dto.tier, dto.level, dto.type);
     const slug = await this.uniqueSlug(slugify(dto.title));
     const lesson = this.lessons.create({
       language: dto.language,
@@ -158,6 +160,23 @@ export class LessonsService {
       lesson.title = dto.title;
       lesson.slug = await this.uniqueSlug(slugify(dto.title), lesson.id);
     }
+    // Re-check the (language, tier, level, type) slot whenever any of those
+    // change — the curriculum allows only one lesson per type at a given level.
+    if (
+      dto.language !== undefined ||
+      dto.tier !== undefined ||
+      dto.level !== undefined ||
+      dto.type !== undefined
+    ) {
+      await this.assertNoTypeClash(
+        dto.language ?? lesson.language,
+        dto.tier ?? lesson.tier,
+        dto.level ?? lesson.level,
+        dto.type ?? lesson.type,
+        lesson.id,
+      );
+    }
+
     if (dto.language !== undefined) lesson.language = dto.language;
     if (dto.tier !== undefined) lesson.tier = dto.tier;
     if (dto.level !== undefined) lesson.level = dto.level;
@@ -177,6 +196,27 @@ export class LessonsService {
 
   async archive(id: string): Promise<LessonRow> {
     return this.update(id, { status: 'archived' });
+  }
+
+  // The mobile curriculum groups sub-lessons by (tier, level) and expects at
+  // most one lesson of each type per slot — two e.g. Vocabulary lessons at the
+  // same tier/level would both show up in a single level run. Guard against it.
+  private async assertNoTypeClash(
+    language: Lesson['language'],
+    tier: Lesson['tier'],
+    level: number,
+    type: Lesson['type'],
+    excludeId?: string,
+  ): Promise<void> {
+    const clash = await this.lessons.findOne({
+      where: { language, tier, level, type },
+    });
+    if (clash && clash.id !== excludeId) {
+      throw new ConflictException(
+        `A ${LESSON_TYPE_LABELS[type]} lesson already exists for ${tier} level ${level}. ` +
+          'Each tier and level can only have one lesson per type.',
+      );
+    }
   }
 
   private async uniqueSlug(base: string, excludeId?: string): Promise<string> {

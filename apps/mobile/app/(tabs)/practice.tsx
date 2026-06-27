@@ -31,7 +31,10 @@ const SKILL_TO_LESSON_TYPE: Record<SkillKey, LessonType> = {
 export default function PracticeTab() {
   const user = useAppSelector((s) => s.auth.user);
   const tier: LearningLevel = user?.level ?? 'beginner';
-  const lessonsQuery = useListLessonsQuery({ limit: 100 });
+  const lessonsQuery = useListLessonsQuery(
+    { limit: 100 },
+    { refetchOnMountOrArgChange: true },
+  );
   const progressQuery = useGetProgressQuery();
   // The card shows just the most recent proverb for the learner's tier — the
   // list endpoint already orders by created_at DESC, so the first item is it.

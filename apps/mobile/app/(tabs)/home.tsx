@@ -44,7 +44,12 @@ export default function Home() {
     refetchOnMountOrArgChange: true,
   });
   const { data: savedProgress } = useGetLessonProgressQuery();
-  const { data: lessonsPage } = useListLessonsQuery({ tier, limit: 100 });
+  // Refetch on mount so a lesson archived/added in admin is reflected next time
+  // Home opens (online); the cached list still backs offline use.
+  const { data: lessonsPage } = useListLessonsQuery(
+    { tier, limit: 100 },
+    { refetchOnMountOrArgChange: true },
+  );
   // The card shows just the most recent proverb for the learner's tier — the
   // list endpoint already orders by created_at DESC, so the first item is it.
   const { data: nuggetPage } = useListCulturalContentQuery({

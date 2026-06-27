@@ -118,11 +118,10 @@ export default function LevelPlayer() {
   const firstName = user?.displayName?.split(' ')[0] ?? 'friend';
   const hasUnlimited = useHasFeature('unlimited_lessons');
 
-  const { data: lessonsPage, isLoading: loadingList } = useListLessonsQuery({
-    tier,
-    level,
-    limit: 20,
-  });
+  const { data: lessonsPage, isLoading: loadingList } = useListLessonsQuery(
+    { tier, level, limit: 20 },
+    { refetchOnMountOrArgChange: true },
+  );
 
   // All sub-lessons at this (tier, level), in curriculum order:
   // letters-numbers → vocabulary → recognition → sentence. Missing types skip.
@@ -138,14 +137,13 @@ export default function LevelPlayer() {
   const [step, setStep] = useState<Step>({ kind: 'intro' });
   const [xp, setXp] = useState(0);
   const [correct, setCorrect] = useState(0);
-  // Running totals across every sub-lesson the user reaches in this level
-  // run. Used by the end-of-level Almost There screen to show aggregated
-  // correct/total — per-sub Almost There is suppressed.
-  const [levelCorrect, setLevelCorrect] = useState(0);
-  const [levelTotal, setLevelTotal] = useState(0);
-  // When true, advancing between sub-lessons skips intro + content and goes
-  // straight to the practice-intro/exercises. Set by retryLevel.
-  const [retryMode, setRetryMode] = useState(false);
+  // Retry is scoped to the current lesson type (sub-lesson). `subRoundQueue` is
+  // null on the first pass ("play every question in this sub"); a retry sets it
+  // to just the indices missed in this sub, so the learner re-does only those
+  // questions — for this lesson type — before moving on to the next one.
+  const [subRoundQueue, setSubRoundQueue] = useState<number[] | null>(null);
+  // Exercise indices missed in the round currently in progress for this sub.
+  const [subMissed, setSubMissed] = useState<number[]>([]);
 
   const currentSub = subLessons[subIdx];
 
@@ -157,6 +155,13 @@ export default function LevelPlayer() {
     currentSub?.id ?? '',
     { skip: !currentSub },
   );
+
+  // Exercise indices to present for the current sub-lesson: all of them on the
+  // first attempt, or just the missed subset while retrying this lesson type.
+  const subQueue = useMemo(() => {
+    if (!currentSub) return [];
+    return subRoundQueue ?? exercises.map((_, i) => i);
+  }, [subRoundQueue, currentSub, exercises]);
 
   // Resume state: refetch on every mount so a completion just persisted in
   // another screen (or a previous run of this player) is reflected as soon as
@@ -225,6 +230,9 @@ export default function LevelPlayer() {
     if (!currentSub) return;
     if (step.kind === 'next-unlocked' || step.kind === 'upgrade') return;
     if (levelAlreadyComplete) return;
+    // A retry plays a transient subset that isn't safe to resume into — don't
+    // persist it, the first-attempt resume row stays the source of truth.
+    if (subRoundQueue) return;
     const stepIndex = step.kind === 'content' || step.kind === 'exercise' ? step.index : 0;
     upsertProgress({
       tier,
@@ -236,7 +244,18 @@ export default function LevelPlayer() {
       correctCount: correct,
       xp,
     });
-  }, [step, subIdx, correct, xp, currentSub, tier, level, upsertProgress]);
+  }, [
+    step,
+    subIdx,
+    correct,
+    xp,
+    currentSub,
+    tier,
+    level,
+    upsertProgress,
+    levelAlreadyComplete,
+    subRoundQueue,
+  ]);
 
   // Per-exercise XP, derived from the admin-assigned lesson.xpReward.
   // 20 XP / 5 exercises = 4 XP each. Minimum 1 so something always shows.
@@ -292,74 +311,73 @@ export default function LevelPlayer() {
     }
   }
 
-  function advanceFromExercise(index: number, wasCorrect: boolean) {
-    const nextCorrect = correct + (wasCorrect ? 1 : 0);
+  function advanceFromExercise(posIndex: number, wasCorrect: boolean) {
+    const exerciseIdx = subQueue[posIndex];
     if (wasCorrect) {
       setXp((v) => v + xpPerCorrect);
-      setCorrect(nextCorrect);
+      setCorrect((c) => c + 1);
     }
-    if (index + 1 < exercises.length) {
-      setStep({ kind: 'exercise', index: index + 1 });
+    // Track questions missed in this lesson type's round so we can replay just
+    // those before moving on to the next type.
+    const nextMissed =
+      wasCorrect || subMissed.includes(exerciseIdx)
+        ? subMissed
+        : [...subMissed, exerciseIdx];
+    if (!wasCorrect) setSubMissed(nextMissed);
+
+    if (posIndex + 1 < subQueue.length) {
+      setStep({ kind: 'exercise', index: posIndex + 1 });
       return;
     }
-    // Sub's exercises done. Persist completion only if every exercise was
-    // correct — partial runs don't bank the lesson's xpReward. Always continue
-    // to 'complete'; per-sub Almost There is gone, we only show it at the end
-    // of the level after aggregating across sub-lessons.
-    if (currentSub && nextCorrect >= exercises.length) {
+    // Round for this lesson type is done. If anything was missed, retry just
+    // those questions for THIS type before advancing — Almost There gates the
+    // move to the next lesson type, not the whole level.
+    if (nextMissed.length > 0) {
+      setStep({ kind: 'almost-there' });
+      return;
+    }
+    // Sub fully correct → bank the completion (credits this sub's xpReward,
+    // idempotent server-side) and celebrate before moving on.
+    if (currentSub) {
       completeLesson({
         lessonId: currentSub.id,
-        correctCount: nextCorrect,
+        correctCount: exercises.length,
         totalCount: exercises.length,
       });
     }
     setStep({ kind: 'complete' });
   }
 
-  function retryLevel() {
-    // Restart the level — exercises only. Content stays skipped because the
-    // user already worked through it on the first pass, and the practice-intro
-    // is suppressed: they've just been told to try again, so we drop them
-    // straight into the questions.
-    setRetryMode(true);
-    setSubIdx(0);
-    setCorrect(0);
-    setLevelCorrect(0);
-    setLevelTotal(0);
-    setXp(0);
+  function retrySub() {
+    // Replay only the questions missed in this lesson type's round — content
+    // and the practice-intro stay skipped since they just did them.
+    setSubRoundQueue(subMissed);
+    setSubMissed([]);
     setStep({ kind: 'exercise', index: 0 });
   }
 
   function advanceAfterComplete() {
-    const nextLevelCorrect = levelCorrect + correct;
-    const nextLevelTotal = levelTotal + exercises.length;
-    setLevelCorrect(nextLevelCorrect);
-    setLevelTotal(nextLevelTotal);
+    // This lesson type is fully done. Reset its retry state and move on to the
+    // next type (which starts fresh with its own intro + content), or finish
+    // the level.
+    setSubRoundQueue(null);
+    setSubMissed([]);
+    setCorrect(0);
 
     if (subIdx + 1 < subLessons.length) {
-      // More sub-lessons in this level → reset per-sub correct count and
-      // step into the next one. In retry mode skip both content and
-      // practice-intro and drop straight into the next sub's exercises.
       setSubIdx((i) => i + 1);
-      setCorrect(0);
-      setStep(retryMode ? { kind: 'exercise', index: 0 } : { kind: 'intro' });
+      setStep({ kind: 'intro' });
       return;
     }
 
+    // Every lesson type in the level was completed (each gated on its own
+    // retry). Free learners hit the upgrade gate at the boundary level;
+    // everyone else advances to the next-unlocked celebration.
     if (isFreeBoundaryLevel(level, hasUnlimited)) {
       setStep({ kind: 'upgrade' });
       return;
     }
 
-    if (nextLevelTotal > 0 && nextLevelCorrect < nextLevelTotal) {
-      // Finished the last sub but missed at least one exercise — surface
-      // the aggregated Almost There so the user can retry the whole level.
-      setStep({ kind: 'almost-there' });
-      return;
-    }
-
-    // Perfect run (or level had no exercises) → drop the resume row and
-    // route to the next-unlocked celebration.
     clearProgress({ tier, level });
     setStep({ kind: 'next-unlocked' });
   }
@@ -451,14 +469,28 @@ export default function LevelPlayer() {
   }
 
   if (step.kind === 'exercise') {
-    const ex = exercises[step.index];
+    const ex = exercises[subQueue[step.index]];
     if (!ex) {
-      advanceFromExercise(step.index, true);
-      return null;
+      // A completion just invalidated the Lesson cache, so this sub's exercises
+      // may be mid-refetch — wait rather than skip (skipping here would drop
+      // the very questions a retry is meant to replay). Only once loading has
+      // settled and there's genuinely nothing to show do we let them continue.
+      return (
+        <SafeAreaView style={styles.root} edges={['top']}>
+          <Stack.Screen options={{ headerShown: false }} />
+          <View style={styles.loadingWrap}>
+            {loadingExercises ? (
+              <Text style={styles.loadingText}>Loading questions…</Text>
+            ) : (
+              <Button label="Continue" onPress={() => setStep({ kind: 'complete' })} />
+            )}
+          </View>
+        </SafeAreaView>
+      );
     }
     return (
       <ExerciseStep
-        key={`${currentSub.id}-${step.index}`}
+        key={`${currentSub.id}-${subQueue[step.index]}`}
         exercise={ex}
         lessonType={currentSub.type}
         levelNumber={level}
@@ -471,15 +503,19 @@ export default function LevelPlayer() {
   }
 
   if (step.kind === 'almost-there') {
+    // Stats are for this lesson type's round: how many of its questions are
+    // right vs. how many are still outstanding.
+    const subTotal = exercises.length;
+    const subCorrect = subTotal - subMissed.length;
     return (
       <AlmostThereScreen
         firstName={firstName}
-        correct={levelCorrect}
-        total={levelTotal}
+        correct={subCorrect}
+        total={subTotal}
         xpEarned={xp}
         nextLevel={level + 1}
         onClose={close}
-        onRetry={retryLevel}
+        onRetry={retrySub}
       />
     );
   }
