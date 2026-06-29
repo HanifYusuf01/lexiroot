@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { MascotIcon } from '../../components/icons/MascotIcon';
+import { AnimatedMascot } from '../../components/mascot/AnimatedMascot';
 import { colors, fonts, radius, spacing } from '../../constants/theme';
 
 interface LessonSuccessScreenProps {
@@ -22,7 +24,9 @@ export function LessonSuccessScreen({
         </Pressable>
       </View>
       <View style={styles.body}>
-        <Ionicons name="flash" size={120} color={colors.primary} />
+        <AnimatedMascot mood="happy">
+          <MascotIcon size={150} />
+        </AnimatedMascot>
         <Text style={styles.completed}>Lesson completed!</Text>
         <Text style={styles.xp}>+{xpEarned} XP</Text>
         <Text style={styles.encouragement}>Well done! You are making progress</Text>

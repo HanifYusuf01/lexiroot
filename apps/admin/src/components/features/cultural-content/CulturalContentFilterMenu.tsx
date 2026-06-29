@@ -76,6 +76,16 @@ export function CulturalContentFilterMenu({
             <div className="px-1 pb-1 text-[11px] font-bold uppercase tracking-wider text-neutral-variant">
               Language
             </div>
+            <button
+              type="button"
+              onClick={() => onLanguageChange(undefined)}
+              className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm text-neutral hover:bg-neutral-soft"
+            >
+              <span className={language === undefined ? 'font-bold text-primary' : ''}>
+                All Languages
+              </span>
+              {language === undefined ? <Check size={14} className="text-primary" /> : null}
+            </button>
             {LANGUAGE_CODES.map((code) => (
               <button
                 key={code}
@@ -95,6 +105,14 @@ export function CulturalContentFilterMenu({
             <div className="px-1 pb-1 text-[11px] font-bold uppercase tracking-wider text-neutral-variant">
               Level
             </div>
+            <button
+              type="button"
+              onClick={() => onTierChange(undefined)}
+              className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm text-neutral hover:bg-neutral-soft"
+            >
+              <span className={tier === undefined ? 'font-bold text-primary' : ''}>All Levels</span>
+              {tier === undefined ? <Check size={14} className="text-primary" /> : null}
+            </button>
             {LEARNING_LEVELS.map((value) => (
               <button
                 key={value}
@@ -114,6 +132,16 @@ export function CulturalContentFilterMenu({
             <div className="px-1 pb-1 text-[11px] font-bold uppercase tracking-wider text-neutral-variant">
               Status
             </div>
+            <button
+              type="button"
+              onClick={() => onStatusChange(undefined)}
+              className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm text-neutral hover:bg-neutral-soft"
+            >
+              <span className={status === undefined ? 'font-bold text-primary' : ''}>
+                All Statuses
+              </span>
+              {status === undefined ? <Check size={14} className="text-primary" /> : null}
+            </button>
             {CULTURAL_CONTENT_STATUSES.map((value) => (
               <button
                 key={value}

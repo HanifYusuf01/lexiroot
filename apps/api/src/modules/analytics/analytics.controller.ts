@@ -10,10 +10,12 @@ export class AnalyticsController {
   constructor(private readonly analytics: AnalyticsService) {}
 
   // Overview cards/charts power the dashboard home, which instructors can see.
+  // `from`/`to` are inclusive YYYY-MM-DD UTC days; both optional — defaults to
+  // the last 7 days.
   @Get('overview')
   @Roles('admin', 'instructor')
-  overview() {
-    return this.analytics.overview();
+  overview(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.analytics.overview(from, to);
   }
 
   // Full analytics dashboard. `from`/`to` are inclusive YYYY-MM-DD UTC days;

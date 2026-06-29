@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { DateRangePicker } from '../components/ui/DateRangePicker';
 import { SearchInput } from '../components/ui/SearchInput';
-import type { DateRange } from '../utils/format';
+import { useDebounce } from '../hooks/useDebounce';
+import { toISODate, type DateRange } from '../utils/format';
 import { LessonOverviewCard } from '../components/features/overview/LessonOverviewCard';
 import { OverviewStatsCards } from '../components/features/overview/OverviewStatsCards';
 import { RecentUsersCard } from '../components/features/overview/RecentUsersCard';
@@ -24,8 +25,12 @@ export function OverviewPage() {
   const isAdmin = user?.role === 'admin';
   const firstName = user?.displayName?.split(' ')[0] ?? '';
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search.trim(), 400);
   const [range, setRange] = useState<DateRange>(defaultRange);
-  const { data: overview, isLoading } = useGetAnalyticsOverviewQuery();
+  const { data: overview, isLoading } = useGetAnalyticsOverviewQuery({
+    from: toISODate(range.start),
+    to: toISODate(range.end),
+  });
 
   const stats = {
     totalUsers: overview?.totalUsers,
@@ -41,7 +46,9 @@ export function OverviewPage() {
         subtitle={`Welcome back${firstName ? ` ${firstName}` : ''}, here's what's happening with LexiRoot`}
         actions={
           <>
-            <SearchInput value={search} onChange={setSearch} />
+            {isAdmin ? (
+              <SearchInput value={search} onChange={setSearch} placeholder="Search users" />
+            ) : null}
             <DateRangePicker value={range} onApply={setRange} />
           </>
         }
@@ -58,7 +65,7 @@ export function OverviewPage() {
         </div>
         {isAdmin ? (
           <div className="lg:col-span-2">
-            <RecentUsersCard />
+            <RecentUsersCard search={debouncedSearch || undefined} />
           </div>
         ) : null}
         <div>

@@ -136,35 +136,25 @@ export default function LevelsIndex() {
                   : lvl.subs
                       .filter((s) => completedIds.has(s.id))
                       .reduce((sum, s) => sum + (s.xpReward ?? 0), 0);
-              const xpToUnlock = levels
-                .filter((entry) => entry.level < lvl.level)
-                .reduce(
-                  (sum, entry) =>
-                    sum + entry.subs.reduce((entrySum, s) => entrySum + (s.xpReward ?? 0), 0),
-                  0,
-                );
-              const unlocked = completed || active;
               return (
                 <LevelRow
                   key={lvl.level}
                   tier={tier}
                   level={lvl.level}
                   title={lvl.title}
-                  unlocked={unlocked}
                   completed={completed}
                   active={active}
                   currentXp={currentXp}
                   targetXp={targetXp || 1}
-                  xpToUnlock={xpToUnlock}
                   lessonsDone={lessonsDone}
                   lessonsTotal={lvl.subs.length}
                   downloadableIds={lvl.subs
                     .filter((s) => s.offlineAvailable)
                     .map((s) => s.id)}
-                  onPress={() => {
-                    if (!unlocked) return;
-                    router.push(`/levels/${tier}/${lvl.level}` as never);
-                  }}
+                  // Any level is navigable now — progression no longer gates
+                  // access. The player still applies the premium gate for free
+                  // users, and offline it loads from the downloaded cache.
+                  onPress={() => router.push(`/levels/${tier}/${lvl.level}` as never)}
                 />
               );
             })}
@@ -179,12 +169,10 @@ interface LevelRowProps {
   tier: LearningLevel;
   level: number;
   title: string;
-  unlocked: boolean;
   completed: boolean;
   active: boolean;
   currentXp: number;
   targetXp: number;
-  xpToUnlock: number;
   lessonsDone: number;
   lessonsTotal: number;
   downloadableIds: string[];
@@ -195,12 +183,10 @@ function LevelRow({
   tier,
   level,
   title,
-  unlocked,
   completed,
   active,
   currentXp,
   targetXp,
-  xpToUnlock,
   lessonsDone,
   lessonsTotal,
   downloadableIds,
@@ -263,15 +249,24 @@ function LevelRow({
       </Pressable>
     );
   }
+  // Upcoming level — no longer hard-locked. Tappable (the player applies the
+  // premium gate for free users) and downloadable ahead of time for offline.
   return (
-    <Pressable disabled={!unlocked} onPress={onPress} style={styles.lockedCard}>
-      <View style={styles.lockedBadge}>
-        <Ionicons name="lock-closed" size={16} color={colors.neutralVariant} />
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.lockedCard, pressed && styles.pressed]}
+    >
+      <View style={styles.upcomingBadge}>
+        <Text style={styles.upcomingBadgeText}>Lvl {level}</Text>
       </View>
       <View style={styles.lockedBody}>
-        <Text style={styles.lockedTitle}>Lvl {level}</Text>
-        <Text style={styles.lockedMeta}>Unlocks at {xpToUnlock} XP</Text>
+        <Text style={styles.lockedTitle} numberOfLines={1}>
+          {title}
+        </Text>
+        <Text style={styles.lockedMeta}>Download to learn offline anytime</Text>
       </View>
+      <DownloadLevelButton tier={tier} level={level} lessonIds={downloadableIds} />
+      <Ionicons name="chevron-forward" size={18} color={colors.neutralVariant} />
     </Pressable>
   );
 }
@@ -480,6 +475,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  upcomingBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.neutralVariant,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  upcomingBadgeText: {
+    fontFamily: fonts.extrabold,
+    fontSize: 12,
+    color: colors.white,
   },
   lockedBody: { flex: 1 },
   lockedTitle: {

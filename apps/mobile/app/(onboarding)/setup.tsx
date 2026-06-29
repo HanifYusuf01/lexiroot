@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { languageLabel, LEARNING_LEVEL_LABELS } from '@lexiroot/shared';
 import { Button } from '../../src/components/ui/Button';
 import { MascotIcon } from '../../src/components/icons/MascotIcon';
+import { AnimatedMascot } from '../../src/components/mascot/AnimatedMascot';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
 import { colors, fonts, spacing } from '../../src/constants/theme';
 import { useAppSelector } from '../../src/store/hooks';
@@ -27,7 +28,9 @@ export default function SetupScreen() {
     <ScreenContainer>
       <View style={styles.body}>
         <View style={styles.hero}>
-          <MascotIcon size={170} />
+          <AnimatedMascot mood="idle">
+            <MascotIcon size={170} />
+          </AnimatedMascot>
         </View>
         <Text style={styles.title}>We&apos;re setting things up for you...</Text>
         <View style={styles.summary}>

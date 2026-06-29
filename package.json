@@ -9,6 +9,7 @@
   "scripts": {
     "api:dev": "pnpm --filter @lexiroot/api start:dev",
     "admin:dev": "pnpm --filter @lexiroot/admin dev",
+    "web:dev": "pnpm --filter @lexiroot/web dev",
     "mobile:dev": "pnpm --filter @lexiroot/mobile start",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",

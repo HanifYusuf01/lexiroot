@@ -14,14 +14,22 @@ import {
 import { useListUsersQuery } from '../../../services/usersApi';
 import { formatDate } from '../../../utils/format';
 
-export function RecentUsersCard() {
-  const { data, isLoading } = useListUsersQuery({ page: 1, limit: 5 });
+interface RecentUsersCardProps {
+  /** When set, the card searches the user table instead of listing recent users. */
+  search?: string;
+}
+
+export function RecentUsersCard({ search }: RecentUsersCardProps) {
+  const searching = !!search;
+  const { data, isLoading } = useListUsersQuery({ page: 1, limit: searching ? 8 : 5, search });
   const rows = data?.items ?? [];
 
   return (
     <TableContainer>
       <div className="flex items-center justify-between px-4 py-4">
-        <h3 className="text-sm font-bold text-neutral">Recent Users</h3>
+        <h3 className="text-sm font-bold text-neutral">
+          {searching ? 'Search Results' : 'Recent Users'}
+        </h3>
         <Link to="/users" className="text-xs font-semibold text-primary hover:underline">
           View all Users →
         </Link>
@@ -46,7 +54,7 @@ export function RecentUsersCard() {
           ) : rows.length === 0 ? (
             <TableRow>
               <TableCell colSpan={5} className="py-6 text-center text-neutral-variant">
-                No users yet.
+                {searching ? `No users match “${search}”.` : 'No users yet.'}
               </TableCell>
             </TableRow>
           ) : (

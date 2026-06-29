@@ -16,6 +16,7 @@ import type {
 } from '@lexiroot/shared';
 import { MascotIcon } from '../../../src/components/icons/MascotIcon';
 import { MascotSadIcon } from '../../../src/components/icons/MascotSadIcon';
+import { AnimatedMascot } from '../../../src/components/mascot/AnimatedMascot';
 import { PadlockUnlockedIcon } from '../../../src/components/icons/PadlockUnlockedIcon';
 import { LessonContentCard } from '../../../src/components/lesson/LessonContentCard';
 import { LessonFullCenterScreen } from '../../../src/components/lesson/LessonFullCenterScreen';
@@ -458,7 +459,9 @@ export default function LevelPlayer() {
         }
       >
         <View style={styles.practiceMascot}>
-          <MascotIcon size={160} />
+          <AnimatedMascot mood="happy">
+            <MascotIcon size={160} />
+          </AnimatedMascot>
         </View>
         <Text style={styles.practiceTitle}>Let&apos;s Practice What{'\n'}You&apos;ve Learned</Text>
         <Text style={styles.heroBody}>
@@ -527,7 +530,9 @@ export default function LevelPlayer() {
         onClose={close}
         footer={<Button label="Continue" onPress={advanceAfterComplete} />}
       >
-        <Ionicons name="flash" size={92} color={colors.primary} />
+        <AnimatedMascot mood="happy" style={styles.completeMascot}>
+          <MascotIcon size={150} />
+        </AnimatedMascot>
         <Text style={styles.completeTitle}>Lesson completed!</Text>
         <Text style={styles.xpHero}>+{displayXp} XP</Text>
         <Text style={styles.completeBody}>Well done! You are making progress</Text>
@@ -845,7 +850,9 @@ function AlmostThereScreen({
 
       <View style={styles.almostBody}>
         <View style={styles.almostBubbleRow}>
-          <MascotSadIcon size={104} />
+          <AnimatedMascot mood="sad">
+            <MascotSadIcon size={104} />
+          </AnimatedMascot>
           <View style={styles.bubbleWrap}>
             <View style={styles.bubblePointer} />
             <View style={styles.bubble}>
@@ -1065,6 +1072,9 @@ const styles = StyleSheet.create({
     fontFamily: fonts.extrabold,
     fontSize: 40,
     color: colors.primary,
+  },
+  completeMascot: {
+    marginBottom: spacing.sm,
   },
   completeTitle: {
     fontFamily: fonts.bold,

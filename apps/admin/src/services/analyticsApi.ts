@@ -12,8 +12,11 @@ interface DashboardArgs {
 
 export const analyticsApi = api.injectEndpoints({
   endpoints: (build) => ({
-    getAnalyticsOverview: build.query<AnalyticsOverview, void>({
-      query: () => '/analytics/overview',
+    getAnalyticsOverview: build.query<AnalyticsOverview, DashboardArgs | void>({
+      query: (args) => ({
+        url: '/analytics/overview',
+        params: { ...(args ?? {}) },
+      }),
       providesTags: ['Analytics'],
     }),
     getAnalyticsDashboard: build.query<AnalyticsDashboard, DashboardArgs | void>({

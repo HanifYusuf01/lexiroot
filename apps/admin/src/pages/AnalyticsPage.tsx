@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { BarChart3 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { DateRangePicker } from '../components/ui/DateRangePicker';
-import { SearchInput } from '../components/ui/SearchInput';
 import { AnalyticsStatsCards } from '../components/features/analytics/AnalyticsStatsCards';
 import { LessonsByCategoryCard } from '../components/features/analytics/LessonsByCategoryCard';
 import { ProgressByLevelChart } from '../components/features/analytics/ProgressByLevelChart';
@@ -31,7 +30,6 @@ function ymd(d: Date): string {
 
 export function AnalyticsPage() {
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
   const [range, setRange] = useState<DateRange>(defaultRange);
 
   const { from, to } = useMemo(() => ({ from: ymd(range.start), to: ymd(range.end) }), [range]);
@@ -42,13 +40,11 @@ export function AnalyticsPage() {
       <PageHeader
         title="Analytics"
         subtitle="Track performance, engagement and learning outcomes across LexiRoot."
-        actions={
-          <>
-            <SearchInput value={search} onChange={setSearch} />
-            <DateRangePicker value={range} onApply={setRange} />
-          </>
-        }
       />
+
+      <div className="flex justify-end">
+        <DateRangePicker value={range} onApply={setRange} />
+      </div>
 
       <AnalyticsStatsCards kpis={data?.kpis} loading={isLoading} />
 

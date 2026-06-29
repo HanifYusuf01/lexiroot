@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
-  ACTIVE_WINDOW_DAYS,
   LEARNING_LEVELS,
   LEARNING_LEVEL_LABELS,
   LESSON_TYPES,
@@ -92,12 +91,6 @@ function pctChange(curr: number, prev: number): { changePercent: number; up: boo
   return { changePercent: Math.round(change * 10) / 10, up: change >= 0 };
 }
 
-interface DailyRow {
-  day: string;
-  active: string;
-  new_users: string;
-}
-
 interface LangRow {
   language: string | null;
   count: string;
@@ -108,12 +101,6 @@ interface LessonRow {
   title: string;
   tier: string;
   completions: string;
-}
-
-function activeCutoff(): Date {
-  const d = new Date();
-  d.setDate(d.getDate() - ACTIVE_WINDOW_DAYS);
-  return d;
 }
 
 function daysAgo(n: number): Date {
@@ -144,7 +131,13 @@ export class AnalyticsService {
     private readonly languages: Repository<Language>,
   ) {}
 
-  async overview(): Promise<AnalyticsOverview> {
+  async overview(fromStr?: string, toStr?: string): Promise<AnalyticsOverview> {
+    const today = daysAgo(0);
+    const to = parseDayUtc(toStr) ?? today;
+    let from = parseDayUtc(fromStr) ?? addDaysUtc(to, -(ACTIVITY_WINDOW_DAYS - 1));
+    if (from > to) from = addDaysUtc(to, -(ACTIVITY_WINDOW_DAYS - 1));
+    const toEndExcl = addDaysUtc(to, 1);
+
     const [
       totalUsers,
       activeUsers,
@@ -154,11 +147,14 @@ export class AnalyticsService {
       topLanguages,
       topLessons,
     ] = await Promise.all([
-      this.users.count(),
-      this.countActiveUsers(),
-      this.completions.count(),
-      this.sumXp(),
-      this.dailyActivity(),
+      // "Total users" stays a running total — everyone registered by the end of
+      // the selected window.
+      this.countUsersAsOf(toEndExcl),
+      this.distinctActiveUsers(from, to),
+      this.countCompletionsBetween(from, toEndExcl),
+      this.sumXpBetween(from, toEndExcl),
+      this.dailyActivityBetween(from, to),
+      // Top languages / lessons are all-time distribution cards, not time-series.
       this.topLanguages(),
       this.topLessons(),
     ]);
@@ -174,87 +170,11 @@ export class AnalyticsService {
     };
   }
 
-  private async countActiveUsers(): Promise<number> {
+  private async countUsersAsOf(endExcl: Date): Promise<number> {
     return this.users
       .createQueryBuilder('user')
-      .where('user.last_active_at IS NOT NULL AND user.last_active_at >= :cutoff', {
-        cutoff: activeCutoff(),
-      })
+      .where('user.created_at < :end', { end: endExcl })
       .getCount();
-  }
-
-  private async sumXp(): Promise<number> {
-    const result = await this.users
-      .createQueryBuilder('user')
-      .select('COALESCE(SUM(user.xp), 0)', 'total')
-      .getRawOne<{ total: string }>();
-    return Number(result?.total ?? 0);
-  }
-
-  private async dailyActivity(): Promise<AnalyticsDailyActivityPoint[]> {
-    const start = daysAgo(ACTIVITY_WINDOW_DAYS - 1);
-
-    const active: DailyRow[] = await this.users.query(
-      `
-        SELECT to_char(day, 'YYYY-MM-DD') AS day,
-               COUNT(DISTINCT user_id)::text AS active,
-               '0' AS new_users
-        FROM (
-          SELECT "id" AS user_id, date_trunc('day', "last_active_at" AT TIME ZONE 'UTC') AS day
-          FROM "users"
-          WHERE "last_active_at" >= $1
-
-          UNION ALL
-
-          SELECT "user_id" AS user_id, date_trunc('day', "completed_at" AT TIME ZONE 'UTC') AS day
-          FROM "lesson_completions"
-          WHERE "completed_at" >= $1
-
-          UNION ALL
-
-          SELECT "user_id" AS user_id, date_trunc('day', "updated_at" AT TIME ZONE 'UTC') AS day
-          FROM "lesson_progress"
-          WHERE "updated_at" >= $1
-        ) activity
-        GROUP BY day
-        `,
-      [start],
-    );
-
-    const created: DailyRow[] = await this.users
-      .createQueryBuilder('user')
-      .select(`to_char(date_trunc('day', user.created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`, 'day')
-      .addSelect('0', 'active')
-      .addSelect('COUNT(*)', 'new_users')
-      .where('user.created_at >= :start', { start })
-      .groupBy('day')
-      .getRawMany();
-
-    const map = new Map<string, { active: number; newUsers: number }>();
-    for (const row of active) {
-      const e = map.get(row.day) ?? { active: 0, newUsers: 0 };
-      e.active = Number(row.active);
-      map.set(row.day, e);
-    }
-    for (const row of created) {
-      const e = map.get(row.day) ?? { active: 0, newUsers: 0 };
-      e.newUsers = Number(row.new_users);
-      map.set(row.day, e);
-    }
-
-    const points: AnalyticsDailyActivityPoint[] = [];
-    for (let i = ACTIVITY_WINDOW_DAYS - 1; i >= 0; i--) {
-      const day = daysAgo(i);
-      const key = day.toISOString().slice(0, 10);
-      const e = map.get(key) ?? { active: 0, newUsers: 0 };
-      points.push({
-        date: key,
-        label: shortLabel(day),
-        active: e.active,
-        newUsers: e.newUsers,
-      });
-    }
-    return points;
   }
 
   private async topLanguages(): Promise<AnalyticsTopLanguage[]> {

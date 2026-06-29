@@ -64,6 +64,16 @@ export function LessonFilterMenu({
             <div className="px-1 pb-1 text-[11px] font-bold uppercase tracking-wider text-neutral-variant">
               Language
             </div>
+            <button
+              type="button"
+              onClick={() => onLanguageChange(undefined)}
+              className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm text-neutral hover:bg-neutral-soft"
+            >
+              <span className={language === undefined ? 'font-bold text-primary' : ''}>
+                All Languages
+              </span>
+              {language === undefined ? <Check size={14} className="text-primary" /> : null}
+            </button>
             {LANGUAGE_CODES.map((code) => (
               <button
                 key={code}
@@ -83,6 +93,14 @@ export function LessonFilterMenu({
             <div className="px-1 pb-1 text-[11px] font-bold uppercase tracking-wider text-neutral-variant">
               Tier
             </div>
+            <button
+              type="button"
+              onClick={() => onTierChange(undefined)}
+              className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm text-neutral hover:bg-neutral-soft"
+            >
+              <span className={tier === undefined ? 'font-bold text-primary' : ''}>All Tiers</span>
+              {tier === undefined ? <Check size={14} className="text-primary" /> : null}
+            </button>
             {LEARNING_LEVELS.map((value) => (
               <button
                 key={value}

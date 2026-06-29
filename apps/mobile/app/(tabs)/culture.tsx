@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, spacing } from '../../src/constants/theme';
 import { MascotIcon } from '../../src/components/icons/MascotIcon';
+import { AnimatedMascot } from '../../src/components/mascot/AnimatedMascot';
 import { CultureContentCard } from '../../src/components/culture/CultureContentCard';
 import { useListCulturalContentQuery } from '../../src/services/culturalContentApi';
 
@@ -31,7 +32,9 @@ export default function CultureTab() {
             </Text>
           </View>
           <View style={styles.mascot}>
-            <MascotIcon size={110} />
+            <AnimatedMascot mood="idle">
+              <MascotIcon size={110} />
+            </AnimatedMascot>
           </View>
         </View>
 

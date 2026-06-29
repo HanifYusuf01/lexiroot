@@ -62,6 +62,17 @@ export interface DateRange {
   end: Date;
 }
 
+/**
+ * Local calendar date as `YYYY-MM-DD`. Uses local Y/M/D (not toISOString, which
+ * shifts by timezone) so the day the user picked is the day sent to the API.
+ */
+export function toISODate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 /** "May 12 - May 18, 2025" / "Dec 28, 2025 - Jan 3, 2026" */
 export function formatDateRange({ start, end }: DateRange): string {
   const sameYear = start.getFullYear() === end.getFullYear();

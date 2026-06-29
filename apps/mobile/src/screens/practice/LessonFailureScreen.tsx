@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ExerciseTopBar } from '../../components/exercise/ExerciseTopBar';
 import { MascotSadIcon } from '../../components/icons/MascotSadIcon';
+import { AnimatedMascot } from '../../components/mascot/AnimatedMascot';
 import { colors, fonts, radius, spacing } from '../../constants/theme';
 
 interface LessonFailureScreenProps {
@@ -44,7 +45,9 @@ export function LessonFailureScreen({
       <View style={styles.body}>
         <View style={styles.mascotRow}>
           <View style={styles.mascotBox}>
-            <MascotSadIcon size={80} />
+            <AnimatedMascot mood="sad">
+              <MascotSadIcon size={80} />
+            </AnimatedMascot>
           </View>
           <View style={[styles.bubble, { borderColor: colors.primaryBorder }]}>
             <Text style={styles.bubbleText}>

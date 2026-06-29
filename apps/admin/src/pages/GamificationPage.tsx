@@ -1,7 +1,5 @@
 import { Link } from 'react-router-dom';
 import { PageHeader } from '../components/layout/PageHeader';
-import { DateRangePicker } from '../components/ui/DateRangePicker';
-import { SearchInput } from '../components/ui/SearchInput';
 import { GamificationStatsCards } from '../components/features/gamification/GamificationStatsCards';
 import { StreakOverviewCard } from '../components/features/gamification/StreakOverviewCard';
 import { TopXpEarnersTable } from '../components/features/gamification/TopXpEarnersTable';
@@ -11,16 +9,6 @@ import {
   useGamificationStatsQuery,
   useTopEarnersQuery,
 } from '../services/gamificationApi';
-import { useState } from 'react';
-import type { DateRange } from '../utils/format';
-
-function defaultRange(): DateRange {
-  const end = new Date();
-  end.setHours(0, 0, 0, 0);
-  const start = new Date(end);
-  start.setDate(end.getDate() - 6);
-  return { start, end };
-}
 
 export function GamificationPage() {
   const { data: stats, isLoading: statsLoading } = useGamificationStatsQuery();
@@ -28,20 +16,12 @@ export function GamificationPage() {
     page: 1,
     limit: 5,
   });
-  const [search, setSearch] = useState('');
-  const [range, setRange] = useState<DateRange>(defaultRange);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Gamification"
         subtitle="Track learner motivation and engagement through gamified activities."
-        actions={
-          <>
-            <SearchInput value={search} onChange={setSearch} />
-            <DateRangePicker value={range} onApply={setRange} />
-          </>
-        }
       />
 
       <GamificationStatsCards />
