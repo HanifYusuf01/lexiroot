@@ -12,6 +12,7 @@ import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangePendingEmailDto } from './dto/change-pending-email.dto';
+import { GoogleAuthDto } from './dto/google-auth.dto';
 import { LoginDto } from './dto/login.dto';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
@@ -35,6 +36,12 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto);
+  }
+
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  google(@Body() dto: GoogleAuthDto) {
+    return this.auth.googleAuth(dto.idToken);
   }
 
   @Post('verify-email')

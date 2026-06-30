@@ -6,9 +6,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
+import { OAuth2Client } from 'google-auth-library';
 import { randomInt } from 'crypto';
 import { UsersService } from '../users/users.service';
 import { LanguagesService } from '../languages/languages.service';
@@ -57,6 +59,11 @@ export interface AuthResponse {
   };
 }
 
+export interface GoogleAuthResponse extends AuthResponse {
+  /** True when this Google sign-in just created the account (routes to onboarding). */
+  isNewUser: boolean;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -66,8 +73,19 @@ export class AuthService {
     private readonly email: EmailService,
     private readonly languagesService: LanguagesService,
     private readonly platformSettings: PlatformSettingsService,
+    private readonly config: ConfigService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
+
+  private readonly googleClient = new OAuth2Client();
+
+  /** Accepted audiences for Google ID tokens (web + iOS OAuth client IDs). */
+  private googleAudiences(): string[] {
+    return [
+      this.config.get<string>('GOOGLE_CLIENT_ID_WEB'),
+      this.config.get<string>('GOOGLE_CLIENT_ID_IOS'),
+    ].filter((id): id is string => !!id);
+  }
 
   /** Rejects a language code that isn't a connected language in the catalog. */
   private async assertSelectableLanguage(code: string | undefined): Promise<void> {
@@ -126,6 +144,11 @@ export class AuthService {
       );
     }
 
+    // Social-only accounts (Google) have no local password.
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('Use Google sign-in for this account');
+    }
+
     const passwordMatches = await bcrypt.compare(dto.password, user.passwordHash);
     if (!passwordMatches) {
       const { maxFailedLoginAttempts } = await this.platformSettings.getCached();
@@ -152,6 +175,52 @@ export class AuthService {
     await this.users.touchActivity(user.id);
     user.lastActiveAt = new Date();
     return this.toAuthResponse(user);
+  }
+
+  /**
+   * Verifies a Google ID token, then finds or creates the matching user and
+   * issues our own JWT session. New accounts come back with `isNewUser: true`
+   * so the client can route them through onboarding.
+   */
+  async googleAuth(idToken: string): Promise<GoogleAuthResponse> {
+    const audience = this.googleAudiences();
+    if (audience.length === 0) {
+      throw new BadRequestException('Google sign-in is not configured');
+    }
+
+    let payload;
+    try {
+      const ticket = await this.googleClient.verifyIdToken({ idToken, audience });
+      payload = ticket.getPayload();
+    } catch {
+      throw new UnauthorizedException('Invalid Google token');
+    }
+    if (!payload?.email || !payload.email_verified || !payload.sub) {
+      throw new UnauthorizedException('Google account is missing a verified email');
+    }
+
+    const email = payload.email.toLowerCase();
+    const existing = await this.users.findByEmail(email);
+    if (existing) {
+      // Link the Google identity on first social sign-in for an email account.
+      if (!existing.googleId) {
+        await this.users.update(existing.id, { googleId: payload.sub });
+        existing.googleId = payload.sub;
+      }
+      const session = await this.issueSession(existing);
+      return { ...session, isNewUser: false };
+    }
+
+    const created = await this.users.create({
+      email,
+      displayName: payload.name ?? email.split('@')[0],
+      googleId: payload.sub,
+      avatarUrl: payload.picture ?? null,
+      passwordHash: null,
+      emailVerifiedAt: new Date(),
+    });
+    const session = await this.issueSession(created);
+    return { ...session, isNewUser: true };
   }
 
   async verifyEmail(dto: VerifyEmailDto): Promise<AuthResponse> {
@@ -278,6 +347,9 @@ export class AuthService {
   async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
     const user = await this.users.findById(userId);
     if (!user) throw new UnauthorizedException();
+    if (!user.passwordHash) {
+      throw new BadRequestException('This account has no password. It was created with Google.');
+    }
     const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
     if (!valid) throw new UnauthorizedException('Current password is incorrect');
     const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);

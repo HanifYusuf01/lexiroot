@@ -15,7 +15,8 @@ import { UpdateUserDto } from './dto/update-user.dto';
 interface CreateUserInput {
   email: string;
   displayName: string;
-  passwordHash: string;
+  passwordHash?: string | null;
+  googleId?: string | null;
   role?: UserRole;
   language?: LanguageCode | null;
   level?: LearningLevel | null;
@@ -128,12 +129,14 @@ export class UsersService {
     const user = this.users.create({
       email: data.email.toLowerCase(),
       displayName: data.displayName,
-      passwordHash: data.passwordHash,
+      passwordHash: data.passwordHash ?? null,
+      googleId: data.googleId ?? null,
       role: data.role ?? 'user',
       language: data.language ?? null,
       level: data.level ?? null,
       learningReason: data.learningReason ?? null,
       country: data.country ?? null,
+      avatarUrl: data.avatarUrl ?? null,
       emailVerifiedAt: data.emailVerifiedAt ?? null,
       lastActiveAt: new Date(),
     });

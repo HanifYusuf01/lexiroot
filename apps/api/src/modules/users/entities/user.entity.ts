@@ -27,9 +27,16 @@ export class User {
   @Column({ name: 'display_name' })
   displayName!: string;
 
+  // Null for accounts created via a social provider (e.g. Google), which have
+  // no local password.
   @Exclude()
-  @Column({ name: 'password_hash' })
-  passwordHash!: string;
+  @Column({ name: 'password_hash', type: 'varchar', nullable: true })
+  passwordHash!: string | null;
+
+  // Google account subject id ("sub") for users who signed in with Google.
+  @Index({ unique: true })
+  @Column({ name: 'google_id', type: 'varchar', nullable: true })
+  googleId!: string | null;
 
   @Column({ type: 'varchar', length: 20, default: 'user' })
   role!: UserRole;

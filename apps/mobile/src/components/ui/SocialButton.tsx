@@ -11,13 +11,22 @@ interface SocialButtonProps {
   iconColor?: string;
   icon?: ReactNode;
   onPress?: () => void;
+  disabled?: boolean;
 }
 
-export function SocialButton({ label, iconName, iconColor, icon, onPress }: SocialButtonProps) {
+export function SocialButton({
+  label,
+  iconName,
+  iconColor,
+  icon,
+  onPress,
+  disabled,
+}: SocialButtonProps) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+      disabled={disabled}
+      style={({ pressed }) => [styles.button, pressed && styles.pressed, disabled && styles.disabled]}
     >
       <View style={styles.iconWrap}>
         {icon
@@ -46,6 +55,9 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.85,
+  },
+  disabled: {
+    opacity: 0.5,
   },
   iconWrap: {
     width: 22,

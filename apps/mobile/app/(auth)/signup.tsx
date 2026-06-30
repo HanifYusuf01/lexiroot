@@ -4,10 +4,19 @@ import { GoogleIcon } from '../../src/components/icons/GoogleIcon';
 import { MascotHeadIcon } from '../../src/components/icons/MascotHeadIcon';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
 import { SocialButton } from '../../src/components/ui/SocialButton';
+import { useGoogleSignIn } from '../../src/hooks/useGoogleSignIn';
 import { colors, fonts, spacing } from '../../src/constants/theme';
 
 export default function SignupOptions() {
   const router = useRouter();
+  const { signIn: googleSignIn, loading: googleLoading, error: googleError } = useGoogleSignIn();
+
+  async function handleGoogle() {
+    const result = await googleSignIn();
+    if (result) {
+      router.replace(result.isNewUser ? '/intro' : '/home');
+    }
+  }
 
   return (
     <ScreenContainer showBack>
@@ -18,7 +27,13 @@ export default function SignupOptions() {
         <Text style={styles.title}>Create your{'\n'}LexiRoot account</Text>
       </View>
       <View style={styles.options}>
-        <SocialButton label="Continue with Google" icon={<GoogleIcon size={20} />} onPress={() => {}} />
+        <SocialButton
+          label={googleLoading ? 'Signing in…' : 'Continue with Google'}
+          icon={<GoogleIcon size={20} />}
+          onPress={handleGoogle}
+          disabled={googleLoading}
+        />
+        {googleError ? <Text style={styles.error}>{googleError}</Text> : null}
         <SocialButton label="Continue with Apple" iconName="logo-apple" onPress={() => {}} />
         <SocialButton
           label="Sign up with Email"
@@ -59,6 +74,12 @@ const styles = StyleSheet.create({
   },
   options: {
     gap: spacing.sm,
+  },
+  error: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.error,
+    textAlign: 'center',
   },
   divider: {
     flexDirection: 'row',

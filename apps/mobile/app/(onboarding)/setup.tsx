@@ -6,6 +6,7 @@ import { MascotIcon } from '../../src/components/icons/MascotIcon';
 import { AnimatedMascot } from '../../src/components/mascot/AnimatedMascot';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
 import { colors, fonts, spacing } from '../../src/constants/theme';
+import { useUpdateMeMutation } from '../../src/services/authApi';
 import { useAppSelector } from '../../src/store/hooks';
 import {
   LearningReason,
@@ -22,7 +23,29 @@ const REASON_LABEL: Record<LearningReason, string> = {
 
 export default function SetupScreen() {
   const router = useRouter();
-  const { reason, level, language } = useAppSelector((s) => s.onboarding);
+  const { reason, level, language, country } = useAppSelector((s) => s.onboarding);
+  const token = useAppSelector((s) => s.auth.token);
+  const [updateMe, { isLoading: saving }] = useUpdateMeMutation();
+
+  async function handleContinue() {
+    // Email signup hasn't created an account yet — collect credentials next.
+    if (!token) {
+      router.push('/signup-email');
+      return;
+    }
+    // Google users already have an account; persist their onboarding picks.
+    try {
+      await updateMe({
+        country: country ?? undefined,
+        reason: reason ?? undefined,
+        level: level ? toBackendLevel(level) : undefined,
+        language: language ?? undefined,
+      }).unwrap();
+      router.replace('/creating-path');
+    } catch {
+      // Stay on the screen so the user can retry the save.
+    }
+  }
 
   return (
     <ScreenContainer>
@@ -54,7 +77,7 @@ export default function SetupScreen() {
           ) : null}
         </View>
       </View>
-      <Button label="Continue" onPress={() => router.push('/signup-email')} />
+      <Button label={saving ? 'Saving…' : 'Continue'} onPress={handleContinue} disabled={saving} />
     </ScreenContainer>
   );
 }
