@@ -10,11 +10,9 @@ interface CheckButtonProps {
   onPress?: () => void;
 }
 
-export function CheckButton({ label = 'Check', state, theme, onPress }: CheckButtonProps) {
+export function CheckButton({ label = 'Check', state, theme: _theme, onPress }: CheckButtonProps) {
   let background: string = colors.neutralSoft;
   let textColor: string = colors.neutralVariant;
-  let borderColor: string | undefined;
-  let borderWidth = 0;
 
   if (state === 'active') {
     background = colors.primary;
@@ -33,7 +31,7 @@ export function CheckButton({ label = 'Check', state, theme, onPress }: CheckBut
       disabled={state === 'disabled'}
       style={({ pressed }) => [
         styles.btn,
-        { backgroundColor: background, borderColor, borderWidth },
+        { backgroundColor: background },
         pressed && state !== 'disabled' && styles.pressed,
       ]}
     >

@@ -42,7 +42,6 @@ export function Hero() {
             alt="LexiRoot app onboarding screen"
             className="hero-device-image"
           />
-          <span className="hero-device-line" aria-hidden="true" />
         </div>
       </div>
 

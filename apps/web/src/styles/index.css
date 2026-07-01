@@ -84,18 +84,6 @@
     filter: drop-shadow(0 10px 9px rgb(0 0 0 / 0.18));
   }
 
-  .hero-device-line {
-    position: absolute;
-    left: 66%;
-    top: 73%;
-    width: 21rem;
-    height: 1px;
-    background: #151515;
-    transform: rotate(-51deg);
-    transform-origin: left center;
-    z-index: 2;
-  }
-
   @media (max-width: 767px) {
     .hero-device-stage {
       height: 29rem;
@@ -109,10 +97,6 @@
       height: 28rem;
     }
 
-    .hero-device-line {
-      left: 64%;
-      width: 17rem;
-    }
   }
 
   @media (max-width: 420px) {
@@ -128,8 +112,5 @@
       height: 23rem;
     }
 
-    .hero-device-line {
-      width: 14rem;
-    }
   }
 }
