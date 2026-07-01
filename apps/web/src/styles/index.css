@@ -51,5 +51,85 @@
 
   body {
     @apply bg-white font-sans text-neutral antialiased;
+    overflow-x: hidden;
+  }
+}
+
+@layer components {
+  .hero-device-stage {
+    position: relative;
+    display: flex;
+    width: min(100%, 38rem);
+    height: 36rem;
+    align-items: center;
+    justify-content: center;
+    isolation: isolate;
+  }
+
+  .hero-device-blob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 32.5rem;
+    color: #ed5033;
+    transform: translate(-52%, -48%);
+    z-index: -2;
+  }
+
+  .hero-device-image {
+    position: relative;
+    width: auto;
+    height: 34.5rem;
+    object-fit: contain;
+    filter: drop-shadow(0 10px 9px rgb(0 0 0 / 0.18));
+  }
+
+  .hero-device-line {
+    position: absolute;
+    left: 66%;
+    top: 73%;
+    width: 21rem;
+    height: 1px;
+    background: #151515;
+    transform: rotate(-51deg);
+    transform-origin: left center;
+    z-index: 2;
+  }
+
+  @media (max-width: 767px) {
+    .hero-device-stage {
+      height: 29rem;
+    }
+
+    .hero-device-blob {
+      width: 27rem;
+    }
+
+    .hero-device-image {
+      height: 28rem;
+    }
+
+    .hero-device-line {
+      left: 64%;
+      width: 17rem;
+    }
+  }
+
+  @media (max-width: 420px) {
+    .hero-device-stage {
+      height: 24rem;
+    }
+
+    .hero-device-blob {
+      width: 22rem;
+    }
+
+    .hero-device-image {
+      height: 23rem;
+    }
+
+    .hero-device-line {
+      width: 14rem;
+    }
   }
 }

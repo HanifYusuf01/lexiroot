@@ -1,7 +1,8 @@
 import { Stack, router } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
-import { MascotPadlockIcon } from '../../src/components/icons/MascotPadlockIcon';
+import { UpgradeParrotIcon } from '../../src/components/icons/UpgradeParrotIcon';
 import { LessonFullCenterScreen } from '../../src/components/lesson/LessonFullCenterScreen';
+import { AnimatedMascot } from '../../src/components/mascot/AnimatedMascot';
 import { Button } from '../../src/components/ui/Button';
 import { colors, fonts, spacing } from '../../src/constants/theme';
 
@@ -27,7 +28,9 @@ export default function UpgradeHero() {
         }
       >
         <View style={styles.mascotWrap}>
-          <MascotPadlockIcon size={170} />
+          <AnimatedMascot mood="idle">
+            <UpgradeParrotIcon />
+          </AnimatedMascot>
         </View>
         <Text style={styles.title}>Go deeper with{'\n'}your roots</Text>
         <Text style={styles.body}>

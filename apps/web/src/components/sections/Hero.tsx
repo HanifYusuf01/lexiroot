@@ -25,18 +25,24 @@ export function Hero() {
           <StoreBadges className="mt-6" />
         </div>
 
-        <div className="relative flex justify-center">
-          {/* Organic brand blob sitting behind the device. */}
-          <div
-            className="absolute h-80 w-80 bg-primary/90"
-            style={{ borderRadius: '42% 58% 63% 37% / 47% 42% 58% 53%' }}
-            aria-hidden
-          />
+        <div className="hero-device-stage" aria-label="LexiRoot mobile app preview">
+          <svg
+            className="hero-device-blob"
+            viewBox="0 0 520 410"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M137 13C91 19 55 39 50 78C45 112 61 137 53 177C45 218 18 254 1 289C-21 334 12 371 60 361C90 355 111 354 139 359C176 366 207 390 251 397C296 405 332 375 366 364C402 352 438 358 455 326C466 304 464 272 470 245L512 100C523 62 499 30 461 27C424 23 402 40 365 40C330 40 307 23 272 15C229 5 179 7 137 13Z"
+              fill="currentColor"
+            />
+          </svg>
           <img
             src="/hero/app-screen.png"
             alt="LexiRoot app onboarding screen"
-            className="relative h-[460px] w-auto object-contain drop-shadow-2xl"
+            className="hero-device-image"
           />
+          <span className="hero-device-line" aria-hidden="true" />
         </div>
       </div>
 
