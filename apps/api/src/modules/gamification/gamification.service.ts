@@ -391,7 +391,7 @@ export class GamificationService {
     manager: EntityManager,
     userId: string,
     stats: { lessonsCompleted: number; xp: number; longestStreakDays: number },
-  ): Promise<void> {
+  ): Promise<Achievement[]> {
     const catalog = await manager.getRepository(Achievement).find();
     const eligible = catalog.filter((a) => {
       switch (a.kind) {
@@ -405,15 +405,20 @@ export class GamificationService {
           return false;
       }
     });
-    if (eligible.length === 0) return;
+    if (eligible.length === 0) return [];
 
-    // Single multi-row insert; ON CONFLICT skips already-earned rows.
+    // Single multi-row insert; ON CONFLICT skips already-earned rows. RETURNING
+    // yields only the rows actually inserted, so the caller learns exactly
+    // which achievements are newly unlocked (for push notifications, etc.).
     const values = eligible.map((_, i) => `($1, $${i + 2})`).join(', ');
     const params = [userId, ...eligible.map((a) => a.id)];
-    await manager.query(
+    const inserted: Array<{ achievement_id: string }> = await manager.query(
       `INSERT INTO user_achievements ("user_id", "achievement_id") VALUES ${values}
-       ON CONFLICT ("user_id", "achievement_id") DO NOTHING`,
+       ON CONFLICT ("user_id", "achievement_id") DO NOTHING
+       RETURNING "achievement_id"`,
       params,
     );
+    const newIds = new Set(inserted.map((r) => r.achievement_id));
+    return eligible.filter((a) => newIds.has(a.id));
   }
 }

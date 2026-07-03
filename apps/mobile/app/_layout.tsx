@@ -17,6 +17,7 @@ import {
 import { persistor, store } from '../src/store';
 import { useAppSelector } from '../src/store/hooks';
 import { useAuthBootstrap } from '../src/hooks/useAuthBootstrap';
+import { usePushNotificationsBootstrap } from '../src/hooks/usePushNotifications';
 import { startConnectivityMonitor } from '../src/services/connectivity';
 import { flushOutbox } from '../src/store/outboxFlush';
 import { SplashScreenView } from '../src/components/ui/SplashScreenView';
@@ -26,6 +27,7 @@ SplashScreen.preventAutoHideAsync();
 
 function Bootstrap({ children }: { children: ReactNode }) {
   useAuthBootstrap();
+  usePushNotificationsBootstrap();
   const hydrated = useAppSelector((s) => s.auth.hydrated);
 
   useEffect(() => {

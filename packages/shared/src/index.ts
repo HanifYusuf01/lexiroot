@@ -11,4 +11,5 @@ export * from './types/platform-settings.types';
 export * from './types/teaching-language.types';
 export * from './types/subscription-plan.types';
 export * from './types/admin-management.types';
+export * from './types/notification.types';
 export * from './constants';

@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { CulturalContentBody, CulturalContentType } from '@lexiroot/shared';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CulturalContent } from './entities/cultural-content.entity';
 import { CreateCulturalContentDto } from './dto/create-cultural-content.dto';
 import { UpdateCulturalContentDto } from './dto/update-cultural-content.dto';
@@ -71,9 +72,12 @@ function toRow(c: CulturalContent): CulturalContentRow {
 
 @Injectable()
 export class CulturalContentService {
+  private readonly logger = new Logger(CulturalContentService.name);
+
   constructor(
     @InjectRepository(CulturalContent)
     private readonly repo: Repository<CulturalContent>,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async paginate(query: ListCulturalContentQueryDto): Promise<PaginatedCulturalContent> {
@@ -188,6 +192,7 @@ export class CulturalContentService {
       createdById,
     });
     const saved = await this.repo.save(entity);
+    if (saved.status === 'published') this.announcePublished(saved);
     return this.getById(saved.id);
   }
 
@@ -206,19 +211,38 @@ export class CulturalContentService {
     if (dto.audioUrl !== undefined) c.audioUrl = dto.audioUrl ?? null;
     if (dto.audioFileName !== undefined) c.audioFileName = dto.audioFileName ?? null;
     if (dto.views !== undefined) c.views = dto.views;
+    let becamePublished = false;
     if (dto.status !== undefined) {
       if (dto.status === 'published' && c.status !== 'published') {
         c.publishedAt = new Date();
+        becamePublished = true;
       }
       c.status = dto.status;
     }
 
     await this.repo.save(c);
+    if (becamePublished) this.announcePublished(c);
     return this.getById(c.id);
   }
 
   async archive(id: string): Promise<CulturalContentRow> {
     return this.update(id, { status: 'archived' });
+  }
+
+  /**
+   * Fan a "new cultural content" push out to every opted-in learner. Fired
+   * fire-and-forget so the admin's save isn't blocked on the broadcast; the
+   * dedupe key (content id) makes republishing the same item a no-op.
+   */
+  private announcePublished(content: CulturalContent): void {
+    void this.notifications
+      .enqueueBroadcast('cultural_content_published', {
+        title: 'New cultural content 🌍',
+        body: content.titleEnglish,
+        data: { route: '/culture' },
+        dedupeKey: `cultural:${content.id}`,
+      })
+      .catch((err) => this.logger.error(`Cultural broadcast failed: ${String(err)}`));
   }
 }
 

@@ -18,6 +18,7 @@ import { JobsModule } from './jobs/jobs.module';
 import { LanguagesModule } from './modules/languages/languages.module';
 import { LessonEntriesModule } from './modules/lesson-entries/lesson-entries.module';
 import { LessonsModule } from './modules/lessons/lessons.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PlatformSettingsModule } from './modules/platform-settings/platform-settings.module';
 import { ProgressModule } from './modules/progress/progress.module';
 import { SettingsModule } from './modules/settings/settings.module';
@@ -50,6 +51,7 @@ import { UsersModule } from './modules/users/users.module';
     LessonEntriesModule,
     ProgressModule,
     SettingsModule,
+    NotificationsModule,
     FeedbackModule,
     UploadsModule,
     AnalyticsModule,

@@ -3,6 +3,7 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import type { LessonProgressState } from '@lexiroot/shared';
 import { GamificationService } from '../gamification/gamification.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { Lesson } from '../lessons/entities/lesson.entity';
 import { User } from '../users/entities/user.entity';
 import { UpsertLessonProgressDto } from './dto/upsert-lesson-progress.dto';
@@ -59,6 +60,7 @@ export class ProgressService {
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly gamification: GamificationService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async getActiveProgress(userId: string): Promise<LessonProgressState | null> {
@@ -131,7 +133,7 @@ export class ProgressService {
     const lesson = await this.lessons.findOne({ where: { id: lessonId } });
     if (!lesson) throw new NotFoundException('Lesson not found');
 
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const existing = await manager
         .getRepository(LessonCompletion)
         .findOne({ where: { userId, lessonId } });
@@ -185,13 +187,30 @@ export class ProgressService {
         });
       }
 
-      await this.gamification.awardForUser(manager, userId, {
+      const newAchievements = await this.gamification.awardForUser(manager, userId, {
         lessonsCompleted: user.lessonsCompleted ?? 0,
         xp: user.xp ?? 0,
         longestStreakDays: user.longestStreakDays ?? 0,
       });
 
-      return { completion, xpAwarded, streak, totalXp: user.xp };
+      return { completion, xpAwarded, streak, totalXp: user.xp, newAchievements };
     });
+
+    // Enqueue achievement pushes only after the transaction commits, so we
+    // never notify for an unlock that got rolled back. Enqueue itself honours
+    // the user's achievementAlerts toggle and is idempotent per achievement.
+    for (const achievement of result.newAchievements) {
+      await this.notifications.enqueue({
+        userId,
+        type: 'achievement_unlocked',
+        title: 'Achievement unlocked! 🏆',
+        body: `You earned "${achievement.title}".`,
+        data: { route: '/achievements' },
+        dedupeKey: `achievement:${userId}:${achievement.id}`,
+      });
+    }
+
+    const { completion, xpAwarded, streak, totalXp } = result;
+    return { completion, xpAwarded, streak, totalXp };
   }
 }

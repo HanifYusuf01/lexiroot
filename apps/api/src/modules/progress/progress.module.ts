@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { GamificationModule } from '../gamification/gamification.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { Lesson } from '../lessons/entities/lesson.entity';
 import { User } from '../users/entities/user.entity';
 import { LessonCompletion } from './entities/lesson-completion.entity';
@@ -12,6 +13,7 @@ import { ProgressService } from './progress.service';
   imports: [
     TypeOrmModule.forFeature([LessonCompletion, LessonProgress, Lesson, User]),
     GamificationModule,
+    NotificationsModule,
   ],
   controllers: [ProgressController],
   providers: [ProgressService],
