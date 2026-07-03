@@ -22,6 +22,7 @@ import { startConnectivityMonitor } from '../src/services/connectivity';
 import { flushOutbox } from '../src/store/outboxFlush';
 import { SplashScreenView } from '../src/components/ui/SplashScreenView';
 import { OfflineBanner } from '../src/components/ui/OfflineBanner';
+import { AppErrorBoundary } from '../src/components/ui/AppErrorBoundary';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -73,13 +74,15 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <Provider store={store}>
-        <PersistGate loading={<SplashScreenView />} persistor={persistor}>
-          <Bootstrap>
-            <Stack screenOptions={{ headerShown: false }} />
-          </Bootstrap>
-        </PersistGate>
-      </Provider>
+      <AppErrorBoundary>
+        <Provider store={store}>
+          <PersistGate loading={<SplashScreenView />} persistor={persistor}>
+            <Bootstrap>
+              <Stack screenOptions={{ headerShown: false }} />
+            </Bootstrap>
+          </PersistGate>
+        </Provider>
+      </AppErrorBoundary>
     </SafeAreaProvider>
   );
 }

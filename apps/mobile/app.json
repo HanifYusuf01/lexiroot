@@ -15,8 +15,8 @@
     "android": {
       "package": "com.lexiroot.mobile",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#F4F1E8"
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#E35336"
       }
     },
     "plugins": [
