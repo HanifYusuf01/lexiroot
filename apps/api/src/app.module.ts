@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { paymentsConfig } from './config/payments.config';
 import { LastActiveInterceptor } from './common/interceptors/last-active.interceptor';
 import { MaintenanceInterceptor } from './common/interceptors/maintenance.interceptor';
 import { RlsContextInterceptor } from './common/interceptors/rls-context.interceptor';
@@ -19,6 +20,7 @@ import { LanguagesModule } from './modules/languages/languages.module';
 import { LessonEntriesModule } from './modules/lesson-entries/lesson-entries.module';
 import { LessonsModule } from './modules/lessons/lessons.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { PlatformSettingsModule } from './modules/platform-settings/platform-settings.module';
 import { ProgressModule } from './modules/progress/progress.module';
 import { SettingsModule } from './modules/settings/settings.module';
@@ -28,7 +30,7 @@ import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, load: [paymentsConfig] }),
     ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -59,6 +61,7 @@ import { UsersModule } from './modules/users/users.module';
     LanguagesModule,
     PlatformSettingsModule,
     SubscriptionsModule,
+    PaymentsModule,
     JobsModule,
   ],
   providers: [

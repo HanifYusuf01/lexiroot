@@ -292,7 +292,8 @@ export default function LevelPlayer() {
   // Block entry to a premium level for free learners — they land on the upgrade
   // gate instead of playing it. (List/practice taps and deep links all pass here.)
   if (isPremiumLevel(level, hasUnlimited)) {
-    return <UpgradeGateScreen onClose={close} />;
+    // After upgrading, drop the learner into the level they were blocked from.
+    return <UpgradeGateScreen onClose={close} next={`/levels/${tier}/${level}`} />;
   }
 
   function advanceFromIntro() {
@@ -562,7 +563,8 @@ export default function LevelPlayer() {
   }
 
   // upgrade — free learner finished the free access level (see isFreeBoundaryLevel).
-  return <UpgradeGateScreen onClose={close} />;
+  // After upgrading, continue into the next level they just unlocked.
+  return <UpgradeGateScreen onClose={close} next={`/levels/${tier}/${level + 1}`} />;
 }
 
 // -- Content step ------------------------------------------------------------

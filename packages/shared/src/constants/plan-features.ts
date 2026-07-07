@@ -68,6 +68,20 @@ export type PlanFeatureKey = (typeof PLAN_FEATURES)[number]['key'];
 /** All valid feature keys — used for validation and selection. */
 export const PLAN_FEATURE_KEYS: readonly PlanFeatureKey[] = PLAN_FEATURES.map((f) => f.key);
 
+/**
+ * Feature keys every learner gets without a paid, entitled subscription. This is
+ * the entitlement fallback the API returns on `/auth/me` (and the mobile
+ * fallback) when a user has no active subscription. A paying user's entitlement
+ * comes from their plan's `features`; this is only the baseline.
+ */
+export const FREE_FEATURE_KEYS: readonly PlanFeatureKey[] = [
+  'practice_exercises',
+  'speech_practice',
+  'cultural_content',
+  'leaderboard',
+  'achievements',
+];
+
 const PLAN_FEATURE_LABELS: Record<string, string> = Object.fromEntries(
   PLAN_FEATURES.map((f) => [f.key, f.label]),
 );

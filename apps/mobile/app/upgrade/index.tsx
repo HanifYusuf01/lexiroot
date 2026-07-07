@@ -1,4 +1,4 @@
-import { Stack, router } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { UpgradeParrotIcon } from '../../src/components/icons/UpgradeParrotIcon';
 import { LessonFullCenterScreen } from '../../src/components/lesson/LessonFullCenterScreen';
@@ -7,6 +7,8 @@ import { Button } from '../../src/components/ui/Button';
 import { colors, fonts, spacing } from '../../src/constants/theme';
 
 export default function UpgradeHero() {
+  const { next } = useLocalSearchParams<{ next?: string }>();
+  const pricingHref = next ? `/upgrade/pricing?next=${encodeURIComponent(next)}` : '/upgrade/pricing';
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -20,10 +22,10 @@ export default function UpgradeHero() {
               onPress={() => router.back()}
             />
             <Button
-              label="Start Free Trial"
-              onPress={() => router.push('/upgrade/pricing' as never)}
+              label="See plans"
+              onPress={() => router.push(pricingHref as never)}
             />
-            <Text style={styles.fineprint}>7-day free trial · Cancel anytime</Text>
+            <Text style={styles.fineprint}>Cancel anytime</Text>
           </View>
         }
       >

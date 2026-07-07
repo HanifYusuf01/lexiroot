@@ -1,6 +1,8 @@
 import { CheckCircle2 } from 'lucide-react';
 import { planFeatureLabel, type SubscriptionPlan } from '@lexiroot/shared';
 import { formatCurrency } from '../../../utils/format';
+import { useSyncPlanProviderMutation } from '../../../services/subscriptionsApi';
+import { useToast } from '../../ui/Toast';
 
 interface PlanCardProps {
   plan: SubscriptionPlan;
@@ -9,6 +11,18 @@ interface PlanCardProps {
 }
 
 export function PlanCard({ plan, editing, onEdit }: PlanCardProps) {
+  const toast = useToast();
+  const [syncProvider, { isLoading: syncing }] = useSyncPlanProviderMutation();
+
+  const handleSync = async () => {
+    try {
+      await syncProvider({ planId: plan.id }).unwrap();
+      toast.success(`${plan.name} synced to Stripe — it's now purchasable`);
+    } catch {
+      toast.error('Could not sync plan to Stripe');
+    }
+  };
+
   return (
     <div
       className={`flex flex-col rounded-2xl border bg-white p-5 transition ${
@@ -43,13 +57,25 @@ export function PlanCard({ plan, editing, onEdit }: PlanCardProps) {
         ))}
       </ul>
 
-      <button
-        type="button"
-        onClick={onEdit}
-        className="mt-5 self-start rounded-lg border border-primary px-5 py-1.5 text-xs font-bold text-primary transition hover:bg-primary-soft"
-      >
-        Edit
-      </button>
+      <div className="mt-5 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="rounded-lg border border-primary px-5 py-1.5 text-xs font-bold text-primary transition hover:bg-primary-soft"
+        >
+          Edit
+        </button>
+        {plan.premium ? (
+          <button
+            type="button"
+            onClick={handleSync}
+            disabled={syncing}
+            className="rounded-lg border border-border px-5 py-1.5 text-xs font-bold text-neutral transition hover:bg-neutral-soft disabled:opacity-60"
+          >
+            {syncing ? 'Syncing…' : 'Sync to Stripe'}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

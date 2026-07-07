@@ -19,6 +19,7 @@ import { ManageAccountPage } from './pages/ManageAccountPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { SubscriptionsPage } from './pages/SubscriptionsPage';
 import { TopXpEarnersPage } from './pages/TopXpEarnersPage';
 import { UsersPage } from './pages/UsersPage';
 
@@ -46,6 +47,8 @@ export function App() {
     <Routes>
       <Route path="/login" element={token ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      {/* Hosted-checkout return pages live on the marketing website (apps/web),
+          not here — see apps/web/src/pages/SubscriptionReturn.tsx. */}
       <Route element={<ProtectedRoute />}>
         <Route element={<AdminLayout />}>
           <Route path="/" element={<OverviewPage />} />
@@ -55,6 +58,7 @@ export function App() {
           <Route path="/lessons/:id/edit" element={<LessonEditorPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/analytics/revenue" element={<RevenueAnalyticsPage />} />
+          <Route path="/subscriptions" element={<SubscriptionsPage />} />
           <Route path="/cultural-content" element={<CulturalContentPage />} />
           <Route path="/cultural-content/folktales" element={<CulturalContentPage />} />
           <Route path="/cultural-content/proverbs" element={<CulturalContentPage />} />

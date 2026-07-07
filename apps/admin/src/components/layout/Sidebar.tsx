@@ -39,6 +39,7 @@ const NAV: NavItemDef[] = [
     ],
   },
   { to: '/gamification', label: 'Gamification' },
+  { to: '/subscriptions', label: 'Subscriptions' },
   // { to: '/reports', label: 'Reports' },
   { to: '/admin-management', label: 'Admin Management' },
   { to: '/settings', label: 'Settings' },

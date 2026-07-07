@@ -26,14 +26,8 @@ import {
   useGetLessonQuery,
   useUpdateLessonMutation,
 } from '../services/lessonsApi';
-import {
-  useListExercisesQuery,
-  useReplaceExercisesMutation,
-} from '../services/exercisesApi';
-import {
-  useListEntriesQuery,
-  useReplaceEntriesMutation,
-} from '../services/lessonEntriesApi';
+import { useListExercisesQuery, useReplaceExercisesMutation } from '../services/exercisesApi';
+import { useListEntriesQuery, useReplaceEntriesMutation } from '../services/lessonEntriesApi';
 import { LessonSummaryCard } from '../components/features/lessons/LessonSummaryCard';
 import { YorubaShortcutsHelp } from '../components/features/lessons/YorubaShortcutsHelp';
 import { ExerciseContentEditor } from '../components/features/lessons/exerciseEditor/ExerciseContentEditor';
@@ -41,6 +35,7 @@ import { VocabularyEditor } from '../components/features/lessons/contentEditors/
 import { SentenceEditor } from '../components/features/lessons/contentEditors/SentenceEditor';
 import { LettersNumbersEditor } from '../components/features/lessons/contentEditors/LettersNumbersEditor';
 import { RecognitionItemsEditor } from '../components/features/lessons/contentEditors/RecognitionItemsEditor';
+import { useToast } from '../components/ui/Toast';
 
 const EMPTY_RECOGNITION_PROMPT: RecognitionPromptMeta = { audioUrl: '', instruction: '' };
 
@@ -93,6 +88,7 @@ export function LessonEditorPage() {
   const { id } = useParams<{ id?: string }>();
   const isEditing = !!id;
   const navigate = useNavigate();
+  const toast = useToast();
   const [searchParams] = useSearchParams();
   const presetType = useMemo<LessonType | null>(() => {
     const raw = searchParams.get('type');
@@ -115,12 +111,11 @@ export function LessonEditorPage() {
   const [sentences, setSentences] = useState<LessonEntryInput<'sentence'>[]>([]);
   const [letters, setLetters] = useState<LessonEntryInput<'letter'>[]>([]);
   const [numbers, setNumbers] = useState<LessonEntryInput<'number'>[]>([]);
-  const [recognitionItems, setRecognitionItems] = useState<
-    LessonEntryInput<'recognition-item'>[]
-  >([]);
-  const [recognitionPrompt, setRecognitionPrompt] = useState<RecognitionPromptMeta>(
-    EMPTY_RECOGNITION_PROMPT,
+  const [recognitionItems, setRecognitionItems] = useState<LessonEntryInput<'recognition-item'>[]>(
+    [],
   );
+  const [recognitionPrompt, setRecognitionPrompt] =
+    useState<RecognitionPromptMeta>(EMPTY_RECOGNITION_PROMPT);
   const [meta, setMeta] = useState<LessonMeta>({});
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -228,7 +223,6 @@ export function LessonEditorPage() {
       return;
     }
 
-    
     setErrors({});
     const nextMeta: LessonMeta =
       form.type === 'recognition' ? { ...meta, recognitionPrompt } : meta;
@@ -284,6 +278,9 @@ export function LessonEditorPage() {
         const entries = recognitionItems.map((row, i) => ({ ...row, orderIndex: i }));
         await replaceEntries({ lessonId, entries }).unwrap();
       }
+      const action = isEditing ? 'updated' : 'created';
+      const status = payload.status === 'published' ? ' and published' : '';
+      toast.success(`Lesson ${action}${status}`);
       if (!isEditing && lessonId) {
         navigate(`/lessons/${lessonId}/edit`, { replace: true });
         return;
@@ -292,7 +289,9 @@ export function LessonEditorPage() {
     } catch (err) {
       const e = err as { status?: number; data?: { message?: string | string[] } };
       const msg = Array.isArray(e.data?.message) ? e.data?.message[0] : e.data?.message;
-      setErrors({ general: msg ?? 'Could not save lesson. Please try again.' });
+      const errorMessage = msg ?? 'Could not save lesson. Please try again.';
+      setErrors({ general: errorMessage });
+      toast.error(errorMessage);
     }
   }
 
@@ -316,7 +315,8 @@ export function LessonEditorPage() {
               {isEditing ? 'Edit Lesson' : 'Create Lesson'}
             </h1>
             <p className="text-xs text-neutral-variant sm:text-sm">
-              Build engaging lessons that help learners master {LANGUAGE_LABELS[form.language].toLowerCase()}.
+              Build engaging lessons that help learners master{' '}
+              {LANGUAGE_LABELS[form.language].toLowerCase()}.
             </p>
           </div>
         </div>
@@ -343,7 +343,10 @@ export function LessonEditorPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">
-          <Section title="1. Basic Information" description="Set the essential details of your lesson">
+          <Section
+            title="1. Basic Information"
+            description="Set the essential details of your lesson"
+          >
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field label="Language" required>
                 <div className="flex h-11 items-center rounded-lg border border-border bg-neutral-soft px-3 text-sm font-semibold text-neutral">
@@ -354,7 +357,10 @@ export function LessonEditorPage() {
                 <NativeSelect
                   value={form.tier}
                   onChange={(v) => update('tier', v as LearningLevel)}
-                  options={LEARNING_LEVELS.map((l) => ({ value: l, label: LEARNING_LEVEL_LABELS[l] }))}
+                  options={LEARNING_LEVELS.map((l) => ({
+                    value: l,
+                    label: LEARNING_LEVEL_LABELS[l],
+                  }))}
                 />
               </Field>
               <Field label="Level" required error={errors.level}>
@@ -387,7 +393,9 @@ export function LessonEditorPage() {
               <div className="relative">
                 <textarea
                   value={form.shortDescription}
-                  onChange={(e) => update('shortDescription', e.target.value.slice(0, DESCRIPTION_MAX))}
+                  onChange={(e) =>
+                    update('shortDescription', e.target.value.slice(0, DESCRIPTION_MAX))
+                  }
                   rows={3}
                   placeholder="A short summary learners will see before starting."
                   className="w-full rounded-lg border border-border bg-white p-3 text-sm text-neutral outline-none focus:border-primary"
@@ -423,7 +431,10 @@ export function LessonEditorPage() {
             </div>
           </Section>
 
-          <Section title="2. Lesson Settings" description="Configure how this lesson will behave in the app">
+          <Section
+            title="2. Lesson Settings"
+            description="Configure how this lesson will behave in the app"
+          >
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field
                 label="Lesson Type"
@@ -447,10 +458,7 @@ export function LessonEditorPage() {
                 )}
               </Field>
               <Field label="Speech Required" required>
-                <Toggle
-                  value={form.speechRequired}
-                  onChange={(v) => update('speechRequired', v)}
-                />
+                <Toggle value={form.speechRequired} onChange={(v) => update('speechRequired', v)} />
               </Field>
             </div>
 
@@ -664,4 +672,3 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (next: boolean)
     </div>
   );
 }
-

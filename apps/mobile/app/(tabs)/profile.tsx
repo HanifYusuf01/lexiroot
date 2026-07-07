@@ -96,6 +96,14 @@ export default function ProfileTab() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Subscription</Text>
+          <View style={styles.group}>
+            <SettingsRow
+              title="Manage subscription"
+              subtitle="View your plan, renewal date, or cancel"
+              onPress={() => router.push('/subscription' as never)}
+              last
+            />
+          </View>
         </View>
 
         <Pressable

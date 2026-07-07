@@ -21,6 +21,7 @@ import { CulturalContentMediaPanel } from '../components/features/cultural-conte
 import { RichTextArea } from '../components/features/cultural-content/RichTextArea';
 import { YorubaInput } from '../components/ui/YorubaInput';
 import { YorubaShortcutsHelp } from '../components/features/lessons/YorubaShortcutsHelp';
+import { useToast } from '../components/ui/Toast';
 import {
   useCreateCulturalContentMutation,
   useGetCulturalContentQuery,
@@ -93,6 +94,7 @@ export function CulturalContentEditorPage() {
   const { id } = useParams<{ id?: string }>();
   const isEditing = !!id;
   const navigate = useNavigate();
+  const toast = useToast();
   const [searchParams] = useSearchParams();
 
   const presetType = useMemo<CulturalContentType | null>(() => {
@@ -181,13 +183,23 @@ export function CulturalContentEditorPage() {
         await updateItem({ id, ...payload }).unwrap();
       } else {
         const created = await createItem(payload).unwrap();
+        toast.success(
+          targetStatus === 'published'
+            ? 'Content created and published'
+            : 'Content created as draft',
+        );
         navigate(`/cultural-content/${created.id}/edit`, { replace: true });
         return;
       }
+      toast.success(
+        targetStatus === 'published' ? 'Content updated and published' : 'Content saved as draft',
+      );
     } catch (err) {
       const e = err as { data?: { message?: string | string[] } };
       const msg = Array.isArray(e.data?.message) ? e.data?.message[0] : e.data?.message;
-      setErrors({ general: msg ?? 'Could not save content. Please try again.' });
+      const errorMessage = msg ?? 'Could not save content. Please try again.';
+      setErrors({ general: errorMessage });
+      toast.error(errorMessage);
     }
   }
 

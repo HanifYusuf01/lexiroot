@@ -31,6 +31,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SignupDto } from './dto/signup.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { EntitlementService } from '../payments/entitlement.service';
 import { EmailService } from './email.service';
 import { PendingSignup } from './entities/pending-signup.entity';
 import { PendingSignupsService } from './pending-signups.service';
@@ -74,6 +75,7 @@ export class AuthService {
     private readonly languagesService: LanguagesService,
     private readonly platformSettings: PlatformSettingsService,
     private readonly config: ConfigService,
+    private readonly entitlements: EntitlementService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -389,6 +391,20 @@ export class AuthService {
       avatarUrl: user.avatarUrl,
     });
     return this.toMePayload(user);
+  }
+
+  /**
+   * `/auth/me` payload enriched with the user's live entitlement — the plan
+   * feature keys they can access and a compact subscription summary. This is the
+   * source the apps read for gating (mobile `useEntitlements`), so it reflects
+   * real subscription state, falling back to the free tier when unsubscribed.
+   */
+  async getMe(user: User) {
+    const [features, subscription] = await Promise.all([
+      this.entitlements.getFeatures(user.id),
+      this.entitlements.getSummary(user.id),
+    ]);
+    return { ...this.toMePayload(user), features, subscription };
   }
 
   toMePayload(user: User) {

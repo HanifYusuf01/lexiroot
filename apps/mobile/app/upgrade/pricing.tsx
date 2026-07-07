@@ -1,11 +1,12 @@
 import type { SubscriptionPlan } from '@lexiroot/shared';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../src/components/ui/Button';
 import { colors, fonts, radius, spacing } from '../../src/constants/theme';
+import { useCheckout } from '../../src/hooks/useCheckout';
 import { useSubscriptionPlansQuery } from '../../src/services/subscriptionPlansApi';
 import { formatPrice } from '../../src/utils/format';
 
@@ -41,8 +42,10 @@ function cardVisual(audience: Audience, index: number, selected: boolean): CardV
 }
 
 export default function UpgradePricing() {
+  const { next } = useLocalSearchParams<{ next?: string }>();
   const [audience, setAudience] = useState<Audience>('individual');
   const { data: plans, isLoading } = useSubscriptionPlansQuery();
+  const { start: startCheckout, busy: checkoutBusy } = useCheckout();
 
   // Free is the default entitlement, not a purchasable card — show paid plans only.
   const visible = useMemo(
@@ -67,6 +70,24 @@ export default function UpgradePricing() {
       setSelectedId(visible[Math.min(1, visible.length - 1)].id);
     }
   }, [visible, selectedId]);
+
+  const handleSubscribe = async () => {
+    if (!selectedId) return;
+    const outcome = await startCheckout(selectedId);
+    if (outcome === 'success') {
+      // Drop the learner into the lesson/level they were headed for.
+      if (next) router.replace(next as never);
+      else router.dismissAll();
+    } else if (outcome === 'pending') {
+      Alert.alert(
+        'Payment processing',
+        "We're confirming your payment — your access will unlock in a moment.",
+      );
+    } else if (outcome === 'error') {
+      Alert.alert('Checkout failed', 'We couldn’t start your subscription. Please try again.');
+    }
+    // 'cancelled' → the learner backed out; stay on the screen.
+  };
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -119,14 +140,11 @@ export default function UpgradePricing() {
 
         <View style={styles.cta}>
           <Button
-            label="Start 7-day free trial"
-            disabled={selectedId === null}
-            onPress={() => {
-              // TODO: hand off to billing flow with the selected plan id.
-              router.dismissAll();
-            }}
+            label={checkoutBusy ? 'Processing…' : 'Subscribe'}
+            disabled={selectedId === null || checkoutBusy}
+            onPress={handleSubscribe}
           />
-          <Text style={styles.fineprint}>You won&apos;t be charged until your trial ends.</Text>
+          <Text style={styles.fineprint}>Cancel anytime.</Text>
         </View>
       </ScrollView>
     </SafeAreaView>

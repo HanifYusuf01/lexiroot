@@ -3,7 +3,10 @@ import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: true captures the untouched request body (as req.rawBody) alongside
+  // the parsed JSON, so provider webhook signature verification can run on the
+  // exact bytes received (see WebhooksController).
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   app.enableCors({
     origin: [

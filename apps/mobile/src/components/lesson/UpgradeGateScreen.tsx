@@ -7,6 +7,11 @@ import { LessonFullCenterScreen } from './LessonFullCenterScreen';
 interface UpgradeGateScreenProps {
   /** Called when the learner dismisses the gate (top-left close). */
   onClose: () => void;
+  /**
+   * Path to navigate to after a successful upgrade (e.g. the level the learner
+   * was blocked from). Threaded through the upgrade flow as a `next` param.
+   */
+  next?: string;
 }
 
 /**
@@ -15,11 +20,12 @@ interface UpgradeGateScreenProps {
  * existing upgrade flow. Re-enable the gate via entitlements, not by editing
  * this screen.
  */
-export function UpgradeGateScreen({ onClose }: UpgradeGateScreenProps) {
+export function UpgradeGateScreen({ onClose, next }: UpgradeGateScreenProps) {
+  const upgradeHref = next ? `/upgrade?next=${encodeURIComponent(next)}` : '/upgrade';
   return (
     <LessonFullCenterScreen
       onClose={onClose}
-      footer={<Button label="Upgrade" onPress={() => router.push('/upgrade' as never)} />}
+      footer={<Button label="Upgrade" onPress={() => router.push(upgradeHref as never)} />}
     >
       <Text style={styles.tagline}>You&apos;ve unlocked a new level! 🎉</Text>
       <Text style={styles.title}>Upgrade to Premium to continue learning.</Text>
