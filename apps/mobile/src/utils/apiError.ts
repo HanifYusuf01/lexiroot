@@ -27,6 +27,16 @@ function bodyMessage(data: unknown): string | null {
   return null;
 }
 
+/**
+ * The HTTP status of a FetchBaseQueryError, or null for network/parse/serialized
+ * errors that never reached the server with a status.
+ */
+export function apiErrorStatus(err: unknown): number | null {
+  if (!isRecord(err)) return null;
+  const status = (err as { status?: unknown }).status;
+  return typeof status === 'number' ? status : null;
+}
+
 export function describeApiError(err: unknown): string {
   if (!isRecord(err)) return String(err);
 

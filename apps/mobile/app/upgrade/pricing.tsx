@@ -71,13 +71,24 @@ export default function UpgradePricing() {
     }
   }, [visible, selectedId]);
 
+  // Drop the learner into the lesson/level they were headed for.
+  const leaveToDestination = () => {
+    if (next) router.replace(next as never);
+    else router.dismissAll();
+  };
+
   const handleSubscribe = async () => {
     if (!selectedId) return;
     const outcome = await startCheckout(selectedId);
     if (outcome === 'success') {
-      // Drop the learner into the lesson/level they were headed for.
-      if (next) router.replace(next as never);
-      else router.dismissAll();
+      leaveToDestination();
+    } else if (outcome === 'already_subscribed') {
+      // Not an error — they've already paid. useCheckout has resynced the user.
+      Alert.alert(
+        "You're already subscribed",
+        'Your plan is active, so there was nothing to pay for.',
+        [{ text: 'OK', onPress: leaveToDestination }],
+      );
     } else if (outcome === 'pending') {
       Alert.alert(
         'Payment processing',

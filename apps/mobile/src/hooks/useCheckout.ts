@@ -4,14 +4,22 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import type { ClientPlatform } from '@lexiroot/shared';
 import { refreshAuthUser } from '../services/refreshAuthUser';
-import { describeApiError } from '../utils/apiError';
+import { apiErrorStatus, describeApiError } from '../utils/apiError';
 import {
   useCreateCheckoutMutation,
   useLazyMySubscriptionQuery,
 } from '../services/subscriptionsApi';
 import { useAppDispatch } from '../store/hooks';
 
-export type CheckoutOutcome = 'success' | 'cancelled' | 'pending' | 'error';
+export type CheckoutOutcome =
+  | 'success'
+  | 'already_subscribed'
+  | 'cancelled'
+  | 'pending'
+  | 'error';
+
+/** The API rejects a second checkout while a live subscription exists. */
+const HTTP_CONFLICT = 409;
 
 // Poll window after checkout: the webhook that flips us to ACTIVE usually lands
 // within a few seconds, but give it room before falling back to "pending".
@@ -87,6 +95,18 @@ export function useCheckout() {
         // rejected field) is the only thing that explains a failed checkout —
         // swallowing it silently turns every cause into the same dead end.
         if (__DEV__) console.error('[checkout] failed —', describeApiError(err));
+
+        // 409 isn't a failure: the learner already has a live subscription, so
+        // the server refused to open a second one. The app's cached user is just
+        // behind — resync it rather than showing them an error for having paid.
+        if (apiErrorStatus(err) === HTTP_CONFLICT) {
+          try {
+            await refreshAuthUser(dispatch);
+          } catch {
+            // Non-fatal: they're still subscribed; the next launch will resync.
+          }
+          return 'already_subscribed';
+        }
         return 'error';
       } finally {
         setBusy(false);
