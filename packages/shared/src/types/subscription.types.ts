@@ -16,6 +16,15 @@ export const PROVIDER_KEYS = ['stripe', 'paystack', 'apple_iap'] as const;
 export type ProviderKey = (typeof PROVIDER_KEYS)[number];
 
 /**
+ * Where the checkout was initiated from. The server can't infer this (a mobile
+ * request looks like any other HTTP call), so the client declares it and the
+ * server uses it to pick a provider — iOS must bill through Apple IAP, other
+ * platforms fall to the regional card processor.
+ */
+export const CLIENT_PLATFORMS = ['ios', 'android', 'web'] as const;
+export type ClientPlatform = (typeof CLIENT_PLATFORMS)[number];
+
+/**
  * Subscription lifecycle. Access is granted for TRIALING/ACTIVE/PAST_DUE while
  * the period is still current (see entitlement rules on the API) — never gate on
  * a payment's success directly.
@@ -155,7 +164,16 @@ export interface PaymentMethod {
 /** Request body for POST /subscriptions/checkout. */
 export interface CreateCheckoutRequest {
   planId: string;
-  /** Defaults to the server's configured default provider (stripe today). */
+  /**
+   * The calling platform. Drives server-side provider resolution — clients
+   * should send this and leave `provider` unset.
+   */
+  platform?: ClientPlatform;
+  /**
+   * Explicit provider override, bypassing resolution. Intended for admin/testing;
+   * normal clients omit it and let the server resolve from `platform` + the
+   * user's country. Rejected when that provider isn't live.
+   */
   provider?: ProviderKey;
   /**
    * App deep link (e.g. `lexiroot://subscription-return`) the hosted checkout

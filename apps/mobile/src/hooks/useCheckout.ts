@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react';
+import { Platform } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
+import type { ClientPlatform } from '@lexiroot/shared';
 import { refreshAuthUser } from '../services/refreshAuthUser';
 import {
   useCreateCheckoutMutation,
@@ -16,6 +18,12 @@ const POLL_ATTEMPTS = 12;
 const POLL_INTERVAL_MS = 1500;
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// The server routes to a payment provider partly off the platform (iOS must bill
+// through Apple IAP). Platform.OS is wider than the platforms the API knows about,
+// so anything exotic falls back to `web` (card checkout).
+const CLIENT_PLATFORM: ClientPlatform =
+  Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web';
 
 /**
  * Drives the hosted-checkout flow (matches the backend): create a checkout
@@ -48,7 +56,12 @@ export function useCheckout() {
       setBusy(true);
       try {
         const returnUrl = Linking.createURL('subscription-return');
-        const session = await createCheckout({ planId, returnDeepLink: returnUrl }).unwrap();
+        // No `provider` — the server resolves it from platform + the user's country.
+        const session = await createCheckout({
+          planId,
+          platform: CLIENT_PLATFORM,
+          returnDeepLink: returnUrl,
+        }).unwrap();
         if (!session.url) return 'error';
 
         // Opens an ephemeral in-app browser that auto-closes when the checkout

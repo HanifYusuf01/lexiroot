@@ -24,6 +24,7 @@
     "@reduxjs/toolkit": "^2.2.7",
     "expo": "~54.0.0",
     "expo-audio": "~1.1.1",
+    "expo-blur": "~15.0.8",
     "expo-constants": "~18.0.0",
     "expo-device": "~8.0.10",
     "expo-file-system": "~19.0.22",

@@ -117,6 +117,15 @@ export interface SyncPlanPriceResult {
 export interface PaymentProvider {
   readonly key: ProviderKey;
 
+  /**
+   * Whether this provider can actually take a payment right now — implemented
+   * AND configured. Checkout resolution skips unavailable providers, so an
+   * unimplemented stub silently falls through to the next preference instead of
+   * throwing 501 at a user. Flip a stub to `true` once it's live and routing
+   * picks it up with no other change.
+   */
+  readonly available: boolean;
+
   /** Open a subscription checkout for the user. */
   createCheckout(input: CreateCheckoutInput): Promise<CheckoutResult>;
 

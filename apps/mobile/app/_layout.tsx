@@ -1,5 +1,6 @@
 import { ReactNode, useEffect } from 'react';
 import { Stack } from 'expo-router';
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -23,8 +24,17 @@ import { flushOutbox } from '../src/store/outboxFlush';
 import { SplashScreenView } from '../src/components/ui/SplashScreenView';
 import { OfflineBanner } from '../src/components/ui/OfflineBanner';
 import { AppErrorBoundary } from '../src/components/ui/AppErrorBoundary';
+import { colors } from '../src/constants/theme';
 
 SplashScreen.preventAutoHideAsync();
+
+// React Navigation's default theme paints a light-gray backdrop behind screens,
+// which shows through around the floating tab-bar pill. Match it to our white
+// page background so nothing gray peeks out.
+const navTheme = {
+  ...DefaultTheme,
+  colors: { ...DefaultTheme.colors, background: colors.background },
+};
 
 function Bootstrap({ children }: { children: ReactNode }) {
   useAuthBootstrap();
@@ -78,7 +88,9 @@ export default function RootLayout() {
         <Provider store={store}>
           <PersistGate loading={<SplashScreenView />} persistor={persistor}>
             <Bootstrap>
-              <Stack screenOptions={{ headerShown: false }} />
+              <ThemeProvider value={navTheme}>
+                <Stack screenOptions={{ headerShown: false }} />
+              </ThemeProvider>
             </Bootstrap>
           </PersistGate>
         </Provider>

@@ -29,6 +29,11 @@ export class StripeProvider implements PaymentProvider {
 
   constructor(private readonly config: ConfigService) {}
 
+  /** Implemented — live wherever a secret key is configured. */
+  get available(): boolean {
+    return Boolean(this.config.getOrThrow<PaymentsConfig>('payments').stripe.secretKey);
+  }
+
   /** Lazily built so the app boots without keys; throws only when used. */
   private get stripe(): Stripe {
     if (this.client) return this.client;

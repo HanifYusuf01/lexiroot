@@ -17,13 +17,17 @@ export class SubscriptionsController {
 
   @Post('checkout')
   checkout(@CurrentUser() user: User, @Body() dto: CreateCheckoutDto) {
-    return this.subscriptions.createCheckout(
-      user.id,
-      user.email,
-      dto.planId,
-      dto.provider,
-      dto.returnDeepLink,
-    );
+    // The payment provider is resolved server-side from the caller's platform and
+    // the user's country — the client never picks it (see providerPreference).
+    return this.subscriptions.createCheckout({
+      userId: user.id,
+      userEmail: user.email,
+      userCountry: user.country,
+      planId: dto.planId,
+      platform: dto.platform,
+      provider: dto.provider,
+      returnDeepLink: dto.returnDeepLink,
+    });
   }
 
   @Get('me')

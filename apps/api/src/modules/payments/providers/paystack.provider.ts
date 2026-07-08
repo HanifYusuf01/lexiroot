@@ -21,6 +21,9 @@ import type {
 export class PaystackProvider implements PaymentProvider {
   readonly key: ProviderKey = 'paystack';
 
+  /** Flip to a secret-key check once the methods below are implemented. */
+  readonly available = false;
+
   private notImplemented(): never {
     throw new NotImplementedException('Paystack provider is not implemented yet');
   }

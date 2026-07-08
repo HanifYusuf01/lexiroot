@@ -9,6 +9,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
   type AdminSubscription,
+  type ClientPlatform,
+  type CountryCode,
   type CreateCheckoutResponse,
   type ProviderKey,
   type SubscriptionStatus,
@@ -31,6 +33,19 @@ function withRedirect(baseUrl: string, deepLink?: string): string {
   return `${baseUrl}${sep}redirect=${encodeURIComponent(deepLink)}`;
 }
 
+export interface CreateCheckoutOptions {
+  userId: string;
+  userEmail: string;
+  /** The user's country, used to route card payments regionally. */
+  userCountry: CountryCode | null;
+  planId: string;
+  /** Calling platform — iOS must bill through Apple IAP once it's live. */
+  platform?: ClientPlatform;
+  /** Explicit provider override; normally unset so the server resolves. */
+  provider?: ProviderKey;
+  returnDeepLink?: string;
+}
+
 @Injectable()
 export class SubscriptionsService {
   constructor(
@@ -44,28 +59,40 @@ export class SubscriptionsService {
   ) {}
 
   /**
-   * Open a checkout for `planId`. Idempotent on double-click: an existing
-   * INCOMPLETE subscription is reused (and its provider idempotency key is
-   * stable), and an already-live subscription is rejected rather than
-   * duplicated. The real invoice/payment rows are created by the provider
-   * webhook — we only stage the subscription here.
+   * Open a checkout for `planId`. The provider is resolved server-side from the
+   * caller's platform + country (never chosen by the user) — see
+   * `providerPreference`.
+   *
+   * Idempotent on double-click: an existing INCOMPLETE subscription is reused
+   * (and its provider idempotency key is stable), and an already-live
+   * subscription is rejected rather than duplicated. The real invoice/payment
+   * rows are created by the provider webhook — we only stage the subscription
+   * here.
    */
-  async createCheckout(
-    userId: string,
-    userEmail: string,
-    planId: string,
-    providerKey?: ProviderKey,
-    returnDeepLink?: string,
-  ): Promise<CreateCheckoutResponse> {
-    const provider = this.registry.resolve(providerKey);
-    const key = provider.key;
+  async createCheckout(options: CreateCheckoutOptions): Promise<CreateCheckoutResponse> {
+    const { userId, userEmail, userCountry, planId, platform, returnDeepLink } = options;
 
-    const price = await this.prices.findOne({ where: { planId, provider: key, active: true } });
+    const candidates = this.registry.checkoutCandidates({
+      platform,
+      country: userCountry,
+      requested: options.provider,
+    });
+
+    // Take the best-ranked provider that the plan actually has a synced price
+    // for, so a newly-enabled provider with no prices yet can't strand checkout.
+    const prices = await this.prices.find({ where: { planId, active: true } });
+    const price = candidates
+      .map((key) => prices.find((p) => p.provider === key))
+      .find((p): p is PlanProviderPrice => p != null);
+
     if (!price) {
+      const key = candidates[0];
       throw new BadRequestException(
         `Plan is not available via ${key}. Sync the plan's ${key} price first.`,
       );
     }
+    const provider = this.registry.get(price.provider);
+    const key = provider.key;
 
     // Reuse a live/incomplete subscription; reject an already-active one.
     const existing = await this.subscriptions.find({

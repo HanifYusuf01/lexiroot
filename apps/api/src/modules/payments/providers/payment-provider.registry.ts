@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { ProviderKey } from '@lexiroot/shared';
 import type { PaymentsConfig } from '../../../config/payments.config';
 import { AppleIapProvider } from './apple-iap.provider';
 import type { PaymentProvider } from './payment-provider.interface';
 import { PaystackProvider } from './paystack.provider';
+import { providerPreference, type ProviderPreferenceInput } from './provider-preference';
 import { StripeProvider } from './stripe.provider';
 
 /**
@@ -43,5 +44,42 @@ export class PaymentProviderRegistry {
   /** Resolve the request's provider, falling back to the configured default. */
   resolve(key?: ProviderKey | null): PaymentProvider {
     return this.get(key ?? this.defaultProviderKey);
+  }
+
+  /**
+   * The providers a checkout may bill through, best first. The client declares
+   * its platform and we know the user's country; ordering policy lives in
+   * `providerPreference`, and we drop anything not actually live so an
+   * unimplemented stub can never reach a user. The caller picks the first
+   * candidate it can honour (e.g. the first with a synced price).
+   *
+   * `requested` is an explicit override (admin/testing) — honoured, but only if
+   * that provider is live, so nobody can force a 501 stub from the outside.
+   *
+   * Always returns at least one key, or throws if nothing is configured.
+   */
+  checkoutCandidates(
+    input: ProviderPreferenceInput & { requested?: ProviderKey | null },
+  ): ProviderKey[] {
+    if (input.requested) {
+      const provider = this.get(input.requested);
+      if (!provider.available) {
+        throw new ServiceUnavailableException(`Payment provider ${input.requested} is not available`);
+      }
+      return [provider.key];
+    }
+
+    const candidates = providerPreference(input).filter(
+      (key) => this.providers.get(key)?.available,
+    );
+    if (candidates.length > 0) return candidates;
+
+    // Nothing the policy wants is live — fall back to the configured default so a
+    // gap in the preference list can't strand a paying user.
+    const fallback = this.get(this.defaultProviderKey);
+    if (!fallback.available) {
+      throw new ServiceUnavailableException('No payment provider is available');
+    }
+    return [fallback.key];
   }
 }

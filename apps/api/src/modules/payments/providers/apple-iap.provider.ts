@@ -22,6 +22,9 @@ import type {
 export class AppleIapProvider implements PaymentProvider {
   readonly key: ProviderKey = 'apple_iap';
 
+  /** Flip to a shared-secret check once StoreKit + ASSN v2 are implemented. */
+  readonly available = false;
+
   private notImplemented(): never {
     throw new NotImplementedException('Apple IAP provider is not implemented yet');
   }
