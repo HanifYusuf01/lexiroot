@@ -46,6 +46,11 @@ export class PaymentProviderRegistry {
     return this.get(key ?? this.defaultProviderKey);
   }
 
+  /** Every provider that can take a payment right now, in registration order. */
+  availableProviders(): PaymentProvider[] {
+    return [...this.providers.values()].filter((p) => p.available);
+  }
+
   /**
    * The providers a checkout may bill through, best first. The client declares
    * its platform and we know the user's country; ordering policy lives in

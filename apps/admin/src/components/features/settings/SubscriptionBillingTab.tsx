@@ -79,7 +79,14 @@ export function SubscriptionBillingTab() {
 
         {editingPlan ? (
           <div className="mt-6">
-            <PlanEditForm plan={editingPlan} onClose={() => setEditingId(null)} />
+            {/* `key` remounts the form when a different plan is selected. Without
+                it, PlanEditForm's useState initialisers keep the first plan's
+                values while the heading (read straight from props) updates. */}
+            <PlanEditForm
+              key={editingPlan.id}
+              plan={editingPlan}
+              onClose={() => setEditingId(null)}
+            />
           </div>
         ) : null}
       </section>

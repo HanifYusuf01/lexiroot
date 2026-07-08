@@ -61,6 +61,7 @@ export const api = createApi({
     'TopEarners',
     'PlatformSettings',
     'SubscriptionPlan',
+    'PlanProviderSync',
     'AdminMember',
     'AdminInvitation',
   ],

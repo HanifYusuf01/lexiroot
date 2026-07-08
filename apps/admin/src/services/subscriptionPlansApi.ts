@@ -17,7 +17,8 @@ export const subscriptionPlansApi = api.injectEndpoints({
     }),
     createSubscriptionPlan: build.mutation<SubscriptionPlan, CreateSubscriptionPlan>({
       query: (body) => ({ url: '/admin/subscription-plans', method: 'POST', body }),
-      invalidatesTags: ['SubscriptionPlan'],
+      // A new plan starts unsynced — refresh the sync map so the card says so.
+      invalidatesTags: ['SubscriptionPlan', 'PlanProviderSync'],
     }),
     updateSubscriptionPlan: build.mutation<
       SubscriptionPlan,
@@ -28,7 +29,14 @@ export const subscriptionPlansApi = api.injectEndpoints({
         method: 'PATCH',
         body: changes,
       }),
-      invalidatesTags: ['SubscriptionPlan'],
+      // Editing price/name/total is exactly what pushes a plan `out_of_date`
+      // against its provider price — the sync map must be refetched.
+      invalidatesTags: ['SubscriptionPlan', 'PlanProviderSync'],
+    }),
+    // 409 when learners are still subscribed — the DB refuses the delete.
+    deleteSubscriptionPlan: build.mutation<void, string>({
+      query: (id) => ({ url: `/admin/subscription-plans/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['SubscriptionPlan', 'PlanProviderSync'],
     }),
   }),
 });
@@ -37,4 +45,5 @@ export const {
   useSubscriptionPlansQuery,
   useCreateSubscriptionPlanMutation,
   useUpdateSubscriptionPlanMutation,
+  useDeleteSubscriptionPlanMutation,
 } = subscriptionPlansApi;

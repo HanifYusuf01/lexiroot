@@ -4,6 +4,7 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import type { ClientPlatform } from '@lexiroot/shared';
 import { refreshAuthUser } from '../services/refreshAuthUser';
+import { describeApiError } from '../utils/apiError';
 import {
   useCreateCheckoutMutation,
   useLazyMySubscriptionQuery,
@@ -62,7 +63,12 @@ export function useCheckout() {
           platform: CLIENT_PLATFORM,
           returnDeepLink: returnUrl,
         }).unwrap();
-        if (!session.url) return 'error';
+        if (!session.url) {
+          // A provider that returns a clientSecret instead of a hosted URL isn't
+          // supported by this flow yet — surface it rather than failing blankly.
+          if (__DEV__) console.error('[checkout] no hosted-checkout URL in session', session);
+          return 'error';
+        }
 
         // Opens an ephemeral in-app browser that auto-closes when the checkout
         // redirects back to returnUrl.
@@ -76,7 +82,11 @@ export function useCheckout() {
         }
         if (result.type === 'cancel' || result.type === 'dismiss') return 'cancelled';
         return 'pending';
-      } catch {
+      } catch (err) {
+        // The server's reason (unsynced plan price, unavailable provider, a
+        // rejected field) is the only thing that explains a failed checkout —
+        // swallowing it silently turns every cause into the same dead end.
+        if (__DEV__) console.error('[checkout] failed —', describeApiError(err));
         return 'error';
       } finally {
         setBusy(false);

@@ -1,4 +1,4 @@
-import type { AdminSubscription, ProviderKey } from '@lexiroot/shared';
+import type { AdminSubscription, PlanProviderSyncMap, ProviderKey } from '@lexiroot/shared';
 import { api } from './api';
 
 interface SyncProviderArgs {
@@ -21,6 +21,11 @@ export const subscriptionsApi = api.injectEndpoints({
       query: () => '/admin/subscriptions',
       providesTags: ['Subscription'],
     }),
+    // Which plans are purchasable via which live provider, keyed by plan id.
+    planProviderSync: build.query<PlanProviderSyncMap, void>({
+      query: () => '/admin/subscription-plans/provider-sync',
+      providesTags: ['PlanProviderSync'],
+    }),
     // Provisions the plan's provider price so it becomes purchasable.
     syncPlanProvider: build.mutation<PlanProviderPrice, SyncProviderArgs>({
       query: ({ planId, provider }) => ({
@@ -28,9 +33,13 @@ export const subscriptionsApi = api.injectEndpoints({
         method: 'POST',
         body: provider ? { provider } : {},
       }),
-      invalidatesTags: ['SubscriptionPlan'],
+      invalidatesTags: ['SubscriptionPlan', 'PlanProviderSync'],
     }),
   }),
 });
 
-export const { useSubscriptionsQuery, useSyncPlanProviderMutation } = subscriptionsApi;
+export const {
+  useSubscriptionsQuery,
+  usePlanProviderSyncQuery,
+  useSyncPlanProviderMutation,
+} = subscriptionsApi;

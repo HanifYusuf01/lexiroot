@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   FREE_FEATURE_KEYS,
+  PLAN_FEATURE_KEYS,
   type PlanFeatureKey,
   type SubscriptionStatus,
   SUBSCRIPTION_STATUS_TEXT,
@@ -33,6 +34,7 @@ interface CachedEntitlement {
  */
 @Injectable()
 export class EntitlementService {
+  private readonly logger = new Logger(EntitlementService.name);
   private readonly cache = new Map<string, CachedEntitlement>();
   // Safety net so a missed invalidation can't pin stale access forever.
   private readonly ttlMs = 60_000;
@@ -101,7 +103,20 @@ export class EntitlementService {
     let features: PlanFeatureKey[] = [...FREE_FEATURE_KEYS];
     if (entitled && sub) {
       const plan = await this.plans.findOne({ where: { id: sub.planId } });
-      if (plan?.features?.length) features = [...plan.features];
+      if (plan?.features?.length) {
+        // Plans created before the feature catalog stored free-text labels, which
+        // grant nothing — a paying user silently keeps the free tier. Validation
+        // blocks new ones (CreateSubscriptionPlanDto), but legacy rows survive.
+        const granted = plan.features.filter((f) => PLAN_FEATURE_KEYS.includes(f));
+        if (granted.length !== plan.features.length) {
+          this.logger.warn(
+            `Plan ${plan.id} ("${plan.name}") has non-catalog features ` +
+              `[${plan.features.filter((f) => !PLAN_FEATURE_KEYS.includes(f)).join(', ')}] ` +
+              `— they grant no access. Re-save the plan in admin to fix.`,
+          );
+        }
+        if (granted.length) features = granted;
+      }
     }
 
     const summary = this.toSummary(sub);

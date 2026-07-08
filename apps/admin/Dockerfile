@@ -19,15 +19,11 @@ FROM nginx:alpine
 
 COPY --from=builder /app/apps/admin/dist /usr/share/nginx/html
 
-# Add this nginx config for React Router
-RUN echo 'server { \
-  listen 80; \
-  root /usr/share/nginx/html; \
-  index index.html; \
-  location / { \
-    try_files $uri $uri/ /index.html; \
-  } \
-}' > /etc/nginx/conf.d/default.conf
+# SPA fallback + cache policy (immutable hashed assets, always-revalidate HTML).
+COPY apps/admin/nginx.conf /etc/nginx/conf.d/default.conf
+
+# Fail the build rather than ship a container that won't start on a typo.
+RUN nginx -t
 
 EXPOSE 80
 

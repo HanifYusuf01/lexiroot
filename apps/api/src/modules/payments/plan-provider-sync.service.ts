@@ -1,9 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import type { ProviderKey } from '@lexiroot/shared';
+import type {
+  PlanProviderSync,
+  PlanProviderSyncMap,
+  PlanSyncState,
+  ProviderKey,
+} from '@lexiroot/shared';
 import { SubscriptionPlan } from '../subscriptions/entities/subscription-plan.entity';
 import { PlanProviderPrice } from './entities/plan-provider-price.entity';
+import { deriveRecurring, intervalLabel } from './plan-pricing';
 import { PaymentProviderRegistry } from './providers/payment-provider.registry';
 
 // Until per-plan currency lands, all provider prices are provisioned in USD.
@@ -56,36 +62,62 @@ export class PlanProviderSyncService {
     row.providerPriceId = result.providerPriceId;
     row.amountMinor = result.amountMinor;
     row.currency = result.currency;
-    row.interval = `${recurring.intervalCount === 1 ? '' : recurring.intervalCount}${recurring.interval}`;
+    row.interval = intervalLabel(recurring);
     row.active = true;
     return this.prices.save(row);
   }
-}
 
-/**
- * Maps a catalog plan onto a recurring price. The catalog stores a per-month
- * headline `price` and a `total` billed for multi-month periods; the provider
- * price charges `total` (or `price`) once per interval.
- */
-function deriveRecurring(plan: SubscriptionPlan): {
-  amountMinor: number;
-  interval: 'month' | 'year';
-  intervalCount: number;
-} {
-  const name = plan.name.toLowerCase();
-  const price = Number(plan.price);
-  const total = plan.total === null ? null : Number(plan.total);
+  /**
+   * Sync state for every plan against every live provider, so admin can show
+   * which plans are actually purchasable. Reported per provider (not just
+   * Stripe) and only for providers that can take a payment today — an
+   * unimplemented stub isn't something an admin can act on.
+   *
+   * Free plans get an empty list: `sync()` rejects a zero-amount plan, so there
+   * is no state an admin could act on and nothing honest to render.
+   */
+  async listSyncState(): Promise<PlanProviderSyncMap> {
+    const [plans, prices] = await Promise.all([
+      this.plans.find(),
+      this.prices.find({ where: { active: true } }),
+    ]);
+    const liveProviders = this.registry.availableProviders().map((p) => p.key);
 
-  if (name.includes('year') || name.includes('annual')) {
-    return { amountMinor: toMinor(total ?? price * 12), interval: 'year', intervalCount: 1 };
+    const map: PlanProviderSyncMap = {};
+    for (const plan of plans) {
+      const expectedAmountMinor = deriveRecurring(plan).amountMinor;
+      map[plan.id] =
+        expectedAmountMinor <= 0
+          ? []
+          : liveProviders.map((provider) =>
+              this.syncStateFor(plan, provider, expectedAmountMinor, prices),
+            );
+    }
+    return map;
   }
-  if (name.includes('quarter')) {
-    return { amountMinor: toMinor(total ?? price * 3), interval: 'month', intervalCount: 3 };
-  }
-  // Default: monthly.
-  return { amountMinor: toMinor(price), interval: 'month', intervalCount: 1 };
-}
 
-function toMinor(amount: number): number {
-  return Math.round(amount * 100);
+  private syncStateFor(
+    plan: SubscriptionPlan,
+    provider: ProviderKey,
+    expectedAmountMinor: number,
+    prices: PlanProviderPrice[],
+  ): PlanProviderSync {
+    const price = prices.find((p) => p.planId === plan.id && p.provider === provider) ?? null;
+
+    let state: PlanSyncState;
+    if (!price) {
+      state = 'not_synced';
+    } else {
+      state = price.amountMinor === expectedAmountMinor ? 'synced' : 'out_of_date';
+    }
+
+    return {
+      provider,
+      state,
+      syncedAmountMinor: price?.amountMinor ?? null,
+      expectedAmountMinor,
+      currency: price?.currency ?? null,
+      syncedAt: price?.updatedAt.toISOString() ?? null,
+    };
+  }
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -14,6 +14,16 @@ import { PlanProviderSyncService } from './plan-provider-sync.service';
 @Roles('admin')
 export class AdminPlanProviderController {
   constructor(private readonly sync: PlanProviderSyncService) {}
+
+  /**
+   * Sync state for every plan, keyed by plan id. Declared before the `:id`
+   * routes on this base path is unnecessary (no `:id` GET exists), but keeping
+   * the static segment first is the safe habit.
+   */
+  @Get('provider-sync')
+  providerSync() {
+    return this.sync.listSyncState();
+  }
 
   @Post(':id/sync-provider')
   syncProvider(

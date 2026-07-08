@@ -1,10 +1,20 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import type { PlanScope, SubscriptionPlan as SubscriptionPlanDto } from '@lexiroot/shared';
 import { SubscriptionPlan } from './entities/subscription-plan.entity';
 import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
 import { UpdateSubscriptionPlanDto } from './dto/update-subscription-plan.dto';
+
+/** Postgres `foreign_key_violation` — a row elsewhere still references this plan. */
+const FK_VIOLATION = '23503';
+
+function isForeignKeyViolation(err: unknown): boolean {
+  return (
+    err instanceof QueryFailedError &&
+    (err.driverError as { code?: string } | undefined)?.code === FK_VIOLATION
+  );
+}
 
 @Injectable()
 export class SubscriptionPlansService {
@@ -54,6 +64,33 @@ export class SubscriptionPlansService {
 
     const saved = await this.plans.save(plan);
     return this.toDto(saved);
+  }
+
+  /**
+   * Hard-delete a plan. `plan_provider_prices` rows cascade away with it; the
+   * provider-side price/product is left alone (harmless once nothing references
+   * it, and deleting it would break historical invoices).
+   *
+   * `subscriptions.plan_id` has no ON DELETE clause, so Postgres refuses to
+   * delete a plan any subscription points at — billing history stays intact. We
+   * let the database be the arbiter rather than pre-counting, which would race
+   * with a checkout landing between the check and the delete.
+   */
+  async remove(id: string): Promise<void> {
+    const plan = await this.plans.findOne({ where: { id } });
+    if (!plan) throw new NotFoundException('Subscription plan not found');
+
+    try {
+      await this.plans.delete(id);
+    } catch (err) {
+      if (isForeignKeyViolation(err)) {
+        throw new ConflictException(
+          `Cannot delete the "${plan.name}" plan — learners are subscribed to it. ` +
+            `Cancel or migrate those subscriptions first.`,
+        );
+      }
+      throw err;
+    }
   }
 
   private toDto(row: SubscriptionPlan): SubscriptionPlanDto {

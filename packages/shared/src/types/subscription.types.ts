@@ -15,6 +15,13 @@
 export const PROVIDER_KEYS = ['stripe', 'paystack', 'apple_iap'] as const;
 export type ProviderKey = (typeof PROVIDER_KEYS)[number];
 
+/** Human labels for providers, so UI never renders a raw key. */
+export const PROVIDER_TEXT: Record<ProviderKey, string> = {
+  stripe: 'Stripe',
+  paystack: 'Paystack',
+  apple_iap: 'Apple',
+};
+
 /**
  * Where the checkout was initiated from. The server can't infer this (a mobile
  * request looks like any other HTTP call), so the client declares it and the

@@ -291,9 +291,7 @@ export default function EditProfileScreen() {
             />
           </View>
 
-          <View style={styles.promoWrap}>
-            <UpgradePromoCard onPress={() => router.push('/upgrade')} />
-          </View>
+          <UpgradePromoCard style={styles.promoWrap} onPress={() => router.push('/upgrade')} />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

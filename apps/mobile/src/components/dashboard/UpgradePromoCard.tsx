@@ -1,18 +1,28 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { CrownIcon } from '../icons/CrownIcon';
 import { colors, fonts, radius, spacing } from '../../constants/theme';
+import { useHasFeature } from '../../hooks/useEntitlements';
 
 interface UpgradePromoCardProps {
   languageLabel?: string;
   onPress?: () => void;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function UpgradePromoCard({
   languageLabel = 'Yoruba',
   onPress,
+  style,
 }: UpgradePromoCardProps) {
+  // Never sell an upgrade to someone who already bought it. Gated here rather
+  // than at each call site so a new placement can't reintroduce the bug — same
+  // feature the level gate reads, so the card and the padlock always agree.
+  const hasUnlimited = useHasFeature('unlimited_lessons');
+  if (hasUnlimited) return null;
+
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, style]}>
       <View style={styles.corner} />
       <View style={styles.icon}>
         <CrownIcon size={44} />
