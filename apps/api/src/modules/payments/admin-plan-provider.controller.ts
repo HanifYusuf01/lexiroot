@@ -25,6 +25,13 @@ export class AdminPlanProviderController {
     return this.sync.listSyncState();
   }
 
+  /** Sync a plan to every live provider at once (the admin default). */
+  @Post(':id/sync')
+  syncAll(@Param('id', ParseUUIDPipe) id: string) {
+    return this.sync.syncAll(id);
+  }
+
+  /** Targeted sync to a single provider (testing / recovery). */
   @Post(':id/sync-provider')
   syncProvider(
     @Param('id', ParseUUIDPipe) id: string,

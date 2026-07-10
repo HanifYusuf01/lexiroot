@@ -1,10 +1,31 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
-import type { PlanScope, SubscriptionPlan as SubscriptionPlanDto } from '@lexiroot/shared';
+import {
+  BASE_CURRENCY,
+  type CurrencyCode,
+  type PlanPriceOverrides,
+  type PlanScope,
+  type SubscriptionPlan as SubscriptionPlanDto,
+} from '@lexiroot/shared';
 import { SubscriptionPlan } from './entities/subscription-plan.entity';
-import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
+import {
+  CreateSubscriptionPlanDto,
+  PlanCurrencyPriceDto,
+} from './dto/create-subscription-plan.dto';
 import { UpdateSubscriptionPlanDto } from './dto/update-subscription-plan.dto';
+
+/** Convert the write DTO's price array into the stored per-currency map. */
+function toPriceOverrides(prices: PlanCurrencyPriceDto[]): PlanPriceOverrides {
+  const map: PlanPriceOverrides = {};
+  for (const entry of prices) {
+    map[entry.currency] = {
+      price: entry.price,
+      total: entry.total === undefined || entry.total === null ? null : entry.total,
+    };
+  }
+  return map;
+}
 
 /** Postgres `foreign_key_violation` — a row elsewhere still references this plan. */
 const FK_VIOLATION = '23503';
@@ -23,12 +44,28 @@ export class SubscriptionPlansService {
     private readonly plans: Repository<SubscriptionPlan>,
   ) {}
 
+  /** Admin catalog view: base (USD) amounts plus the full per-currency map. */
   async list(scope?: PlanScope): Promise<SubscriptionPlanDto[]> {
-    const rows = await this.plans.find({
+    const rows = await this.find(scope);
+    return rows.map((row) => this.toDto(row, BASE_CURRENCY, true));
+  }
+
+  /**
+   * Public catalog view for a user, resolved to `currency`: each plan's amounts
+   * are returned in that currency when priced in it, else the base (USD) — the
+   * same currency the user would actually be charged. The override map is
+   * omitted (end users don't need it).
+   */
+  async listForCurrency(currency: CurrencyCode, scope?: PlanScope): Promise<SubscriptionPlanDto[]> {
+    const rows = await this.find(scope);
+    return rows.map((row) => this.toDto(row, currency, false));
+  }
+
+  private find(scope?: PlanScope): Promise<SubscriptionPlan[]> {
+    return this.plans.find({
       where: scope ? { scope } : {},
       order: { scope: 'ASC', sortOrder: 'ASC' },
     });
-    return rows.map((row) => this.toDto(row));
   }
 
   async create(dto: CreateSubscriptionPlanDto): Promise<SubscriptionPlanDto> {
@@ -43,12 +80,13 @@ export class SubscriptionPlansService {
       price: dto.price.toFixed(2),
       period: dto.period?.trim() || 'Month',
       total: dto.total === undefined || dto.total === null ? null : dto.total.toFixed(2),
+      prices: dto.prices ? toPriceOverrides(dto.prices) : {},
       premium: dto.premium ?? false,
       features: dto.features ?? [],
       sortOrder: (last?.sortOrder ?? -1) + 1,
     });
     const saved = await this.plans.save(plan);
-    return this.toDto(saved);
+    return this.toDto(saved, BASE_CURRENCY, true);
   }
 
   async update(id: string, dto: UpdateSubscriptionPlanDto): Promise<SubscriptionPlanDto> {
@@ -59,11 +97,12 @@ export class SubscriptionPlansService {
     if (dto.price !== undefined) plan.price = dto.price.toFixed(2);
     if (dto.period !== undefined) plan.period = dto.period;
     if (dto.total !== undefined) plan.total = dto.total === null ? null : dto.total.toFixed(2);
+    if (dto.prices !== undefined) plan.prices = toPriceOverrides(dto.prices);
     if (dto.premium !== undefined) plan.premium = dto.premium;
     if (dto.features !== undefined) plan.features = dto.features;
 
     const saved = await this.plans.save(plan);
-    return this.toDto(saved);
+    return this.toDto(saved, BASE_CURRENCY, true);
   }
 
   /**
@@ -93,14 +132,31 @@ export class SubscriptionPlansService {
     }
   }
 
-  private toDto(row: SubscriptionPlan): SubscriptionPlanDto {
+  /**
+   * Resolve a plan row to `currency`. Non-base currency uses the override when
+   * present, else falls back to the base amount (so a plan not priced in the
+   * user's currency still shows a sensible price and matches the USD checkout it
+   * would fall back to). `includeOverrides` attaches the raw map for admin edit.
+   */
+  private toDto(
+    row: SubscriptionPlan,
+    currency: CurrencyCode,
+    includeOverrides: boolean,
+  ): SubscriptionPlanDto {
+    const override = currency !== BASE_CURRENCY ? row.prices?.[currency] : undefined;
+    const resolvedCurrency: CurrencyCode = override ? currency : BASE_CURRENCY;
+    const price = override ? override.price : Number(row.price);
+    const total = override ? override.total : row.total === null ? null : Number(row.total);
+
     return {
       id: row.id,
       scope: row.scope,
       name: row.name,
-      price: Number(row.price),
+      price,
+      currency: resolvedCurrency,
       period: row.period,
-      total: row.total === null ? null : Number(row.total),
+      total,
+      ...(includeOverrides ? { prices: row.prices ?? {} } : {}),
       premium: row.premium,
       features: row.features ?? [],
       sortOrder: row.sortOrder,

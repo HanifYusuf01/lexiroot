@@ -36,8 +36,17 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
   apiCtx,
   extraOptions,
 ) => {
+  // Read the token we're about to send, before the request can race with a
+  // clearCredentials() from another in-flight query.
+  const tokenSent = Boolean((apiCtx.getState() as RootStateLike).auth?.token);
+
   const result = await rawBaseQuery(args, apiCtx, extraOptions);
-  if (result.error?.status === 401) {
+
+  // Only a *rejected token* means the session is dead. A 401 on a request that
+  // carried no token just means we weren't authenticated yet — that happens on a
+  // cold start, before useAuthBootstrap has read SecureStore, and it must not
+  // destroy the stored session. (Signing back in then loses entitlement state.)
+  if (result.error?.status === 401 && tokenSent) {
     await authStorage.clear();
     apiCtx.dispatch(clearCredentials());
   }

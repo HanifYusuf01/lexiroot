@@ -1,12 +1,23 @@
 import { FormEvent, useState } from 'react';
-import type { PlanFeatureKey, SubscriptionPlan, UpdateSubscriptionPlan } from '@lexiroot/shared';
+import type {
+  CurrencyCode,
+  PlanFeatureKey,
+  SubscriptionPlan,
+  UpdateSubscriptionPlan,
+} from '@lexiroot/shared';
 import { PLAN_FEATURE_KEYS } from '@lexiroot/shared';
 import { Button } from '../../ui/Button';
 import { TextField } from '../../ui/TextField';
 import { Toggle } from '../../ui/Toggle';
 import { useToast } from '../../ui/Toast';
 import { PlanFeatureSelector } from './PlanFeatureSelector';
+import { PlanLocalPriceFields } from './PlanLocalPriceFields';
 import { useUpdateSubscriptionPlanMutation } from '../../../services/subscriptionPlansApi';
+import {
+  draftsFromOverrides,
+  draftsToInput,
+  type CurrencyDrafts,
+} from '../../../utils/planPrices';
 
 interface PlanEditFormProps {
   plan: SubscriptionPlan;
@@ -28,7 +39,11 @@ export function PlanEditForm({ plan, onClose }: PlanEditFormProps) {
       (PLAN_FEATURE_KEYS as readonly string[]).includes(f),
     ),
   );
+  const [drafts, setDrafts] = useState<CurrencyDrafts>(() => draftsFromOverrides(plan.prices));
   const [error, setError] = useState<string | undefined>();
+
+  const setDraft = (currency: CurrencyCode, field: 'price' | 'total', value: string) =>
+    setDrafts((prev) => ({ ...prev, [currency]: { ...prev[currency], [field]: value } }));
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -37,6 +52,7 @@ export function PlanEditForm({ plan, onClose }: PlanEditFormProps) {
       price: Number(price) || 0,
       period: period.trim() || 'Month',
       total: total.trim() === '' ? null : Number(total) || 0,
+      prices: draftsToInput(drafts),
       premium,
       features,
     };
@@ -67,7 +83,7 @@ export function PlanEditForm({ plan, onClose }: PlanEditFormProps) {
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
         <TextField label="Plan name" value={name} onChange={(e) => setName(e.target.value)} />
         <TextField
-          label="Price"
+          label="Price (USD)"
           type="number"
           min={0}
           step="0.01"
@@ -76,7 +92,7 @@ export function PlanEditForm({ plan, onClose }: PlanEditFormProps) {
         />
         <TextField label="Per" value={period} onChange={(e) => setPeriod(e.target.value)} />
         <TextField
-          label="Billed total (optional)"
+          label="Billed total, USD (optional)"
           type="number"
           min={0}
           step="0.01"
@@ -85,6 +101,8 @@ export function PlanEditForm({ plan, onClose }: PlanEditFormProps) {
           onChange={(e) => setTotal(e.target.value)}
         />
       </div>
+
+      <PlanLocalPriceFields drafts={drafts} onChange={setDraft} />
 
       <div className="mt-5">
         <PlanFeatureSelector selected={features} onChange={setFeatures} />

@@ -38,6 +38,21 @@ export class WebhooksController {
     }
     return { received: true };
   }
+
+  @Post('paystack')
+  @HttpCode(200)
+  async paystack(
+    @Req() req: RawBodyRequest<Request>,
+    @Headers('x-paystack-signature') signature: string,
+  ): Promise<{ received: true }> {
+    if (!req.rawBody) throw new BadRequestException('Missing raw body');
+    if (!signature) throw new BadRequestException('Missing x-paystack-signature header');
+    // The Paystack provider throws BadRequestException on a bad signature (→ 400,
+    // no processing). A genuine processing failure throws something else → 5xx,
+    // which makes Paystack retry the delivery.
+    await this.webhooks.handle('paystack', req.rawBody, signature);
+    return { received: true };
+  }
 }
 
 function isSignatureError(err: unknown): boolean {

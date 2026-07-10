@@ -32,6 +32,10 @@ export function useAuthBootstrap(): void {
             authApi.endpoints.me.initiate(undefined, { forceRefetch: true }),
           ).unwrap();
           if (cancelled) return;
+          // Entitlement is the hardest thing to debug from the UI — a padlock
+          // looks the same whether the plan is wrong, the cache is stale, or the
+          // request failed. Print what the server actually granted.
+          if (__DEV__) console.log('[auth/me] features:', JSON.stringify(fresh.features));
           const merged = {
             ...user,
             ...fresh,

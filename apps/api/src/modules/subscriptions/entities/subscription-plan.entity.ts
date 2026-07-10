@@ -5,7 +5,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import type { PlanFeatureKey, PlanScope } from '@lexiroot/shared';
+import type { PlanFeatureKey, PlanPriceOverrides, PlanScope } from '@lexiroot/shared';
 
 @Entity('subscription_plans')
 export class SubscriptionPlan {
@@ -26,6 +26,10 @@ export class SubscriptionPlan {
 
   @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
   total!: string | null;
+
+  /** Non-base (non-USD) currency amounts, keyed by currency. USD is price/total. */
+  @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
+  prices!: PlanPriceOverrides;
 
   @Column({ type: 'boolean', default: false })
   premium!: boolean;

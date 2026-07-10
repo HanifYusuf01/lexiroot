@@ -14,10 +14,10 @@ export function formatNumber(n: number): string {
 }
 
 /** "$23,560.45" */
-export function formatCurrency(n: number): string {
+export function formatCurrency(n: number, currency = 'USD'): string {
   return n.toLocaleString('en-US', {
     style: 'currency',
-    currency: 'USD',
+    currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });

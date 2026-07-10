@@ -54,8 +54,11 @@ export function planSyncPresentation(sync: PlanProviderSync): PlanSyncPresentati
 }
 
 function outOfDateHint(sync: PlanProviderSync, provider: string): string {
+  const currency = sync.currency ?? 'USD';
   const charging =
-    sync.syncedAmountMinor === null ? 'an old price' : formatCurrency(sync.syncedAmountMinor / 100);
-  const expected = formatCurrency(sync.expectedAmountMinor / 100);
+    sync.syncedAmountMinor === null
+      ? 'an old price'
+      : formatCurrency(sync.syncedAmountMinor / 100, currency);
+  const expected = formatCurrency(sync.expectedAmountMinor / 100, currency);
   return `${provider} still charges ${charging}, not ${expected}.`;
 }

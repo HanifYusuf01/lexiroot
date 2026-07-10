@@ -11,18 +11,23 @@ import type { ClientPlatform, CountryCode, ProviderKey } from '@lexiroot/shared'
  *    app to be sold through In-App Purchase (App Store Review Guideline 3.1.1).
  *    So on iOS, Apple IAP outranks every card processor. This is not a user
  *    choice, which is why it isn't one.
- * 2. **Region.** Card payments route to whoever clears the user's cards best:
- *    Paystack across its African markets, Stripe everywhere else.
+ * 2. **Region.** Stripe does not offer local card acquiring in the African
+ *    markets Paystack serves, so those countries route to Paystack; everywhere
+ *    else routes to Stripe. Neither is a global default — the country decides,
+ *    and if the chosen provider isn't configured the registry falls back to
+ *    whatever is live.
  */
 
-/** Markets where Paystack is the better card acquirer than Stripe. */
-const PAYSTACK_COUNTRIES: readonly CountryCode[] = ['NG', 'GH', 'ZA', 'KE', 'CI', 'EG'];
+/**
+ * Countries Paystack operates in. Stripe has no local acquiring here, so these
+ * route to Paystack only — listing Stripe as a fallback would just fail at
+ * checkout. Extend this as Paystack (or the project) adds markets.
+ */
+const PAYSTACK_MARKETS: readonly CountryCode[] = ['NG', 'GH', 'ZA', 'KE', 'CI', 'EG'];
 
-/** Card processors for a country, best first. */
+/** The card processor for a country. Paystack in its markets, Stripe elsewhere. */
 function cardProviders(country: CountryCode | null): ProviderKey[] {
-  return country && PAYSTACK_COUNTRIES.includes(country)
-    ? ['paystack', 'stripe']
-    : ['stripe'];
+  return country && PAYSTACK_MARKETS.includes(country) ? ['paystack'] : ['stripe'];
 }
 
 export interface ProviderPreferenceInput {

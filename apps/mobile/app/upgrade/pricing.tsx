@@ -198,11 +198,13 @@ function PlanCard({
         { backgroundColor: bg, borderColor: onFill ? bg : colors.primaryBorder },
       ]}
     >
-      <Text style={[styles.planPrice, { color: priceColor }]}>{formatPrice(plan.price)}</Text>
+      <Text style={[styles.planPrice, { color: priceColor }]}>
+        {formatPrice(plan.price, plan.currency)}
+      </Text>
       <Text style={[styles.planTitle, onFill && styles.planTitleSelected]}>{plan.name}</Text>
       <Text style={[styles.planSub, onFill && styles.planSubSelected]}>
         {plan.total != null
-          ? `${formatPrice(plan.total)} billed per ${plan.period.toLowerCase()}`
+          ? `${formatPrice(plan.total, plan.currency)} billed per ${plan.period.toLowerCase()}`
           : `Billed per ${plan.period.toLowerCase()}`}
       </Text>
     </Pressable>

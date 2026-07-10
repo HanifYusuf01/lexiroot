@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -9,8 +10,10 @@ import {
   Length,
   Max,
   Min,
+  ValidateNested,
 } from 'class-validator';
-import { PLAN_FEATURE_KEYS, type PlanFeatureKey } from '@lexiroot/shared';
+import { NON_BASE_CURRENCIES, PLAN_FEATURE_KEYS, type PlanFeatureKey } from '@lexiroot/shared';
+import { PlanCurrencyPriceDto } from './create-subscription-plan.dto';
 
 export class UpdateSubscriptionPlanDto {
   @IsOptional()
@@ -34,6 +37,13 @@ export class UpdateSubscriptionPlanDto {
   @Min(0)
   @Max(100000)
   total?: number | null;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(NON_BASE_CURRENCIES.length)
+  @ValidateNested({ each: true })
+  @Type(() => PlanCurrencyPriceDto)
+  prices?: PlanCurrencyPriceDto[];
 
   @IsOptional()
   @IsBoolean()

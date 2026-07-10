@@ -21,6 +21,7 @@ import type {
   LanguageCode,
   LearningLevel,
   LearningReason,
+  PlanFeatureKey,
 } from '@lexiroot/shared';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangePendingEmailDto } from './dto/change-pending-email.dto';
@@ -57,6 +58,13 @@ export interface AuthResponse {
     xp: number;
     currentStreakDays: number;
     lessonsCompleted: number;
+    /**
+     * Entitled feature keys, same source as `/auth/me`. Without this a fresh
+     * login leaves the client with `features: undefined`, which falls back to the
+     * free tier — a paying user stays gated for the whole session until the next
+     * cold start refetches /auth/me.
+     */
+    features: PlanFeatureKey[];
   };
 }
 
@@ -425,8 +433,11 @@ export class AuthService {
     };
   }
 
-  private toAuthResponse(user: User): AuthResponse {
+  private async toAuthResponse(user: User): Promise<AuthResponse> {
     const token = this.jwt.sign({ sub: user.id, email: user.email });
+    // Same entitlement source as getMe() — gating must not depend on which
+    // endpoint the client happened to authenticate through.
+    const features = await this.entitlements.getFeatures(user.id);
     return {
       token,
       user: {
@@ -443,6 +454,7 @@ export class AuthService {
         xp: user.xp,
         currentStreakDays: user.currentStreakDays,
         lessonsCompleted: user.lessonsCompleted,
+        features,
       },
     };
   }

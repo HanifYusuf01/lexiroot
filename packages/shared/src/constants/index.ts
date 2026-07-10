@@ -389,3 +389,58 @@ export const COUNTRIES: Record<CountryCode, CountryInfo> = Object.fromEntries(
     { name, dialCode, region, flag: flagOf(code) },
   ]),
 ) as Record<CountryCode, CountryInfo>;
+
+// --- Currency -------------------------------------------------------------
+
+/**
+ * Currencies the platform prices in. Subscription amounts are authored per
+ * currency (not FX-converted): USD is the base, and each supported currency
+ * carries its own deliberately-set price. Extend as payment accounts for new
+ * currencies are added (e.g. GHS once a Paystack Ghana account exists).
+ */
+export const CURRENCY_CODES = ['USD', 'NGN'] as const;
+export type CurrencyCode = (typeof CURRENCY_CODES)[number];
+
+/** The catalog's base currency — every plan must have a price in it. */
+export const BASE_CURRENCY: CurrencyCode = 'USD';
+
+/** Non-base currencies an admin can additionally price a plan in. */
+export const NON_BASE_CURRENCIES: readonly CurrencyCode[] = CURRENCY_CODES.filter(
+  (c) => c !== BASE_CURRENCY,
+);
+
+export interface CurrencyInfo {
+  symbol: string;
+  label: string;
+  /** ISO 4217 numeric exponent — decimal places (both USD and NGN use 2). */
+  decimals: number;
+}
+
+export const CURRENCIES: Record<CurrencyCode, CurrencyInfo> = {
+  USD: { symbol: '$', label: 'US Dollar', decimals: 2 },
+  NGN: { symbol: '₦', label: 'Nigerian Naira', decimals: 2 },
+};
+
+/**
+ * A country's local currency, when we support charging in it. Only entries that
+ * differ from the base and are chargeable belong here — everything else falls
+ * back to USD via `currencyForCountry`.
+ */
+const COUNTRY_CURRENCY: Partial<Record<CountryCode, CurrencyCode>> = {
+  NG: 'NGN',
+};
+
+/**
+ * The currency a user in `country` should see and be charged in. Falls back to
+ * the base currency (USD) when we can't charge their local one — which is the
+ * common case until more provider accounts exist.
+ */
+export function currencyForCountry(country: CountryCode | null | undefined): CurrencyCode {
+  const local = country ? COUNTRY_CURRENCY[country] : undefined;
+  return local ?? BASE_CURRENCY;
+}
+
+/** Minor units (cents/kobo) for an amount in a currency's major unit. */
+export function toMinorUnits(amount: number, currency: CurrencyCode): number {
+  return Math.round(amount * 10 ** CURRENCIES[currency].decimals);
+}

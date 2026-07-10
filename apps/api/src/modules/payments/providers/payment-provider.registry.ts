@@ -31,7 +31,8 @@ export class PaymentProviderRegistry {
     ]);
   }
 
-  get defaultProviderKey(): ProviderKey {
+  /** Configured last-resort provider, or null when unset (→ first available). */
+  get defaultProviderKey(): ProviderKey | null {
     return this.config.getOrThrow<PaymentsConfig>('payments').defaultProvider;
   }
 
@@ -41,9 +42,17 @@ export class PaymentProviderRegistry {
     return provider;
   }
 
-  /** Resolve the request's provider, falling back to the configured default. */
+  /**
+   * Resolve a provider: the requested key, else the configured default, else the
+   * first available provider. There is no hardcoded default — nothing here
+   * assumes Stripe.
+   */
   resolve(key?: ProviderKey | null): PaymentProvider {
-    return this.get(key ?? this.defaultProviderKey);
+    const chosen = key ?? this.defaultProviderKey;
+    if (chosen) return this.get(chosen);
+    const [first] = this.availableProviders();
+    if (!first) throw new ServiceUnavailableException('No payment provider is available');
+    return first;
   }
 
   /** Every provider that can take a payment right now, in registration order. */
@@ -79,12 +88,10 @@ export class PaymentProviderRegistry {
     );
     if (candidates.length > 0) return candidates;
 
-    // Nothing the policy wants is live — fall back to the configured default so a
-    // gap in the preference list can't strand a paying user.
-    const fallback = this.get(this.defaultProviderKey);
-    if (!fallback.available) {
-      throw new ServiceUnavailableException('No payment provider is available');
-    }
+    // Nothing the policy wants is live (e.g. a Paystack-market user but Paystack
+    // isn't configured) — fall back to the configured default if set, otherwise
+    // to any available provider, so a gap can't strand a paying user.
+    const fallback = this.resolve();
     return [fallback.key];
   }
 }
