@@ -129,6 +129,8 @@ export class SubscriptionsService {
       userEmail,
       providerCustomerId: subscription.providerCustomerId,
       providerPriceId: price.providerPriceId,
+      // Required by Paystack's initialize call (Stripe ignores it).
+      amountMinor: price.amountMinor,
       // Providers require absolute https URLs. When a mobile deep link is given,
       // point them at the configured web page with the deep link as a `redirect`
       // param — that page bounces the in-app browser back into the app.

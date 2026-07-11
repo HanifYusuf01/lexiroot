@@ -72,8 +72,12 @@ export class PaystackProvider implements PaymentProvider {
     const reference = toPaystackReference(input.idempotencyKey);
     const res = await this.api.post<InitializeResponse>('/transaction/initialize', {
       email: input.userEmail,
-      // With `plan` set, Paystack charges the plan's amount and opens a
-      // subscription on the first successful charge — no `amount` needed.
+      // `amount` is a required, pre-validated field on initialize — omitting it
+      // fails with "Invalid Amount Sent" before the plan is even read. With `plan`
+      // set, Paystack ignores this value and charges the plan's amount (opening a
+      // subscription on the first successful charge); we send the synced plan
+      // amount so the two always agree.
+      amount: input.amountMinor,
       plan: input.providerPriceId,
       reference,
       callback_url: input.successUrl,

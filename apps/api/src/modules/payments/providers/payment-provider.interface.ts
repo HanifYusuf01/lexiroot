@@ -22,6 +22,14 @@ export interface CreateCheckoutInput {
   providerCustomerId: string | null;
   /** The provider price/plan to subscribe to. */
   providerPriceId: string;
+  /**
+   * The recurring amount in minor units, from the synced provider price. Stripe
+   * ignores it (the price drives the charge), but Paystack's
+   * `/transaction/initialize` requires a valid `amount` even when a plan is set —
+   * it is validated before the plan is read, so omitting it fails with "Invalid
+   * Amount Sent". Paystack then charges the plan's own amount, not this value.
+   */
+  amountMinor: number;
   successUrl: string;
   cancelUrl: string;
   /** Stable key so a retried/double-clicked checkout doesn't create duplicates. */
