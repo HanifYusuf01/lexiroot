@@ -228,19 +228,24 @@ export class PaystackProvider implements PaymentProvider {
     };
 
     // Plans are mutable: update in place when we already have a plan code.
+    // Paystack's update endpoint returns only `{status, message}` (no `data`), so
+    // the response can be null — everything below reads it defensively.
     const plan = input.existingPriceId
-      ? await this.api.put<PlanData>(`/plan/${encodeURIComponent(input.existingPriceId)}`, body)
+      ? await this.api.put<PlanData | null>(
+          `/plan/${encodeURIComponent(input.existingPriceId)}`,
+          body,
+        )
       : await this.api.post<PlanData>('/plan', body);
 
-    // Update returns limited data; fall back to the code we already had.
-    const planCode = plan.plan_code ?? input.existingPriceId;
+    // Update returns no plan object; fall back to the code we already had.
+    const planCode = plan?.plan_code ?? input.existingPriceId;
     if (!planCode) {
       throw new ServiceUnavailableException('Paystack did not return a plan code');
     }
 
     // Authoritative currency: from the response, else the override, else re-read
-    // the plan (a PUT can return a trimmed object without the currency).
-    let currency = plan.currency ?? override;
+    // the plan (an update returns no object at all, so this is the usual path).
+    let currency = plan?.currency ?? override;
     if (!currency) {
       const full = await this.api.get<PlanData>(`/plan/${encodeURIComponent(planCode)}`);
       currency = full.currency ?? null;
