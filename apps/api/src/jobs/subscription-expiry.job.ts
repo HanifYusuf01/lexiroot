@@ -41,8 +41,14 @@ export class SubscriptionExpiryJob {
     const pastDue = await repo.find({
       where: { status: 'PAST_DUE', currentPeriodEnd: LessThan(new Date(now - graceMs)) },
     });
+    // Abandoned checkouts: INCOMPLETE and never advanced within a day → EXPIRED,
+    // so stale "awaiting payment" rows don't accumulate. A late webhook can still
+    // open a fresh subscription on the learner's next checkout.
+    const abandoned = await repo.find({
+      where: { status: 'INCOMPLETE', createdAt: LessThan(new Date(now - DAY_MS)) },
+    });
 
-    const candidates = [...canceled, ...pastDue];
+    const candidates = [...canceled, ...pastDue, ...abandoned];
     let expired = 0;
     for (const sub of candidates) {
       try {

@@ -25,6 +25,10 @@ const HTTP_CONFLICT = 409;
 // within a few seconds, but give it room before falling back to "pending".
 const POLL_ATTEMPTS = 12;
 const POLL_INTERVAL_MS = 1500;
+// A manual close is almost always a cancel, but could be a completed payment
+// whose return-bounce failed. Do a brief check instead of the full poll so a
+// genuine cancel doesn't sit on "processing" for the whole window.
+const CANCEL_CHECK_ATTEMPTS = 2;
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -47,8 +51,8 @@ export function useCheckout() {
   const [fetchMySubscription] = useLazyMySubscriptionQuery();
   const [busy, setBusy] = useState(false);
 
-  const pollEntitled = useCallback(async (): Promise<boolean> => {
-    for (let i = 0; i < POLL_ATTEMPTS; i += 1) {
+  const pollEntitled = useCallback(async (attempts = POLL_ATTEMPTS): Promise<boolean> => {
+    for (let i = 0; i < attempts; i += 1) {
       try {
         const data = await fetchMySubscription(undefined, false).unwrap();
         if (data.entitled) return true;
@@ -82,14 +86,24 @@ export function useCheckout() {
         // redirects back to returnUrl.
         const result = await WebBrowser.openAuthSessionAsync(session.url, returnUrl);
 
-        // The webhook is the source of truth, not the redirect — always poll.
-        const entitled = await pollEntitled();
-        if (entitled) {
+        if (result.type === 'success') {
+          // Returned via the deep link → a payment almost certainly completed.
+          // The webhook is the source of truth, so poll until entitlement flips.
+          if (await pollEntitled()) {
+            await refreshAuthUser(dispatch);
+            return 'success';
+          }
+          return 'pending';
+        }
+
+        // The learner closed the browser (Cancel Payment / the X) without being
+        // redirected back. Treat it as a cancel, but do a brief entitlement check
+        // first to catch a paid checkout whose return-bounce failed.
+        if (await pollEntitled(CANCEL_CHECK_ATTEMPTS)) {
           await refreshAuthUser(dispatch);
           return 'success';
         }
-        if (result.type === 'cancel' || result.type === 'dismiss') return 'cancelled';
-        return 'pending';
+        return 'cancelled';
       } catch (err) {
         // The server's reason (unsynced plan price, unavailable provider, a
         // rejected field) is the only thing that explains a failed checkout —

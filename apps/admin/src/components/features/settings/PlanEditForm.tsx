@@ -2,11 +2,13 @@ import { FormEvent, useState } from 'react';
 import type {
   CurrencyCode,
   PlanFeatureKey,
+  PlanPeriod,
   SubscriptionPlan,
   UpdateSubscriptionPlan,
 } from '@lexiroot/shared';
-import { PLAN_FEATURE_KEYS } from '@lexiroot/shared';
+import { PLAN_FEATURE_KEYS, PLAN_PERIODS } from '@lexiroot/shared';
 import { Button } from '../../ui/Button';
+import { SelectField } from '../../ui/SelectField';
 import { TextField } from '../../ui/TextField';
 import { Toggle } from '../../ui/Toggle';
 import { useToast } from '../../ui/Toast';
@@ -29,8 +31,7 @@ export function PlanEditForm({ plan, onClose }: PlanEditFormProps) {
   const [update, { isLoading: saving }] = useUpdateSubscriptionPlanMutation();
   const [name, setName] = useState(plan.name);
   const [price, setPrice] = useState(String(plan.price));
-  const [period, setPeriod] = useState(plan.period);
-  const [total, setTotal] = useState(plan.total != null ? String(plan.total) : '');
+  const [period, setPeriod] = useState<PlanPeriod>(plan.period);
   const [premium, setPremium] = useState(plan.premium);
   // Keep only known catalog keys — legacy free-text features (from before the
   // catalog) are dropped so the selector reflects valid, gateable choices.
@@ -42,16 +43,15 @@ export function PlanEditForm({ plan, onClose }: PlanEditFormProps) {
   const [drafts, setDrafts] = useState<CurrencyDrafts>(() => draftsFromOverrides(plan.prices));
   const [error, setError] = useState<string | undefined>();
 
-  const setDraft = (currency: CurrencyCode, field: 'price' | 'total', value: string) =>
-    setDrafts((prev) => ({ ...prev, [currency]: { ...prev[currency], [field]: value } }));
+  const setDraft = (currency: CurrencyCode, value: string) =>
+    setDrafts((prev) => ({ ...prev, [currency]: { price: value } }));
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const changes: UpdateSubscriptionPlan = {
       name: name.trim(),
       price: Number(price) || 0,
-      period: period.trim() || 'Month',
-      total: total.trim() === '' ? null : Number(total) || 0,
+      period,
       prices: draftsToInput(drafts),
       premium,
       features,
@@ -90,15 +90,11 @@ export function PlanEditForm({ plan, onClose }: PlanEditFormProps) {
           value={price}
           onChange={(e) => setPrice(e.target.value)}
         />
-        <TextField label="Per" value={period} onChange={(e) => setPeriod(e.target.value)} />
-        <TextField
-          label="Billed total, USD (optional)"
-          type="number"
-          min={0}
-          step="0.01"
-          value={total}
-          placeholder="Same as price"
-          onChange={(e) => setTotal(e.target.value)}
+        <SelectField
+          label="Per"
+          value={period}
+          options={PLAN_PERIODS.map((p) => ({ value: p, label: p }))}
+          onChange={(e) => setPeriod(e.target.value as PlanPeriod)}
         />
       </div>
 

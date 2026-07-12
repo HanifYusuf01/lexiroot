@@ -12,7 +12,13 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { NON_BASE_CURRENCIES, PLAN_FEATURE_KEYS, type PlanFeatureKey } from '@lexiroot/shared';
+import {
+  NON_BASE_CURRENCIES,
+  PLAN_FEATURE_KEYS,
+  PLAN_PERIODS,
+  type PlanFeatureKey,
+  type PlanPeriod,
+} from '@lexiroot/shared';
 import { PlanCurrencyPriceDto } from './create-subscription-plan.dto';
 
 export class UpdateSubscriptionPlanDto {
@@ -28,15 +34,8 @@ export class UpdateSubscriptionPlanDto {
   price?: number;
 
   @IsOptional()
-  @IsString()
-  @Length(1, 20)
-  period?: string;
-
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  @Max(100000)
-  total?: number | null;
+  @IsIn(PLAN_PERIODS as readonly string[], { message: 'period must be Month, Quarter, or Year' })
+  period?: PlanPeriod;
 
   @IsOptional()
   @IsArray()

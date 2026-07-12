@@ -5,12 +5,19 @@ import type { ProviderKey } from './subscription.types';
 export const PLAN_SCOPES = ['individual', 'family'] as const;
 export type PlanScope = (typeof PLAN_SCOPES)[number];
 
+/**
+ * The billing period a plan charges on. This is the source of truth for the
+ * interval (no longer inferred from the plan name): `Month` charges every month,
+ * `Quarter` every three months, `Year` once a year. The plan's `price` is the
+ * amount charged once per this period.
+ */
+export const PLAN_PERIODS = ['Month', 'Quarter', 'Year'] as const;
+export type PlanPeriod = (typeof PLAN_PERIODS)[number];
+
 /** A plan's amount in one currency (that currency's major unit, e.g. naira). */
 export interface PlanCurrencyPrice {
-  /** Headline price for the billing period. */
+  /** The amount charged once per billing period, in this currency. */
   price: number;
-  /** Total billed for the period when it differs from `price` (e.g. yearly). */
-  total: number | null;
 }
 
 /**
@@ -60,18 +67,16 @@ export interface SubscriptionPlan {
   id: string;
   scope: PlanScope;
   name: string;
-  /** Headline price, expressed in `currency`. */
+  /** The amount charged once per `period`, expressed in `currency`. */
   price: number;
   /**
-   * The currency `price`/`total` are in for THIS payload. Admin payloads are
-   * always in the base currency (USD); the public endpoint resolves the caller's
-   * local currency and returns the amounts in it.
+   * The currency `price` is in for THIS payload. Admin payloads are always in
+   * the base currency (USD); the public endpoint resolves the caller's local
+   * currency and returns the amount in it.
    */
   currency: CurrencyCode;
-  /** Period label shown after the price, e.g. "Month". */
-  period: string;
-  /** Total billed for the period when it differs from `price` (e.g. yearly). */
-  total: number | null;
+  /** The billing period the plan charges on (drives the interval). */
+  period: PlanPeriod;
   /**
    * Non-base currency price overrides (admin payloads only). Omitted from the
    * public/mobile payload, which is already resolved to a single currency.
@@ -87,20 +92,17 @@ export interface SubscriptionPlan {
   sortOrder: number;
 }
 
-/** One non-base currency override on a write. `total: null` → same as `price`. */
+/** One non-base currency override on a write (the amount charged per period). */
 export interface PlanCurrencyPriceInput {
   currency: CurrencyCode;
   price: number;
-  total?: number | null;
 }
 
 export interface UpdateSubscriptionPlan {
   name?: string;
-  /** Base-currency (USD) headline price. */
+  /** Base-currency (USD) amount charged per period. */
   price?: number;
-  period?: string;
-  /** Base-currency (USD) billed total. */
-  total?: number | null;
+  period?: PlanPeriod;
   /** Full set of non-base currency prices; replaces the stored overrides. */
   prices?: PlanCurrencyPriceInput[];
   premium?: boolean;
@@ -111,8 +113,7 @@ export interface CreateSubscriptionPlan {
   scope: PlanScope;
   name: string;
   price: number;
-  period?: string;
-  total?: number | null;
+  period?: PlanPeriod;
   prices?: PlanCurrencyPriceInput[];
   premium?: boolean;
   features?: PlanFeatureKey[];

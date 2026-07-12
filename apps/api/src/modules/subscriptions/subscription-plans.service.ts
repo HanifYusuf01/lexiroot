@@ -4,6 +4,7 @@ import { QueryFailedError, Repository } from 'typeorm';
 import {
   BASE_CURRENCY,
   type CurrencyCode,
+  type PlanPeriod,
   type PlanPriceOverrides,
   type PlanScope,
   type SubscriptionPlan as SubscriptionPlanDto,
@@ -19,10 +20,7 @@ import { UpdateSubscriptionPlanDto } from './dto/update-subscription-plan.dto';
 function toPriceOverrides(prices: PlanCurrencyPriceDto[]): PlanPriceOverrides {
   const map: PlanPriceOverrides = {};
   for (const entry of prices) {
-    map[entry.currency] = {
-      price: entry.price,
-      total: entry.total === undefined || entry.total === null ? null : entry.total,
-    };
+    map[entry.currency] = { price: entry.price };
   }
   return map;
 }
@@ -78,8 +76,8 @@ export class SubscriptionPlansService {
       scope: dto.scope,
       name: dto.name.trim(),
       price: dto.price.toFixed(2),
-      period: dto.period?.trim() || 'Month',
-      total: dto.total === undefined || dto.total === null ? null : dto.total.toFixed(2),
+      period: dto.period ?? 'Month',
+      total: null,
       prices: dto.prices ? toPriceOverrides(dto.prices) : {},
       premium: dto.premium ?? false,
       features: dto.features ?? [],
@@ -96,7 +94,6 @@ export class SubscriptionPlansService {
     if (dto.name !== undefined) plan.name = dto.name;
     if (dto.price !== undefined) plan.price = dto.price.toFixed(2);
     if (dto.period !== undefined) plan.period = dto.period;
-    if (dto.total !== undefined) plan.total = dto.total === null ? null : dto.total.toFixed(2);
     if (dto.prices !== undefined) plan.prices = toPriceOverrides(dto.prices);
     if (dto.premium !== undefined) plan.premium = dto.premium;
     if (dto.features !== undefined) plan.features = dto.features;
@@ -146,7 +143,6 @@ export class SubscriptionPlansService {
     const override = currency !== BASE_CURRENCY ? row.prices?.[currency] : undefined;
     const resolvedCurrency: CurrencyCode = override ? currency : BASE_CURRENCY;
     const price = override ? override.price : Number(row.price);
-    const total = override ? override.total : row.total === null ? null : Number(row.total);
 
     return {
       id: row.id,
@@ -154,8 +150,7 @@ export class SubscriptionPlansService {
       name: row.name,
       price,
       currency: resolvedCurrency,
-      period: row.period,
-      total,
+      period: row.period as PlanPeriod,
       ...(includeOverrides ? { prices: row.prices ?? {} } : {}),
       premium: row.premium,
       features: row.features ?? [],

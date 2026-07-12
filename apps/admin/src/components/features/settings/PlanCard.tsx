@@ -104,9 +104,6 @@ export function PlanCard({ plan, editing, onEdit }: PlanCardProps) {
           {formatCurrency(plan.price)}
           <span className="text-sm font-semibold text-neutral-variant"> /{plan.period}</span>
         </p>
-        {plan.total != null ? (
-          <p className="text-sm font-bold text-neutral-variant">{formatCurrency(plan.total)}</p>
-        ) : null}
       </div>
 
       {presentations.length > 0 ? (

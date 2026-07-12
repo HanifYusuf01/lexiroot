@@ -203,6 +203,8 @@ export class SubscriptionsService {
       .addSelect('sub.current_period_end', 'currentPeriodEnd')
       .addSelect('sub.cancel_at_period_end', 'cancelAtPeriodEnd')
       .addSelect('sub.created_at', 'createdAt')
+      // Hide abandoned/in-flight checkouts — only surface real subscriptions.
+      .where('sub.status != :incomplete', { incomplete: 'INCOMPLETE' })
       .orderBy('sub.created_at', 'DESC')
       .getRawMany<{
         id: string;

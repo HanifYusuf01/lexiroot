@@ -3,9 +3,9 @@ import type { SubscriptionPlan } from '../subscriptions/entities/subscription-pl
 
 /**
  * Maps a catalog plan onto a recurring provider price, in a given currency. The
- * catalog stores a per-month headline `price` and a `total` billed for
- * multi-month periods; the provider price charges `total` (or `price`) once per
- * interval. USD amounts live in `price`/`total`; other currencies in `prices`.
+ * plan's `period` (Month/Quarter/Year) is the source of truth for the billing
+ * interval, and its `price` is the amount charged once per that period. USD
+ * amounts live in `price`; other currencies in `prices`.
  *
  * Shared by the sync service (which provisions the price) and the sync-state
  * reporter (which detects drift). They must agree, so this lives in one place.
@@ -16,15 +16,23 @@ export interface RecurringPrice {
   intervalCount: number;
 }
 
-/** The plan's headline + total amount in `currency`, or null if not priced. */
-function amountsFor(
-  plan: SubscriptionPlan,
-  currency: CurrencyCode,
-): { price: number; total: number | null } | null {
-  if (currency === BASE_CURRENCY) {
-    return { price: Number(plan.price), total: plan.total === null ? null : Number(plan.total) };
+/** The plan's per-period amount in `currency`, or null if not priced in it. */
+function priceFor(plan: SubscriptionPlan, currency: CurrencyCode): number | null {
+  if (currency === BASE_CURRENCY) return Number(plan.price);
+  const override = plan.prices?.[currency];
+  return override ? override.price : null;
+}
+
+/** A plan period → the provider (interval, count) it bills on. */
+function intervalForPeriod(period: string): Pick<RecurringPrice, 'interval' | 'intervalCount'> {
+  switch (period) {
+    case 'Year':
+      return { interval: 'year', intervalCount: 1 };
+    case 'Quarter':
+      return { interval: 'month', intervalCount: 3 };
+    default: // 'Month'
+      return { interval: 'month', intervalCount: 1 };
   }
-  return plan.prices?.[currency] ?? null;
 }
 
 /**
@@ -35,21 +43,10 @@ export function planRecurring(
   plan: SubscriptionPlan,
   currency: CurrencyCode,
 ): RecurringPrice | null {
-  const amounts = amountsFor(plan, currency);
-  if (!amounts) return null;
-
-  const { price, total } = amounts;
-  const name = plan.name.toLowerCase();
-  const minor = (major: number) => toMinorUnits(major, currency);
-
-  if (name.includes('year') || name.includes('annual')) {
-    return { amountMinor: minor(total ?? price * 12), interval: 'year', intervalCount: 1 };
-  }
-  if (name.includes('quarter')) {
-    return { amountMinor: minor(total ?? price * 3), interval: 'month', intervalCount: 3 };
-  }
-  // Default: monthly.
-  return { amountMinor: minor(price), interval: 'month', intervalCount: 1 };
+  const price = priceFor(plan, currency);
+  if (price === null) return null;
+  const { interval, intervalCount } = intervalForPeriod(plan.period);
+  return { amountMinor: toMinorUnits(price, currency), interval, intervalCount };
 }
 
 /** The `interval` string persisted on a PlanProviderPrice row, e.g. "3month". */

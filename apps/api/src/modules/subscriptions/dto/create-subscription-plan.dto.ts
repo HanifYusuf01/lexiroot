@@ -15,13 +15,15 @@ import {
 import {
   NON_BASE_CURRENCIES,
   PLAN_FEATURE_KEYS,
+  PLAN_PERIODS,
   PLAN_SCOPES,
   type CurrencyCode,
   type PlanFeatureKey,
+  type PlanPeriod,
   type PlanScope,
 } from '@lexiroot/shared';
 
-/** One non-base currency price on a plan write (USD lives in price/total). */
+/** One non-base currency price on a plan write (the amount charged per period). */
 export class PlanCurrencyPriceDto {
   @IsIn(NON_BASE_CURRENCIES as readonly string[], {
     message: 'currency must be a supported non-base currency',
@@ -32,12 +34,6 @@ export class PlanCurrencyPriceDto {
   @Min(0)
   @Max(100_000_000)
   price!: number;
-
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  @Max(100_000_000)
-  total?: number | null;
 }
 
 export class CreateSubscriptionPlanDto {
@@ -54,15 +50,8 @@ export class CreateSubscriptionPlanDto {
   price!: number;
 
   @IsOptional()
-  @IsString()
-  @Length(1, 20)
-  period?: string;
-
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  @Max(100000)
-  total?: number | null;
+  @IsIn(PLAN_PERIODS as readonly string[], { message: 'period must be Month, Quarter, or Year' })
+  period?: PlanPeriod;
 
   @IsOptional()
   @IsArray()
