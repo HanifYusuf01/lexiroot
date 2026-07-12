@@ -71,10 +71,12 @@ export default function UpgradePricing() {
     }
   }, [visible, selectedId]);
 
-  // Drop the learner into the lesson/level they were headed for.
+  // Drop the learner into the lesson/level they were gated from. When there's no
+  // such destination — they upgraded without a lesson in progress (home promo,
+  // profile, onboarding) — land them on the home tab instead of unwinding to
+  // wherever the stack happened to start.
   const leaveToDestination = () => {
-    if (next) router.replace(next as never);
-    else router.dismissAll();
+    router.replace((next ?? '/home') as never);
   };
 
   const handleSubscribe = async () => {

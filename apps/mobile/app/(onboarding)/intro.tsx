@@ -1,17 +1,12 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button } from '../../src/components/ui/Button';
 import { MascotHeadIcon } from '../../src/components/icons/MascotHeadIcon';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
-import { SkipConfirmModal } from '../../src/components/ui/SkipConfirmModal';
 import { colors, fonts, spacing } from '../../src/constants/theme';
-import { useFinishOnboarding } from '../../src/hooks/useFinishOnboarding';
 
 export default function OnboardingIntro() {
   const router = useRouter();
-  const [skipOpen, setSkipOpen] = useState(false);
-  const { finish, isLoading } = useFinishOnboarding();
 
   return (
     <ScreenContainer>
@@ -26,17 +21,7 @@ export default function OnboardingIntro() {
       </View>
       <View style={styles.footer}>
         <Button label="Continue" onPress={() => router.push('/country')} />
-        <Pressable onPress={() => setSkipOpen(true)} hitSlop={8} style={styles.skipPress}>
-          <Text style={styles.skipText}>Skip »</Text>
-        </Pressable>
       </View>
-
-      <SkipConfirmModal
-        visible={skipOpen}
-        onClose={() => setSkipOpen(false)}
-        onConfirm={finish}
-        loading={isLoading}
-      />
     </ScreenContainer>
   );
 }
@@ -68,14 +53,5 @@ const styles = StyleSheet.create({
   },
   footer: {
     gap: spacing.sm,
-  },
-  skipPress: {
-    alignSelf: 'center',
-    paddingVertical: spacing.xs,
-  },
-  skipText: {
-    fontFamily: fonts.bold,
-    fontSize: 14,
-    color: colors.neutral,
   },
 });
