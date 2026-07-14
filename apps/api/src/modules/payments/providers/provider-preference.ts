@@ -11,23 +11,26 @@ import type { ClientPlatform, CountryCode, ProviderKey } from '@lexiroot/shared'
  *    app to be sold through In-App Purchase (App Store Review Guideline 3.1.1).
  *    So on iOS, Apple IAP outranks every card processor. This is not a user
  *    choice, which is why it isn't one.
- * 2. **Region.** Stripe does not offer local card acquiring in the African
- *    markets Paystack serves, so those countries route to Paystack; everywhere
- *    else routes to Stripe. Neither is a global default — the country decides,
- *    and if the chosen provider isn't configured the registry falls back to
- *    whatever is live.
+ * 2. **Region.** Nigeria routes to Paystack, which charges in NGN via local
+ *    acquiring; every other country routes to Stripe and is charged in USD.
+ *    Paystack serves other African markets too, but each needs its own Paystack
+ *    account, local entity and per-currency prices — whereas Stripe already
+ *    accepts cards from those countries in USD. So Paystack stays scoped to the
+ *    one market where the local rails actually earn their keep. Neither provider
+ *    is a global default — the country decides, and if the chosen provider isn't
+ *    configured the registry falls back to whatever is live.
  */
 
 /**
- * Countries Paystack operates in. Stripe has no local acquiring here, so these
- * route to Paystack only — listing Stripe as a fallback would just fail at
- * checkout. Extend this as Paystack (or the project) adds markets.
+ * The only country billed through Paystack. Keep this in step with
+ * `COUNTRY_CURRENCY` in shared constants: a country routes to Paystack only if
+ * we also price it in that country's local currency.
  */
-const PAYSTACK_MARKETS: readonly CountryCode[] = ['NG', 'GH', 'ZA', 'KE', 'CI', 'EG'];
+const PAYSTACK_COUNTRY: CountryCode = 'NG';
 
-/** The card processor for a country. Paystack in its markets, Stripe elsewhere. */
+/** The card processor for a country. Paystack in Nigeria, Stripe everywhere else. */
 function cardProviders(country: CountryCode | null): ProviderKey[] {
-  return country && PAYSTACK_MARKETS.includes(country) ? ['paystack'] : ['stripe'];
+  return country === PAYSTACK_COUNTRY ? ['paystack'] : ['stripe'];
 }
 
 export interface ProviderPreferenceInput {
