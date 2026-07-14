@@ -10,7 +10,9 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.lexiroot.app"
+        "EXPO_PUBLIC_API_URL": "https://api.lexiroot.app",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "874011553032-079j7m6i0tu7r52ra1t4fgoq7tp4ktr6.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "874011553032-a5rl7phjd7qsu7medrtimgfas0a4f8j7.apps.googleusercontent.com"
       }
     },
     "production": {
@@ -18,7 +20,9 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.lexiroot.app"
+        "EXPO_PUBLIC_API_URL": "https://api.lexiroot.app",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "874011553032-079j7m6i0tu7r52ra1t4fgoq7tp4ktr6.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "874011553032-a5rl7phjd7qsu7medrtimgfas0a4f8j7.apps.googleusercontent.com"
       }
     }
   }
