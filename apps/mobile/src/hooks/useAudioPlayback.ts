@@ -101,7 +101,8 @@ export function useAudioPlayback(url: string | null | undefined): PlaybackHandle
       try {
         player.pause();
       } catch {
-        // ignore
+        // Pausing a player that's already released/stopped can throw; the state
+        // reset below is all that matters, so this failure is non-fatal.
       }
       setIsPlaying(false);
     },

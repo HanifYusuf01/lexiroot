@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { languageLabel, LEARNING_LEVEL_LABELS } from '@lexiroot/shared';
 import { Button } from '../../src/components/ui/Button';
@@ -43,7 +43,9 @@ export default function SetupScreen() {
       }).unwrap();
       router.replace('/creating-path');
     } catch {
-      // Stay on the screen so the user can retry the save.
+      // Stay on the screen so the user can retry, and tell them why we didn't
+      // advance — otherwise a failed save looks like an unresponsive button.
+      Alert.alert('Could not save', 'Please check your connection and try again.');
     }
   }
 

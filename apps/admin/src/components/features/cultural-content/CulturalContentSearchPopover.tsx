@@ -20,7 +20,9 @@ function saveRecent(list: string[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
   } catch {
-    /* ignore */
+    // Best-effort cache of recent searches. A private-mode / quota / disabled-
+    // storage failure is harmless to the search flow, so it stays silent rather
+    // than interrupting the user.
   }
 }
 

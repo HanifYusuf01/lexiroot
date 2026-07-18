@@ -55,7 +55,9 @@ export async function clearAllMedia(): Promise<void> {
   try {
     await FileSystem.deleteAsync(MEDIA_DIR, { idempotent: true });
   } catch {
-    // ignore
+    // Best-effort wipe: an already-missing directory (or an OS-level delete
+    // hiccup) still leaves us in the desired "no cached media" state, so this is
+    // non-fatal and stays silent.
   }
   dirReady = false;
 }

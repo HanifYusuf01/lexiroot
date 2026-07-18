@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { ImagePlus, Loader2, X } from 'lucide-react';
 import { useSignLessonImageMutation } from '../../../../services/uploadsApi';
 import { uploadLessonMediaToCloudinary } from '../../../../utils/cloudinary';
+import { useToast } from '../../../ui/Toast';
 
 interface Props {
   value: string | null;
@@ -14,6 +15,7 @@ export function InlineImageCell({ value, onChange }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [signImage] = useSignLessonImageMutation();
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
   async function handleFile(file: File) {
     setBusy(true);
@@ -22,7 +24,9 @@ export function InlineImageCell({ value, onChange }: Props) {
       const url = await uploadLessonMediaToCloudinary(file, signature);
       onChange(url);
     } catch {
-      /* swallow inline; visual error UI can come later */
+      // Sign or Cloudinary upload failed — tell the user so the missing image
+      // isn't a silent dead end. The cell stays unchanged so they can retry.
+      toast.error('Image upload failed. Please try again.');
     } finally {
       setBusy(false);
     }
