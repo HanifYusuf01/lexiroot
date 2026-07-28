@@ -49,6 +49,12 @@ export interface PlanProviderSync {
   expectedAmountMinor: number;
   currency: string | null;
   syncedAt: string | null;
+  /**
+   * The provider's product id, when synced. Most providers mint this
+   * automatically; Apple IAP's is admin-entered (created manually in App Store
+   * Connect), so the admin UI shows/edits it here.
+   */
+  providerProductId: string | null;
 }
 
 /** Sync state for every live provider, keyed by plan id. */

@@ -41,6 +41,11 @@ export interface CheckoutResult {
   url: string | null;
   /** Client secret for in-app confirmation (future providers). */
   clientSecret: string | null;
+  /**
+   * Store product id to purchase via a native purchase sheet (Apple IAP). Null
+   * for hosted-checkout providers, which need no client-side product lookup.
+   */
+  providerProductId: string | null;
   /** Provider's reference for the checkout attempt (e.g. session id). */
   providerRef: string;
   /** The customer the provider created/reused, to persist on our subscription. */
@@ -112,6 +117,12 @@ export interface SyncPlanPriceInput {
   intervalCount: number;
   existingProductId: string | null;
   existingPriceId: string | null;
+  /**
+   * Admin-supplied product id for providers with no product-creation API (Apple
+   * IAP: the id is minted manually in App Store Connect, not by us). Ignored by
+   * providers that create their own products (Stripe, Paystack).
+   */
+  manualProductId?: string | null;
 }
 
 export interface SyncPlanPriceResult {
@@ -140,9 +151,11 @@ export interface PaymentProvider {
   /**
    * Verify the webhook signature (throws if invalid — Rule 3a) and return a
    * normalized event. Must NOT trust the payload for state — callers re-fetch
-   * via the fetch* methods (Rule 3b).
+   * via the fetch* methods (Rule 3b). Async because Apple IAP's verification is
+   * a JWS check against Apple's certificate chain, not a synchronous HMAC/SDK
+   * call like Stripe/Paystack.
    */
-  verifyAndParseWebhook(rawBody: Buffer, signature: string): NormalizedEvent;
+  verifyAndParseWebhook(rawBody: Buffer, signature: string): Promise<NormalizedEvent>;
 
   /** Re-fetch a subscription from the provider by id (source of truth). */
   fetchSubscription(providerSubscriptionId: string): Promise<ProviderSubSnapshot>;

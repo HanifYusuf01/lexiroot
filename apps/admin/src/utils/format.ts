@@ -23,12 +23,17 @@ export function formatCurrency(n: number, currency = 'USD'): string {
   });
 }
 
-/** "$10.28M" / "$3.99K" / "$0.00" */
-export function formatCompactCurrency(n: number): string {
+/** "$10.28M" / "$3.99K" / "$0.00" / "₦20K" for another currency */
+export function formatCompactCurrency(n: number, currency = 'USD'): string {
   if (Math.abs(n) >= 1000) {
-    return `$${n.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 2 })}`;
+    return n.toLocaleString('en-US', {
+      style: 'currency',
+      currency,
+      notation: 'compact',
+      maximumFractionDigits: 2,
+    });
   }
-  return formatCurrency(n);
+  return formatCurrency(n, currency);
 }
 
 /** "10:24 AM" */

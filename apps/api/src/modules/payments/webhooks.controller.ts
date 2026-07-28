@@ -53,6 +53,16 @@ export class WebhooksController {
     await this.webhooks.handle('paystack', req.rawBody, signature);
     return { received: true };
   }
+
+  @Post('apple-iap')
+  @HttpCode(200)
+  async appleIap(@Req() req: RawBodyRequest<Request>): Promise<{ received: true }> {
+    if (!req.rawBody) throw new BadRequestException('Missing raw body');
+    // No signature header — the JWS body itself carries and verifies the
+    // signature (App Store Server Notifications v2 has no HMAC header).
+    await this.webhooks.handle('apple_iap', req.rawBody, '');
+    return { received: true };
+  }
 }
 
 function isSignatureError(err: unknown): boolean {

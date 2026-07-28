@@ -33,7 +33,7 @@ export function PaymentProvidersCards({ providers }: Props) {
               <span className="text-sm font-bold text-neutral">{p.provider}</span>
             </div>
             <div className="mt-3 flex flex-col gap-1.5">
-              <Stat label="Revenue" value={formatCompactCurrency(p.revenue)} />
+              <Stat label="Revenue" value={formatCompactCurrency(p.revenue, p.currency.toUpperCase())} />
               <Stat label="Transactions" value={formatNumber(p.transactions)} />
               <Stat label="Success rate" value={`${p.successRate}%`} />
               <Stat label="Failed Payments" value={formatNumber(p.failedPayments)} />

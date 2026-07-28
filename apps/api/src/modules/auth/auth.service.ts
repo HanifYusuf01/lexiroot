@@ -11,6 +11,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { OAuth2Client } from 'google-auth-library';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { randomInt } from 'crypto';
 import { UsersService } from '../users/users.service';
 import { LanguagesService } from '../languages/languages.service';
@@ -73,6 +74,11 @@ export interface GoogleAuthResponse extends AuthResponse {
   isNewUser: boolean;
 }
 
+export interface AppleAuthResponse extends AuthResponse {
+  /** True when this Apple sign-in just created the account (routes to onboarding). */
+  isNewUser: boolean;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -95,6 +101,16 @@ export class AuthService {
       this.config.get<string>('GOOGLE_CLIENT_ID_WEB'),
       this.config.get<string>('GOOGLE_CLIENT_ID_IOS'),
     ].filter((id): id is string => !!id);
+  }
+
+  // Apple's identity-token signing keys, fetched/cached from their JWKS endpoint.
+  private readonly appleJwks = createRemoteJWKSet(
+    new URL('https://appleid.apple.com/auth/keys'),
+  );
+
+  /** Accepted audiences for Apple identity tokens (the app's bundle id). */
+  private appleAudiences(): string[] {
+    return [this.config.get<string>('APPLE_BUNDLE_ID')].filter((id): id is string => !!id);
   }
 
   /** Rejects a language code that isn't a connected language in the catalog. */
@@ -154,9 +170,11 @@ export class AuthService {
       );
     }
 
-    // Social-only accounts (Google) have no local password.
+    // Social-only accounts (Google/Apple) have no local password.
     if (!user.passwordHash) {
-      throw new UnauthorizedException('Use Google sign-in for this account');
+      throw new UnauthorizedException(
+        user.googleId ? 'Use Google sign-in for this account' : 'Use Apple sign-in for this account',
+      );
     }
 
     const passwordMatches = await bcrypt.compare(dto.password, user.passwordHash);
@@ -226,6 +244,56 @@ export class AuthService {
       displayName: payload.name ?? email.split('@')[0],
       googleId: payload.sub,
       avatarUrl: payload.picture ?? null,
+      passwordHash: null,
+      emailVerifiedAt: new Date(),
+    });
+    const session = await this.issueSession(created);
+    return { ...session, isNewUser: true };
+  }
+
+  /**
+   * Verifies an Apple identity token against Apple's published JWKS, then finds
+   * or creates the matching user and issues our own JWT session. `fullName` only
+   * arrives on the user's first authorization (Apple never puts it in the
+   * token), so later sign-ins fall back to whatever display name we already have.
+   */
+  async appleAuth(identityToken: string, fullName?: string): Promise<AppleAuthResponse> {
+    const audience = this.appleAudiences();
+    if (audience.length === 0) {
+      throw new BadRequestException('Apple sign-in is not configured');
+    }
+
+    let payload;
+    try {
+      const result = await jwtVerify(identityToken, this.appleJwks, {
+        issuer: 'https://appleid.apple.com',
+        audience,
+      });
+      payload = result.payload;
+    } catch {
+      throw new UnauthorizedException('Invalid Apple token');
+    }
+    const emailVerified = payload.email_verified === true || payload.email_verified === 'true';
+    if (typeof payload.email !== 'string' || !emailVerified || typeof payload.sub !== 'string') {
+      throw new UnauthorizedException('Apple account is missing a verified email');
+    }
+
+    const email = payload.email.toLowerCase();
+    const existing = await this.users.findByEmail(email);
+    if (existing) {
+      // Link the Apple identity on first social sign-in for an email account.
+      if (!existing.appleId) {
+        await this.users.update(existing.id, { appleId: payload.sub });
+        existing.appleId = payload.sub;
+      }
+      const session = await this.issueSession(existing);
+      return { ...session, isNewUser: false };
+    }
+
+    const created = await this.users.create({
+      email,
+      displayName: fullName?.trim() || email.split('@')[0],
+      appleId: payload.sub,
       passwordHash: null,
       emailVerifiedAt: new Date(),
     });
@@ -358,7 +426,8 @@ export class AuthService {
     const user = await this.users.findById(userId);
     if (!user) throw new UnauthorizedException();
     if (!user.passwordHash) {
-      throw new BadRequestException('This account has no password. It was created with Google.');
+      const provider = user.googleId ? 'Google' : 'Apple';
+      throw new BadRequestException(`This account has no password. It was created with ${provider}.`);
     }
     const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
     if (!valid) throw new UnauthorizedException('Current password is incorrect');

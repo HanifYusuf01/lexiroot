@@ -36,6 +36,8 @@
           "iosUrlScheme": "com.googleusercontent.apps.874011553032-a5rl7phjd7qsu7medrtimgfas0a4f8j7"
         }
       ],
+      "expo-apple-authentication",
+      "expo-iap",
       [
         "expo-notifications",
         {

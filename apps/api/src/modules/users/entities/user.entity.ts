@@ -38,6 +38,11 @@ export class User {
   @Column({ name: 'google_id', type: 'varchar', nullable: true })
   googleId!: string | null;
 
+  // Apple account subject id ("sub") for users who signed in with Apple.
+  @Index({ unique: true })
+  @Column({ name: 'apple_id', type: 'varchar', nullable: true })
+  appleId!: string | null;
+
   @Column({ type: 'varchar', length: 20, default: 'user' })
   role!: UserRole;
 

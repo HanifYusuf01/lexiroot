@@ -4,15 +4,29 @@ import { GoogleIcon } from '../../src/components/icons/GoogleIcon';
 import { MascotHeadIcon } from '../../src/components/icons/MascotHeadIcon';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
 import { SocialButton } from '../../src/components/ui/SocialButton';
+import { useAppleSignIn } from '../../src/hooks/useAppleSignIn';
 import { useGoogleSignIn } from '../../src/hooks/useGoogleSignIn';
 import { colors, fonts, spacing } from '../../src/constants/theme';
 
 export default function SignupOptions() {
   const router = useRouter();
   const { signIn: googleSignIn, loading: googleLoading, error: googleError } = useGoogleSignIn();
+  const {
+    signIn: appleSignIn,
+    loading: appleLoading,
+    error: appleError,
+    available: appleAvailable,
+  } = useAppleSignIn();
 
   async function handleGoogle() {
     const result = await googleSignIn();
+    if (result) {
+      router.replace(result.isNewUser ? '/intro' : '/home');
+    }
+  }
+
+  async function handleApple() {
+    const result = await appleSignIn();
     if (result) {
       router.replace(result.isNewUser ? '/intro' : '/home');
     }
@@ -34,7 +48,15 @@ export default function SignupOptions() {
           disabled={googleLoading}
         />
         {googleError ? <Text style={styles.error}>{googleError}</Text> : null}
-        <SocialButton label="Continue with Apple" iconName="logo-apple" onPress={() => {}} />
+        {appleAvailable ? (
+          <SocialButton
+            label={appleLoading ? 'Signing in…' : 'Continue with Apple'}
+            iconName="logo-apple"
+            onPress={handleApple}
+            disabled={appleLoading}
+          />
+        ) : null}
+        {appleError ? <Text style={styles.error}>{appleError}</Text> : null}
         <SocialButton
           label="Sign up with Email"
           iconName="mail-outline"

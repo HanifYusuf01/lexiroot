@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import { PLAN_SCOPES, type PlanScope } from '@lexiroot/shared';
+import { CURRENCIES, NON_BASE_CURRENCIES, PLAN_SCOPES, type PlanScope } from '@lexiroot/shared';
 import { SelectMenu } from '../../ui/SelectMenu';
+import { TextField } from '../../ui/TextField';
+import { useToast } from '../../ui/Toast';
+import { usePlatformSettingsDraft } from '../../../hooks/usePlatformSettingsDraft';
 import { useSubscriptionPlansQuery } from '../../../services/subscriptionPlansApi';
 import { PlanCard } from './PlanCard';
 import { PlanCreateForm } from './PlanCreateForm';
 import { PlanEditForm } from './PlanEditForm';
+import { SettingsFooter } from './SettingsFooter';
 
 const SCOPE_OPTIONS = PLAN_SCOPES.map((value) => ({
   value,
@@ -13,15 +17,71 @@ const SCOPE_OPTIONS = PLAN_SCOPES.map((value) => ({
 }));
 
 export function SubscriptionBillingTab() {
+  const toast = useToast();
   const [scope, setScope] = useState<PlanScope>('individual');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const { data: plans = [], isLoading } = useSubscriptionPlansQuery(scope);
+  const settings = usePlatformSettingsDraft();
 
   const editingPlan = plans.find((p) => p.id === editingId) ?? null;
 
+  async function handleSaveSettings() {
+    try {
+      await settings.save();
+      toast.success('Settings saved');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save settings.');
+    }
+  }
+
+  function setFxRate(currency: (typeof NON_BASE_CURRENCIES)[number], value: string) {
+    if (!settings.draft) return;
+    const rate = Number(value);
+    settings.set('fxRatesToUsd', {
+      ...settings.draft.fxRatesToUsd,
+      [currency]: value === '' || Number.isNaN(rate) ? undefined : rate,
+    });
+  }
+
   return (
     <div className="space-y-10">
+      <section>
+        <h2 className="text-base font-bold text-neutral">Revenue reporting</h2>
+        <p className="mt-0.5 text-xs text-neutral-variant">
+          Exchange rates used only to blend non-USD revenue (e.g. Paystack's NGN) into USD
+          analytics totals — never for pricing or billing. There's no live exchange-rate feed, so
+          keep these current as rates move.
+        </p>
+        {settings.draft ? (
+          <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {NON_BASE_CURRENCIES.map((currency) => {
+              const meta = CURRENCIES[currency];
+              return (
+                <TextField
+                  key={currency}
+                  label={`${meta.label} (${currency}) per USD`}
+                  type="number"
+                  min={0.0001}
+                  step="0.01"
+                  value={settings.draft!.fxRatesToUsd[currency] ?? ''}
+                  placeholder={`e.g. 1500`}
+                  onChange={(e) => setFxRate(currency, e.target.value)}
+                />
+              );
+            })}
+          </div>
+        ) : null}
+        {settings.dirty ? (
+          <SettingsFooter
+            dirty={settings.dirty}
+            saving={settings.saving}
+            onCancel={settings.reset}
+            onSave={handleSaveSettings}
+          />
+        ) : null}
+      </section>
+
       <section>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

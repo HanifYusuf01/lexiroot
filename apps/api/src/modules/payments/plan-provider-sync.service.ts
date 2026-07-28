@@ -41,7 +41,11 @@ export class PlanProviderSyncService {
     private readonly registry: PaymentProviderRegistry,
   ) {}
 
-  async sync(planId: string, providerKey?: ProviderKey): Promise<PlanProviderPrice> {
+  async sync(
+    planId: string,
+    providerKey?: ProviderKey,
+    manualProductId?: string,
+  ): Promise<PlanProviderPrice> {
     const plan = await this.plans.findOne({ where: { id: planId } });
     if (!plan) throw new NotFoundException('Subscription plan not found');
 
@@ -69,6 +73,7 @@ export class PlanProviderSyncService {
       intervalCount: recurring.intervalCount,
       existingProductId: existing?.providerProductId ?? null,
       existingPriceId: existing?.providerPriceId ?? null,
+      manualProductId,
     });
 
     const row =
@@ -176,6 +181,7 @@ export class PlanProviderSyncService {
       expectedAmountMinor,
       currency: price?.currency ?? PROVIDER_CURRENCY[provider],
       syncedAt: price?.updatedAt.toISOString() ?? null,
+      providerProductId: price?.providerProductId ?? null,
     };
   }
 }

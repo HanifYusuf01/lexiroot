@@ -12,6 +12,11 @@ interface GoogleAuthResponse extends AuthResponse {
   isNewUser: boolean;
 }
 
+interface AppleAuthResponse extends AuthResponse {
+  /** True when the sign-in just created the account (route through onboarding). */
+  isNewUser: boolean;
+}
+
 interface SignupResponse {
   email: string;
 }
@@ -82,6 +87,9 @@ export const authApi = api.injectEndpoints({
     googleAuth: build.mutation<GoogleAuthResponse, { idToken: string }>({
       query: (body) => ({ url: '/auth/google', method: 'POST', body }),
     }),
+    appleAuth: build.mutation<AppleAuthResponse, { identityToken: string; fullName?: string }>({
+      query: (body) => ({ url: '/auth/apple', method: 'POST', body }),
+    }),
     verifyEmail: build.mutation<AuthResponse, VerifyEmailBody>({
       query: (body) => ({ url: '/auth/verify-email', method: 'POST', body }),
     }),
@@ -118,6 +126,7 @@ export const {
   useSignupMutation,
   useLoginMutation,
   useGoogleAuthMutation,
+  useAppleAuthMutation,
   useVerifyEmailMutation,
   useResendVerificationMutation,
   useChangePendingEmailMutation,

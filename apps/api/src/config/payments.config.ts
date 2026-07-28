@@ -29,6 +29,18 @@ export interface PaymentsConfig {
      */
     currency: string | null;
   };
+  appleIap: {
+    /** The app's bundle id — shared with Sign in with Apple's APPLE_BUNDLE_ID. */
+    bundleId: string;
+    /** Numeric App Store app id. Required in Production, unused in Sandbox. */
+    appAppleId: number | null;
+    /** From App Store Connect → Users and Access → Integrations → In-App Purchase. */
+    issuerId: string;
+    keyId: string;
+    /** PEM contents of the .p8 In-App Purchase key downloaded from App Store Connect. */
+    privateKey: string;
+    environment: 'Sandbox' | 'Production';
+  };
   /** Where Stripe Checkout redirects on success/cancel. */
   checkout: {
     successUrl: string;
@@ -49,6 +61,18 @@ export const paymentsConfig = registerAs(
     paystack: {
       secretKey: process.env.PAYSTACK_SECRET_KEY ?? '',
       currency: process.env.PAYSTACK_CURRENCY?.toUpperCase() || null,
+    },
+    appleIap: {
+      bundleId: process.env.APPLE_BUNDLE_ID ?? '',
+      appAppleId: process.env.APPLE_IAP_APP_APPLE_ID
+        ? Number(process.env.APPLE_IAP_APP_APPLE_ID)
+        : null,
+      issuerId: process.env.APPLE_IAP_ISSUER_ID ?? '',
+      keyId: process.env.APPLE_IAP_KEY_ID ?? '',
+      // Env vars can't hold real newlines — the .p8 is stored with literal `\n`
+      // escapes and unescaped here.
+      privateKey: (process.env.APPLE_IAP_PRIVATE_KEY ?? '').replace(/\\n/g, '\n'),
+      environment: process.env.APPLE_IAP_ENVIRONMENT === 'Production' ? 'Production' : 'Sandbox',
     },
     // Return pages live on the marketing website (apps/web). In prod set these
     // to the website domain, e.g. https://lexiroot.app/subscription/success.

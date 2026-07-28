@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import {
+  ENTITLED_SUBSCRIPTION_STATUSES,
   LEARNING_LEVELS,
   LEARNING_LEVEL_LABELS,
   LESSON_TYPES,
   LESSON_TYPE_LABELS,
+  PROVIDER_KEYS,
+  PROVIDER_TEXT,
   type AnalyticsActiveUsers,
   type AnalyticsCategoryBreakdown,
   type AnalyticsDailyActivityPoint,
@@ -18,7 +21,11 @@ import {
   type AnalyticsRevenueDetail,
   type AnalyticsSubscriptionBreakdown,
   type FunnelInsight,
+  type PaymentActivityItem,
+  type PaymentActivityType,
   type PaymentProviderStat,
+  type PlanBreakdownRow,
+  type ProviderKey,
   type RevenueBreakdownCard,
   type RevenueOverTimePoint,
   type SubscriptionGrowthPoint,
@@ -34,9 +41,15 @@ import {
 import { XpLedgerEntry } from '../gamification/entities/xp-ledger-entry.entity';
 import { Language } from '../languages/entities/language.entity';
 import { Lesson } from '../lessons/entities/lesson.entity';
+import { Invoice } from '../payments/entities/invoice.entity';
+import { Payment } from '../payments/entities/payment.entity';
+import { Subscription } from '../payments/entities/subscription.entity';
+import { SubscriptionStatusEvent } from '../payments/entities/subscription-status-event.entity';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { User } from '../users/entities/user.entity';
 import { LessonCompletion } from '../progress/entities/lesson-completion.entity';
 import { LessonProgress } from '../progress/entities/lesson-progress.entity';
+import { SubscriptionPlan } from '../subscriptions/entities/subscription-plan.entity';
 import { UserActiveDay } from './entities/user-active-day.entity';
 
 const ACTIVITY_WINDOW_DAYS = 7;
@@ -103,6 +116,19 @@ interface LessonRow {
   completions: string;
 }
 
+interface RevenueContext {
+  subscriptions: Subscription[];
+  paymentsList: Payment[];
+  plansById: Map<string, SubscriptionPlan>;
+  subscriptionById: Map<string, Subscription>;
+  invoiceById: Map<string, Invoice>;
+  /** First (by period start) invoice id per subscription — that payment is
+   * the conversion; every later one on the same subscription is a renewal. */
+  firstInvoiceIdBySubscription: Map<string, string>;
+  /** Real status-transition log per subscription, sorted oldest → newest. */
+  eventsBySubscription: Map<string, SubscriptionStatusEvent[]>;
+}
+
 function daysAgo(n: number): Date {
   const d = new Date();
   d.setUTCHours(0, 0, 0, 0);
@@ -112,6 +138,89 @@ function daysAgo(n: number): Date {
 
 function shortLabel(date: Date): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+const ENTITLED_STATUSES = new Set<string>(ENTITLED_SUBSCRIPTION_STATUSES);
+
+/** The currency blended top-line figures (charts, "by plan" cards) are reported in. */
+const BLEND_CURRENCY = 'usd';
+
+/** Shown on a provider's card only when it has no real payments yet. */
+const PROVIDER_DEFAULT_CURRENCY: Record<ProviderKey, string> = {
+  stripe: 'usd',
+  paystack: 'ngn',
+  apple_iap: 'usd',
+};
+
+/**
+ * A payment's value in USD minor units (cents) for the blended totals, or
+ * null when its currency has no admin-set rate to convert with — there's no
+ * live FX provider integrated; `fxRatesToUsd` comes from PlatformSettings,
+ * set and revisited manually by an admin (units of that currency per 1 USD).
+ * Every currency this app bills in stores minor units (cents/kobo) at the
+ * same 1/100 scale, so dividing by the major-unit rate converts minor units
+ * directly — no extra ×100/÷100 needed.
+ */
+function toUsdMinor(
+  payment: Payment,
+  fxRatesToUsd: Partial<Record<string, number>>,
+): number | null {
+  const currency = payment.currency.toUpperCase();
+  if (currency === BLEND_CURRENCY.toUpperCase()) return payment.amountMinor;
+  const rate = fxRatesToUsd[currency];
+  if (!rate) return null;
+  return Math.round(payment.amountMinor / rate);
+}
+
+function monthlyEquivalent(amount: number, period: string): number {
+  switch (period) {
+    case 'Year':
+      return amount / 12;
+    case 'Quarter':
+      return amount / 3;
+    default:
+      return amount;
+  }
+}
+
+/**
+ * Fallback-only heuristic for "was this subscription's access live at `at`",
+ * from snapshot fields alone — used solely for subscriptions that transitioned
+ * before `subscription_status_events` existed, so their exact history is
+ * unrecoverable. Can't see intermediate PAST_DUE/PAUSED detours, just the
+ * create/cancel/period window. Prefer `isEntitledAt`, which uses the real log
+ * when one exists for the subscription in question.
+ */
+function wasLikelyEntitledAt(sub: Subscription, at: Date): boolean {
+  if (sub.status === 'INCOMPLETE') return false;
+  if (sub.createdAt > at) return false;
+  if (sub.canceledAt && sub.canceledAt <= at) return false;
+  if (sub.currentPeriodEnd && sub.currentPeriodEnd < at) return false;
+  return true;
+}
+
+/**
+ * Was this subscription entitled at `at`? Uses the real status-history log
+ * when this subscription has one; falls back to the snapshot heuristic only
+ * when it has zero logged events but its current status isn't INCOMPLETE —
+ * meaning it transitioned before event-logging shipped, so its exact history
+ * before "now" can't be known.
+ */
+function isEntitledAt(sub: Subscription, events: SubscriptionStatusEvent[], at: Date): boolean {
+  if (sub.createdAt > at) return false;
+  if (events.length === 0) {
+    if (sub.status === 'INCOMPLETE') return false; // accurate: never transitioned
+    return wasLikelyEntitledAt(sub, at);
+  }
+  // The status immediately before the earliest logged event is that event's
+  // `fromStatus` (always INCOMPLETE in practice — a subscription's first-ever
+  // transition — but read from the log rather than assumed).
+  let status: string = events[0].fromStatus;
+  for (const event of events) {
+    if (event.occurredAt > at) break;
+    status = event.toStatus;
+  }
+  return ENTITLED_STATUSES.has(status);
 }
 
 @Injectable()
@@ -129,6 +238,17 @@ export class AnalyticsService {
     private readonly activeDays: Repository<UserActiveDay>,
     @InjectRepository(Language)
     private readonly languages: Repository<Language>,
+    @InjectRepository(Subscription)
+    private readonly subscriptions: Repository<Subscription>,
+    @InjectRepository(Invoice)
+    private readonly invoices: Repository<Invoice>,
+    @InjectRepository(Payment)
+    private readonly payments: Repository<Payment>,
+    @InjectRepository(SubscriptionPlan)
+    private readonly plans: Repository<SubscriptionPlan>,
+    @InjectRepository(SubscriptionStatusEvent)
+    private readonly statusEvents: Repository<SubscriptionStatusEvent>,
+    private readonly platformSettings: PlatformSettingsService,
   ) {}
 
   async overview(fromStr?: string, toStr?: string): Promise<AnalyticsOverview> {
@@ -303,7 +423,7 @@ export class AnalyticsService {
       this.xpDistribution(),
       this.topLessons(6),
       this.subscriptionBreakdown(),
-      this.revenue(days),
+      this.revenue(from, to),
       this.funnel(),
     ]);
 
@@ -414,10 +534,15 @@ export class AnalyticsService {
   }
 
   private async subscriptionBreakdown(): Promise<AnalyticsSubscriptionBreakdown> {
-    // No payments module yet — every user is on the free tier. When premium
-    // subscriptions land, source `premium` from the subscriptions table.
-    const total = await this.users.createQueryBuilder('user').where("user.role != 'admin'").getCount();
-    const premium = 0;
+    const [total, premium] = await Promise.all([
+      this.users.createQueryBuilder('user').where("user.role != 'admin'").getCount(),
+      this.subscriptions
+        .createQueryBuilder('sub')
+        .select('COUNT(DISTINCT sub.user_id)', 'c')
+        .where('sub.status IN (:...statuses)', { statuses: [...ENTITLED_STATUSES] })
+        .getRawOne<{ c: string }>()
+        .then((r) => Number(r?.c ?? 0)),
+    ]);
     const free = total - premium;
     const denom = Math.max(1, total);
     return {
@@ -429,18 +554,102 @@ export class AnalyticsService {
     };
   }
 
-  private revenue(days: number): AnalyticsRevenue {
-    // Placeholder zeros until the payments module exists; the shape is final
-    // so the dashboard cards render correctly today and just light up later.
+  private async revenue(from: Date, to: Date): Promise<AnalyticsRevenue> {
+    const [ctx, settings] = await Promise.all([
+      this.loadRevenueContext(),
+      this.platformSettings.getCached(),
+    ]);
+    const fxRatesToUsd = settings.fxRatesToUsd;
+    const endExcl = addDaysUtc(to, 1);
+    const inRange = ctx.paymentsList
+      .filter((p) => p.status === 'PAID' && p.createdAt >= from && p.createdAt < endExcl)
+      .map((p) => ({ payment: p, usdMinor: toUsdMinor(p, fxRatesToUsd) }))
+      .filter((r): r is { payment: Payment; usdMinor: number } => r.usdMinor !== null);
+    const totalRevenue = inRange.reduce((sum, r) => sum + r.usdMinor, 0) / 100;
+
+    const spark: number[] = [];
+    for (let cur = new Date(from); cur <= to; cur = addDaysUtc(cur, 1)) {
+      const dayEndExcl = addDaysUtc(cur, 1);
+      const dayCents = inRange
+        .filter((r) => r.payment.createdAt >= cur && r.payment.createdAt < dayEndExcl)
+        .reduce((sum, r) => sum + r.usdMinor, 0);
+      spark.push(dayCents / 100);
+    }
+
+    const periodLabel: Record<string, string> = {
+      Month: 'Monthly Plan',
+      Quarter: 'Quarterly Plan',
+      Year: 'Annual Plan',
+    };
+    const plans = (['Month', 'Quarter', 'Year'] as const).map((period) => {
+      const planIds = new Set(
+        [...ctx.plansById.values()].filter((p) => p.period === period).map((p) => p.id),
+      );
+      const users = ctx.subscriptions.filter(
+        (s) => ENTITLED_STATUSES.has(s.status) && planIds.has(s.planId),
+      ).length;
+      const revenueCents = inRange
+        .filter((r) => {
+          const invoice = ctx.invoiceById.get(r.payment.invoiceId);
+          const sub = invoice ? ctx.subscriptionById.get(invoice.subscriptionId) : null;
+          return sub ? planIds.has(sub.planId) : false;
+        })
+        .reduce((sum, r) => sum + r.usdMinor, 0);
+      return { plan: periodLabel[period], users, revenue: revenueCents / 100 };
+    });
+
+    // There's no separate one-time-purchase revenue in this app — every
+    // payment is subscription-driven, so both figures are the same total.
+    return { totalRevenue, paidSubscriptionRevenue: totalRevenue, spark, plans };
+  }
+
+  /**
+   * Loads the small payments-domain tables once per request and derives the
+   * lookups every revenue computation needs. Fetching in full and joining in
+   * memory (rather than N targeted queries) is the simplest correct approach
+   * at this data volume, and mirrors how a single admin request is expected
+   * to behave — this is not a hot path.
+   */
+  private async loadRevenueContext(): Promise<RevenueContext> {
+    const [subscriptions, invoices, paymentsList, planRows, events] = await Promise.all([
+      this.subscriptions.find(),
+      this.invoices.find(),
+      this.payments.find(),
+      this.plans.find(),
+      this.statusEvents.find(),
+    ]);
+
+    const plansById = new Map(planRows.map((p) => [p.id, p]));
+    const subscriptionById = new Map(subscriptions.map((s) => [s.id, s]));
+    const invoiceById = new Map(invoices.map((inv) => [inv.id, inv]));
+
+    const earliestBySubscription = new Map<string, Invoice>();
+    for (const inv of invoices) {
+      const cur = earliestBySubscription.get(inv.subscriptionId);
+      if (!cur || inv.periodStart < cur.periodStart) earliestBySubscription.set(inv.subscriptionId, inv);
+    }
+    const firstInvoiceIdBySubscription = new Map(
+      [...earliestBySubscription].map(([subId, inv]) => [subId, inv.id]),
+    );
+
+    const eventsBySubscription = new Map<string, SubscriptionStatusEvent[]>();
+    for (const event of events) {
+      const list = eventsBySubscription.get(event.subscriptionId) ?? [];
+      list.push(event);
+      eventsBySubscription.set(event.subscriptionId, list);
+    }
+    for (const list of eventsBySubscription.values()) {
+      list.sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
+    }
+
     return {
-      totalRevenue: 0,
-      paidSubscriptionRevenue: 0,
-      spark: Array.from({ length: days }, () => 0),
-      plans: [
-        { plan: 'Monthly Plan', users: 0, revenue: 0 },
-        { plan: 'Quarterly Plan', users: 0, revenue: 0 },
-        { plan: 'Annual Plan', users: 0, revenue: 0 },
-      ],
+      subscriptions,
+      paymentsList,
+      plansById,
+      subscriptionById,
+      invoiceById,
+      firstInvoiceIdBySubscription,
+      eventsBySubscription,
     };
   }
 
@@ -619,66 +828,252 @@ export class AnalyticsService {
 
   // ---------- Revenue / subscription detail page ----------
   //
-  // Revenue, MRR, renewals, provider stats and the payment feed are all zero /
-  // empty until the payments module lands — the shape is final so the page
-  // renders today and lights up later. User counts and the upper funnel steps
-  // are real now.
+  // Everything below is real, sourced from subscriptions/invoices/payments/
+  // subscription_status_events. One remaining honest simplification:
+  //  - Blended/top-line figures (revenueOverTime, MRR, the "by plan" cards)
+  //    convert non-USD provider revenue using the admin-set `fxRatesToUsd` rates (see
+  //    `toUsdMinor`) — there's no live FX feed, so this needs periodic manual
+  //    upkeep. Paystack's real revenue is also always shown unconverted on
+  //    its own provider card.
+  // Historical "was this subscription premium at time T" is exact wherever
+  // `subscription_status_events` has a record (every transition from here on)
+  // — see `isEntitledAt`. It only falls back to the old snapshot heuristic
+  // for subscriptions that transitioned before that log existed, since their
+  // exact history can't be reconstructed retroactively.
   async revenueDetail(fromStr?: string, toStr?: string): Promise<AnalyticsRevenueDetail> {
     const today = daysAgo(0);
     const to = parseDayUtc(toStr) ?? today;
     let from = parseDayUtc(fromStr) ?? addDaysUtc(to, -6);
     if (from > to) from = addDaysUtc(to, -6);
     const days = Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1;
+    const endExcl = addDaysUtc(to, 1);
 
-    const totalUsers = await this.users
-      .createQueryBuilder('user')
-      .where("user.role != 'admin'")
-      .getCount();
+    const [totalUsers, ctx, settings] = await Promise.all([
+      this.users.createQueryBuilder('user').where("user.role != 'admin'").getCount(),
+      this.loadRevenueContext(),
+      this.platformSettings.getCached(),
+    ]);
+    const fxRatesToUsd = settings.fxRatesToUsd;
 
+    // Payments in [from, to), converted to USD minor units for blending.
+    // Currencies this app can't convert (anything but usd/ngn) are dropped
+    // rather than mixed in unconverted — see `toUsdMinor`.
+    const convertedInRange = ctx.paymentsList
+      .filter((p) => p.status === 'PAID' && p.createdAt >= from && p.createdAt < endExcl)
+      .map((p) => ({ payment: p, usdMinor: toUsdMinor(p, fxRatesToUsd) }))
+      .filter((r): r is { payment: Payment; usdMinor: number } => r.usdMinor !== null);
+
+    // ---- Daily revenue / MRR / renewal count ----
     const revenueOverTime: RevenueOverTimePoint[] = [];
     for (let cur = new Date(from); cur <= to; cur = addDaysUtc(cur, 1)) {
-      revenueOverTime.push({ label: shortLabel(cur), revenue: 0, mrr: 0, renewals: 0 });
+      const dayEndExcl = addDaysUtc(cur, 1);
+      const dayPayments = convertedInRange.filter(
+        (r) => r.payment.createdAt >= cur && r.payment.createdAt < dayEndExcl,
+      );
+      const revenue = dayPayments.reduce((sum, r) => sum + r.usdMinor, 0) / 100;
+      const renewals = dayPayments.filter((r) => !this.isConversionPayment(r.payment, ctx)).length;
+      // MRR is read from the catalog's USD base price, not actual charges, so
+      // it's already currency-agnostic — every entitled subscription counts
+      // regardless of which currency its provider bills in.
+      const mrr = ctx.subscriptions
+        .filter((s) => isEntitledAt(s, ctx.eventsBySubscription.get(s.id) ?? [], cur))
+        .reduce((sum, s) => {
+          const plan = ctx.plansById.get(s.planId);
+          return sum + monthlyEquivalent(plan ? Number(plan.price) : 0, plan?.period ?? 'Month');
+        }, 0);
+      revenueOverTime.push({
+        label: shortLabel(cur),
+        revenue,
+        mrr: Math.round(mrr * 100) / 100,
+        renewals,
+      });
     }
 
-    const weeks = this.weekLabels(6);
-    const usersBySubscription: UsersBySubscriptionPoint[] = weeks.map((label) => ({
-      label,
-      free: 0,
-      premium: 0,
-    }));
-    const subscriptionGrowth: SubscriptionGrowthPoint[] = weeks.map((label) => ({
-      label,
-      newPremium: 0,
-      cancellations: 0,
-      renewals: 0,
-    }));
+    // ---- Weekly: users by subscription + subscription growth ----
+    const weeks = this.weekWindows(6);
+    const usersBySubscription: UsersBySubscriptionPoint[] = await Promise.all(
+      weeks.map(async (w) => {
+        const premium = ctx.subscriptions.filter((s) =>
+          isEntitledAt(s, ctx.eventsBySubscription.get(s.id) ?? [], w.endExcl),
+        ).length;
+        const usersAtWeekEnd = await this.users
+          .createQueryBuilder('user')
+          .where("user.role != 'admin'")
+          .andWhere('user.created_at < :end', { end: w.endExcl })
+          .getCount();
+        return { label: w.label, free: Math.max(usersAtWeekEnd - premium, 0), premium };
+      }),
+    );
 
+    const subscriptionGrowth: SubscriptionGrowthPoint[] = weeks.map((w) => {
+      const paidInWeek = ctx.paymentsList.filter(
+        (p) => p.status === 'PAID' && p.createdAt >= w.start && p.createdAt < w.endExcl,
+      );
+      const newPremium = paidInWeek.filter((p) => this.isConversionPayment(p, ctx)).length;
+      const renewals = paidInWeek.filter((p) => !this.isConversionPayment(p, ctx)).length;
+      const cancellations = ctx.subscriptions.filter(
+        (s) => s.canceledAt && s.canceledAt >= w.start && s.canceledAt < w.endExcl,
+      ).length;
+      return { label: w.label, newPremium, cancellations, renewals };
+    });
+
+    // ---- Current plan breakdown (today's snapshot, every provider/currency) ----
+    const periodLabel: Record<string, string> = {
+      Month: 'Premium Monthly',
+      Quarter: 'Premium Quarterly',
+      Year: 'Premium Annually',
+    };
+    const entitledSubs = ctx.subscriptions.filter((s) => ENTITLED_STATUSES.has(s.status));
+    const planRows: PlanBreakdownRow[] = (['Month', 'Quarter', 'Year'] as const).map((period) => {
+      const planIds = this.planIdsForPeriod(ctx, period);
+      const users = entitledSubs.filter((s) => planIds.has(s.planId)).length;
+      return {
+        plan: periodLabel[period],
+        users,
+        percent: totalUsers > 0 ? Math.round((users / totalUsers) * 100) : 0,
+      };
+    });
+    const totalPremium = planRows.reduce((sum, r) => sum + r.users, 0);
+    const freeUsers = Math.max(totalUsers - totalPremium, 0);
     const planBreakdown: SubscriptionPlanBreakdown = {
-      totalPremium: 0,
-      totalPremiumPercent: 0,
+      totalPremium,
+      totalPremiumPercent: totalUsers > 0 ? Math.round((totalPremium / totalUsers) * 100) : 0,
       rows: [
-        { plan: 'Free', users: totalUsers, percent: 100 },
-        { plan: 'Premium Monthly', users: 0, percent: 0 },
-        { plan: 'Premium Annually', users: 0, percent: 0 },
+        {
+          plan: 'Free',
+          users: freeUsers,
+          percent: totalUsers > 0 ? Math.round((freeUsers / totalUsers) * 100) : 100,
+        },
+        ...planRows,
       ],
     };
 
+    // ---- Revenue breakdown cards (USD-blended; prior equal-length window for trend) ----
+    const prevTo = addDaysUtc(from, -1);
+    const prevFrom = addDaysUtc(prevTo, -(days - 1));
+    const prevEndExcl = addDaysUtc(prevTo, 1);
+    const convertedPrevRange = ctx.paymentsList
+      .filter((p) => p.status === 'PAID' && p.createdAt >= prevFrom && p.createdAt < prevEndExcl)
+      .map((p) => ({ payment: p, usdMinor: toUsdMinor(p, fxRatesToUsd) }))
+      .filter((r): r is { payment: Payment; usdMinor: number } => r.usdMinor !== null);
+
+    const revenueForPeriod = (
+      period: 'Month' | 'Quarter' | 'Year',
+      pool: { payment: Payment; usdMinor: number }[],
+    ): number => {
+      const planIds = this.planIdsForPeriod(ctx, period);
+      return (
+        pool
+          .filter((r) => {
+            const invoice = ctx.invoiceById.get(r.payment.invoiceId);
+            const sub = invoice ? ctx.subscriptionById.get(invoice.subscriptionId) : null;
+            return sub ? planIds.has(sub.planId) : false;
+          })
+          .reduce((sum, r) => sum + r.usdMinor, 0) / 100
+      );
+    };
+    const usersForPeriod = (period: 'Month' | 'Quarter' | 'Year'): number =>
+      entitledSubs.filter((s) => this.planIdsForPeriod(ctx, period).has(s.planId)).length;
+
+    const conversions = convertedInRange.filter((r) => this.isConversionPayment(r.payment, ctx));
+    const renewalPayments = convertedInRange.filter((r) => !this.isConversionPayment(r.payment, ctx));
+    const conversionsPrevCount = convertedPrevRange.filter((r) =>
+      this.isConversionPayment(r.payment, ctx),
+    ).length;
+    const renewalsPrevCount = convertedPrevRange.filter(
+      (r) => !this.isConversionPayment(r.payment, ctx),
+    ).length;
+    const cancellationsInRange = ctx.subscriptions.filter(
+      (s) => s.canceledAt && s.canceledAt >= from && s.canceledAt < endExcl,
+    ).length;
+    const conversionRevenue = conversions.reduce((sum, r) => sum + r.usdMinor, 0) / 100;
+    const renewalRevenue = renewalPayments.reduce((sum, r) => sum + r.usdMinor, 0) / 100;
+    const conversionRate =
+      totalUsers > 0 ? Math.round((conversions.length / totalUsers) * 1000) / 10 : 0;
+    const retentionRate =
+      renewalPayments.length + cancellationsInRange > 0
+        ? Math.round(
+            (renewalPayments.length / (renewalPayments.length + cancellationsInRange)) * 1000,
+          ) / 10
+        : 0;
+
     const revenueBreakdown: RevenueBreakdownCard[] = [
-      { key: 'premium_monthly', label: 'Premium Monthly', value: 0, subLabel: '0 Subscriptions', changePercent: 0, up: true },
-      { key: 'premium_annual', label: 'Premium Annual', value: 0, subLabel: '0 Subscriptions', changePercent: 0, up: true },
-      { key: 'trial_conversions', label: 'Trial Conversions', value: 0, subLabel: '0% conversion rate', changePercent: 0, up: true },
-      { key: 'renewals', label: 'Renewals', value: 0, subLabel: '0% retention rate', changePercent: 0, up: true },
+      {
+        key: 'premium_monthly',
+        label: 'Premium Monthly',
+        value: revenueForPeriod('Month', convertedInRange),
+        subLabel: `${usersForPeriod('Month')} Subscriptions`,
+        ...pctChange(
+          revenueForPeriod('Month', convertedInRange),
+          revenueForPeriod('Month', convertedPrevRange),
+        ),
+      },
+      {
+        key: 'premium_quarterly',
+        label: 'Premium Quarterly',
+        value: revenueForPeriod('Quarter', convertedInRange),
+        subLabel: `${usersForPeriod('Quarter')} Subscriptions`,
+        ...pctChange(
+          revenueForPeriod('Quarter', convertedInRange),
+          revenueForPeriod('Quarter', convertedPrevRange),
+        ),
+      },
+      {
+        key: 'premium_annual',
+        label: 'Premium Annual',
+        value: revenueForPeriod('Year', convertedInRange),
+        subLabel: `${usersForPeriod('Year')} Subscriptions`,
+        ...pctChange(
+          revenueForPeriod('Year', convertedInRange),
+          revenueForPeriod('Year', convertedPrevRange),
+        ),
+      },
+      {
+        key: 'trial_conversions',
+        label: 'Trial Conversions',
+        value: conversionRevenue,
+        subLabel: `${conversionRate}% conversion rate`,
+        ...pctChange(conversions.length, conversionsPrevCount),
+      },
+      {
+        key: 'renewals',
+        label: 'Renewals',
+        value: renewalRevenue,
+        subLabel: `${retentionRate}% retention rate`,
+        ...pctChange(renewalPayments.length, renewalsPrevCount),
+      },
     ];
 
     const funnel = await this.subscriptionFunnel();
     const funnelInsights = this.funnelInsights(funnel);
 
-    const paymentProviders: PaymentProviderStat[] = [
-      { key: 'paystack', provider: 'Paystack', revenue: 0, transactions: 0, successRate: 0, failedPayments: 0 },
-      { key: 'stripe', provider: 'Stripe', revenue: 0, transactions: 0, successRate: 0, failedPayments: 0 },
-      { key: 'apple_iap', provider: 'Apple IAP', revenue: 0, transactions: 0, successRate: 0, failedPayments: 0 },
-      { key: 'google_play', provider: 'Google Play', revenue: 0, transactions: 0, successRate: 0, failedPayments: 0 },
-    ];
+    // ---- Per-provider stats, each in its own real currency (no blending) ----
+    const paymentProviders: PaymentProviderStat[] = (PROVIDER_KEYS as readonly ProviderKey[]).map(
+      (key) => {
+        const providerPayments = ctx.paymentsList.filter((p) => p.provider === key);
+        const paidInRange = providerPayments.filter(
+          (p) => p.status === 'PAID' && p.createdAt >= from && p.createdAt < endExcl,
+        );
+        const failedInRange = providerPayments.filter(
+          (p) => p.status === 'FAILED' && p.createdAt >= from && p.createdAt < endExcl,
+        );
+        const transactions = paidInRange.length + failedInRange.length;
+        const revenue = paidInRange.reduce((sum, p) => sum + p.amountMinor, 0) / 100;
+        const currency = (providerPayments[0]?.currency ?? PROVIDER_DEFAULT_CURRENCY[key]).toLowerCase();
+        return {
+          key,
+          provider: PROVIDER_TEXT[key],
+          revenue,
+          transactions,
+          successRate:
+            transactions > 0 ? Math.round((paidInRange.length / transactions) * 1000) / 10 : 0,
+          failedPayments: failedInRange.length,
+          currency,
+        };
+      },
+    );
+
+    const recentPayments = await this.recentPaymentActivity(ctx, 8);
 
     return {
       range: { from: ymd(from), to: ymd(to), days },
@@ -690,35 +1085,126 @@ export class AnalyticsService {
       funnel,
       funnelInsights,
       paymentProviders,
-      recentPayments: [],
+      recentPayments,
     };
   }
 
-  private weekLabels(count: number): string[] {
-    return Array.from({ length: count }, (_, i) => `W${i + 1}`);
+  private planIdsForPeriod(ctx: RevenueContext, period: string): Set<string> {
+    return new Set(
+      [...ctx.plansById.values()].filter((p) => p.period === period).map((p) => p.id),
+    );
   }
 
-  // Free-user → paid-subscriber funnel. Upper steps are real; paywall/trial/
-  // subscribe are 0 until payments exist.
+  private isConversionPayment(payment: Payment, ctx: RevenueContext): boolean {
+    const invoice = ctx.invoiceById.get(payment.invoiceId);
+    if (!invoice) return false;
+    return ctx.firstInvoiceIdBySubscription.get(invoice.subscriptionId) === invoice.id;
+  }
+
+  /** Recent conversion/renewal/cancellation events, newest first. */
+  private async recentPaymentActivity(
+    ctx: RevenueContext,
+    limit: number,
+  ): Promise<PaymentActivityItem[]> {
+    const paidPayments = ctx.paymentsList.filter((p) => p.status === 'PAID');
+    const userIds = new Set<string>();
+    for (const p of paidPayments) userIds.add(p.userId);
+    for (const s of ctx.subscriptions) if (s.canceledAt) userIds.add(s.userId);
+    if (userIds.size === 0) return [];
+
+    const users = await this.users.find({ where: { id: In([...userIds]) } });
+    const userById = new Map(users.map((u) => [u.id, u]));
+
+    const events: { at: Date; item: PaymentActivityItem }[] = [];
+
+    for (const p of paidPayments) {
+      const user = userById.get(p.userId);
+      if (!user) continue;
+      const invoice = ctx.invoiceById.get(p.invoiceId);
+      const sub = invoice ? ctx.subscriptionById.get(invoice.subscriptionId) : null;
+      const plan = sub ? ctx.plansById.get(sub.planId) : null;
+      const isConversion = this.isConversionPayment(p, ctx);
+      const type: PaymentActivityType = isConversion ? 'Conversion' : 'Renewal';
+      events.push({
+        at: p.createdAt,
+        item: {
+          id: `payment:${p.id}`,
+          name: user.displayName,
+          description: isConversion
+            ? `subscribed to ${plan?.name ?? 'a plan'}`
+            : `renewed ${plan?.name ?? 'their plan'}`,
+          type,
+          at: p.createdAt.toISOString(),
+        },
+      });
+    }
+
+    for (const s of ctx.subscriptions) {
+      if (!s.canceledAt) continue;
+      const user = userById.get(s.userId);
+      if (!user) continue;
+      const plan = ctx.plansById.get(s.planId);
+      events.push({
+        at: s.canceledAt,
+        item: {
+          id: `cancel:${s.id}`,
+          name: user.displayName,
+          description: `cancelled ${plan?.name ?? 'their plan'}`,
+          type: 'Cancellation',
+          at: s.canceledAt.toISOString(),
+        },
+      });
+    }
+
+    return events
+      .sort((a, b) => b.at.getTime() - a.at.getTime())
+      .slice(0, limit)
+      .map((e) => e.item);
+  }
+
+  /** Six non-overlapping 7-day windows ending today, oldest ("W1") to newest ("W6"). */
+  private weekWindows(count: number): { label: string; start: Date; endExcl: Date }[] {
+    const today = daysAgo(0);
+    const windows: { label: string; start: Date; endExcl: Date }[] = [];
+    for (let i = count; i >= 1; i--) {
+      const endExcl = addDaysUtc(today, -(i - 1) * 7);
+      const start = addDaysUtc(endExcl, -7);
+      windows.push({ label: `W${count - i + 1}`, start, endExcl });
+    }
+    return windows;
+  }
+
+  // Free-user → paid-subscriber funnel. Upper steps and "Subscribed" are real;
+  // paywall/trial views aren't tracked anywhere (no analytics-event table), so
+  // those two stay at 0 rather than fabricate a number.
   private async subscriptionFunnel(): Promise<AnalyticsFunnelStep[]> {
-    const [accountCreated, onboarded, startedLesson, completedLesson] = await Promise.all([
-      this.users.createQueryBuilder('user').where("user.role != 'admin'").getCount(),
-      this.users
-        .createQueryBuilder('user')
-        .where("user.role != 'admin'")
-        .andWhere('user.language IS NOT NULL AND user.level IS NOT NULL')
-        .getCount(),
-      this.progress
-        .createQueryBuilder('p')
-        .select('COUNT(DISTINCT p.user_id)', 'c')
-        .getRawOne<{ c: string }>()
-        .then((r) => Number(r?.c ?? 0)),
-      this.completions
-        .createQueryBuilder('c')
-        .select('COUNT(DISTINCT c.user_id)', 'c')
-        .getRawOne<{ c: string }>()
-        .then((r) => Number(r?.c ?? 0)),
-    ]);
+    const [accountCreated, onboarded, startedLesson, completedLesson, subscribed] =
+      await Promise.all([
+        this.users.createQueryBuilder('user').where("user.role != 'admin'").getCount(),
+        this.users
+          .createQueryBuilder('user')
+          .where("user.role != 'admin'")
+          .andWhere('user.language IS NOT NULL AND user.level IS NOT NULL')
+          .getCount(),
+        this.progress
+          .createQueryBuilder('p')
+          .select('COUNT(DISTINCT p.user_id)', 'c')
+          .getRawOne<{ c: string }>()
+          .then((r) => Number(r?.c ?? 0)),
+        this.completions
+          .createQueryBuilder('c')
+          .select('COUNT(DISTINCT c.user_id)', 'c')
+          .getRawOne<{ c: string }>()
+          .then((r) => Number(r?.c ?? 0)),
+        // Ever reached a paid state — not just currently entitled — so a
+        // lapsed/cancelled subscriber still counts as having converted once.
+        this.subscriptions
+          .createQueryBuilder('sub')
+          .select('COUNT(DISTINCT sub.user_id)', 'c')
+          .where("sub.status != 'INCOMPLETE'")
+          .getRawOne<{ c: string }>()
+          .then((r) => Number(r?.c ?? 0)),
+      ]);
 
     const raw: { key: string; label: string; users: number }[] = [
       { key: 'account_created', label: 'Account created', users: accountCreated },
@@ -727,7 +1213,7 @@ export class AnalyticsService {
       { key: 'completed_free_lessons', label: 'Completed free lessons', users: completedLesson },
       { key: 'viewed_paywall', label: 'Viewed paywall', users: 0 },
       { key: 'started_trial', label: 'Started trial', users: 0 },
-      { key: 'subscribed', label: 'Subscribed', users: 0 },
+      { key: 'subscribed', label: 'Subscribed', users: subscribed },
     ];
 
     const top = raw[0]?.users ?? 0;

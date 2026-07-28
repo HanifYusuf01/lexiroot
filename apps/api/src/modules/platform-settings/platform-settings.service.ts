@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import type {
-  PlatformSettings as PlatformSettingsDto,
-  PublicPlatformSettings,
+import {
+  NON_BASE_CURRENCIES,
+  type PlatformSettings as PlatformSettingsDto,
+  type PublicPlatformSettings,
 } from '@lexiroot/shared';
 import { PlatformSettings } from './entities/platform-settings.entity';
 import { UpdatePlatformSettingsDto } from './dto/update-platform-settings.dto';
@@ -52,12 +53,29 @@ export class PlatformSettingsService {
   }
 
   async update(dto: UpdatePlatformSettingsDto): Promise<PlatformSettingsDto> {
+    if (dto.fxRatesToUsd) this.assertValidFxRates(dto.fxRatesToUsd);
     const row = (await this.settings.findOne({ where: { id: SINGLETON_ID } })) ??
       this.settings.create({ id: SINGLETON_ID });
     Object.assign(row, dto);
     const saved = await this.settings.save(row);
     this.cache = null; // invalidate so changes take effect immediately
     return this.toDto(saved);
+  }
+
+  /**
+   * class-validator has no built-in "map of CurrencyCode → positive number"
+   * shape, so this is checked here instead of on the DTO: every key must be a
+   * real non-base currency and every value a positive finite rate.
+   */
+  private assertValidFxRates(rates: Record<string, unknown>): void {
+    for (const [currency, rate] of Object.entries(rates)) {
+      if (!(NON_BASE_CURRENCIES as readonly string[]).includes(currency)) {
+        throw new BadRequestException(`Unsupported currency in fxRatesToUsd: ${currency}`);
+      }
+      if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) {
+        throw new BadRequestException(`Invalid FX rate for ${currency}`);
+      }
+    }
   }
 
   private toDto(row: PlatformSettings): PlatformSettingsDto {

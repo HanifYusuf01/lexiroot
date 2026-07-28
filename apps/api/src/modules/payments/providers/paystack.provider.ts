@@ -87,6 +87,7 @@ export class PaystackProvider implements PaymentProvider {
     return {
       url: res.authorization_url,
       clientSecret: null,
+      providerProductId: null,
       providerRef: res.reference,
       // Customer code isn't known until the charge lands; filled in via webhook.
       providerCustomerId: null,
@@ -110,7 +111,9 @@ export class PaystackProvider implements PaymentProvider {
 
   // --- webhooks ---
 
-  verifyAndParseWebhook(rawBody: Buffer, signature: string): NormalizedEvent {
+  // Sync under the hood; declared async to match the interface (Apple IAP's
+  // verification is a real JWS check against Apple's certificate chain).
+  async verifyAndParseWebhook(rawBody: Buffer, signature: string): Promise<NormalizedEvent> {
     this.assertValidSignature(rawBody, signature);
 
     const event = JSON.parse(rawBody.toString('utf8')) as PaystackEvent;

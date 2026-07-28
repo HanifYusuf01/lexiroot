@@ -31,12 +31,15 @@ export class AdminPlanProviderController {
     return this.sync.syncAll(id);
   }
 
-  /** Targeted sync to a single provider (testing / recovery). */
+  /**
+   * Targeted sync to a single provider (testing / recovery, and the only path
+   * for Apple IAP — its product id is admin-entered, not minted by us).
+   */
   @Post(':id/sync-provider')
   syncProvider(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: SyncPlanProviderDto,
   ) {
-    return this.sync.sync(id, dto.provider);
+    return this.sync.sync(id, dto.provider, dto.providerProductId);
   }
 }

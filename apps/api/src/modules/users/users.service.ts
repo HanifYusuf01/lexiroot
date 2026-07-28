@@ -17,6 +17,7 @@ interface CreateUserInput {
   displayName: string;
   passwordHash?: string | null;
   googleId?: string | null;
+  appleId?: string | null;
   role?: UserRole;
   language?: LanguageCode | null;
   level?: LearningLevel | null;
@@ -131,6 +132,7 @@ export class UsersService {
       displayName: data.displayName,
       passwordHash: data.passwordHash ?? null,
       googleId: data.googleId ?? null,
+      appleId: data.appleId ?? null,
       role: data.role ?? 'user',
       language: data.language ?? null,
       level: data.level ?? null,

@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { AppleAuthDto } from './dto/apple-auth.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangePendingEmailDto } from './dto/change-pending-email.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
@@ -42,6 +43,12 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   google(@Body() dto: GoogleAuthDto) {
     return this.auth.googleAuth(dto.idToken);
+  }
+
+  @Post('apple')
+  @HttpCode(HttpStatus.OK)
+  apple(@Body() dto: AppleAuthDto) {
+    return this.auth.appleAuth(dto.identityToken, dto.fullName);
   }
 
   @Post('verify-email')

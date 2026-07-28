@@ -4,3 +4,8 @@
 
 expo-env.d.ts
 # @end expo-cli
+
+# Local iOS signing credentials (references a .p12 password) — never commit.
+credentials.json
+*.p12
+*.mobileprovision

@@ -1,4 +1,4 @@
-import type { SubscriptionPlan } from '@lexiroot/shared';
+import type { PlanPeriod, SubscriptionPlan } from '@lexiroot/shared';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -15,9 +15,16 @@ type Audience = 'individual' | 'family';
 // Headline-price colour by position when the card is unfilled: orange, golden, chocolate.
 const PRICE_COLORS = [colors.primary, colors.tertiary, colors.secondary];
 
-// Family shows a fixed tier treatment for every card at once (see design):
-// Monthly = white/outlined, Quarterly = orange, Yearly = chocolate.
-const FAMILY_FILLS = [colors.white, colors.primary, colors.secondary];
+// Family shows a fixed tier treatment per billing period (see design): Monthly
+// = white/outlined, Quarterly = orange, Yearly = chocolate. Keyed by period
+// rather than card position, so a scope that doesn't offer every period (e.g.
+// Family being Yearly-only) still gets that period's intended treatment
+// instead of always landing on the first (white/outlined) slot.
+const FAMILY_FILL_BY_PERIOD: Record<PlanPeriod, string> = {
+  Month: colors.white,
+  Quarter: colors.primary,
+  Year: colors.secondary,
+};
 
 interface CardVisual {
   bg: string;
@@ -26,10 +33,10 @@ interface CardVisual {
   priceColor: string;
 }
 
-function cardVisual(audience: Audience, index: number, selected: boolean): CardVisual {
+function cardVisual(plan: SubscriptionPlan, index: number, selected: boolean): CardVisual {
   const priceByPosition = PRICE_COLORS[Math.min(index, PRICE_COLORS.length - 1)];
-  if (audience === 'family') {
-    const bg = FAMILY_FILLS[Math.min(index, FAMILY_FILLS.length - 1)];
+  if (plan.scope === 'family') {
+    const bg = FAMILY_FILL_BY_PERIOD[plan.period] ?? colors.secondary;
     const onFill = bg !== colors.white;
     return { bg, onFill, priceColor: onFill ? colors.tertiary : priceByPosition };
   }
@@ -138,7 +145,7 @@ export default function UpgradePricing() {
           <View style={styles.plans}>
             {visible.map((plan, index) => {
               const selected = selectedId === plan.id;
-              const visual = cardVisual(audience, index, selected);
+              const visual = cardVisual(plan, index, selected);
               return (
                 <PlanCard
                   key={plan.id}

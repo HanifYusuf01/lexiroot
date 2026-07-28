@@ -1,3 +1,5 @@
+import type { CurrencyCode } from '../constants';
+
 export const REMINDER_TIME_ZONES = ['learner-local', 'wat', 'utc'] as const;
 export type ReminderTimeZone = (typeof REMINDER_TIME_ZONES)[number];
 
@@ -41,6 +43,13 @@ export interface PlatformSettings {
   singleSignOn: boolean;
   adminSessionTimeout: AdminSessionTimeout;
   maxFailedLoginAttempts: number;
+  /**
+   * Manually-set exchange rates (units of that currency per 1 USD), used only
+   * to blend non-USD provider revenue into USD analytics totals — never for
+   * pricing. No live FX source is wired up, so these need revisiting by an
+   * admin periodically. Keyed by CurrencyCode; USD is never a key.
+   */
+  fxRatesToUsd: Partial<Record<CurrencyCode, number>>;
   updatedAt: string;
 }
 

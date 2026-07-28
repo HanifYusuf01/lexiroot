@@ -26,6 +26,14 @@ export const subscriptionsApi = api.injectEndpoints({
       // Entitlement changed → refresh both the subscription and the auth user.
       invalidatesTags: ['Subscription', 'User'],
     }),
+    // Links a StoreKit purchase to the caller's pending Apple checkout — see
+    // BillingService.linkAppleTransaction. Apple IAP has no hosted checkout to
+    // bounce back from, so this is the client-driven equivalent of the
+    // webhook-driven `linkCheckout` the other providers use.
+    verifyAppleTransaction: build.mutation<MySubscription, { transactionId: string }>({
+      query: (body) => ({ url: '/subscriptions/apple-iap/verify', method: 'POST', body }),
+      invalidatesTags: ['Subscription', 'User'],
+    }),
   }),
 });
 
@@ -34,4 +42,5 @@ export const {
   useMySubscriptionQuery,
   useLazyMySubscriptionQuery,
   useCancelSubscriptionMutation,
+  useVerifyAppleTransactionMutation,
 } = subscriptionsApi;

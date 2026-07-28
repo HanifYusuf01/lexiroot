@@ -11,6 +11,7 @@ import { PaymentMethod } from './entities/payment-method.entity';
 import { PaymentRefund } from './entities/payment-refund.entity';
 import { PlanProviderPrice } from './entities/plan-provider-price.entity';
 import { Subscription } from './entities/subscription.entity';
+import { SubscriptionStatusEvent } from './entities/subscription-status-event.entity';
 import { WebhookEvent } from './entities/webhook-event.entity';
 import { PlanProviderSyncService } from './plan-provider-sync.service';
 import { AppleIapProvider } from './providers/apple-iap.provider';
@@ -40,6 +41,7 @@ import { WebhooksService } from './webhooks.service';
       PlanProviderPrice,
       WebhookEvent,
       SubscriptionPlan,
+      SubscriptionStatusEvent,
     ]),
   ],
   controllers: [

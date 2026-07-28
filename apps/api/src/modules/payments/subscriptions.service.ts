@@ -18,6 +18,7 @@ import {
   type SubscriptionSummary,
 } from '@lexiroot/shared';
 import type { PaymentsConfig } from '../../config/payments.config';
+import { BillingService } from './billing.service';
 import { EntitlementService } from './entitlement.service';
 import { PlanProviderPrice } from './entities/plan-provider-price.entity';
 import { Subscription } from './entities/subscription.entity';
@@ -56,6 +57,7 @@ export class SubscriptionsService {
     private readonly registry: PaymentProviderRegistry,
     private readonly entitlements: EntitlementService,
     private readonly config: ConfigService,
+    private readonly billing: BillingService,
   ) {}
 
   /**
@@ -145,7 +147,13 @@ export class SubscriptionsService {
       await this.subscriptions.save(subscription);
     }
 
-    return { url: result.url, clientSecret: result.clientSecret, provider: key };
+    return {
+      url: result.url,
+      clientSecret: result.clientSecret,
+      providerProductId: result.providerProductId,
+      appAccountToken: key === 'apple_iap' ? subscription.id : null,
+      provider: key,
+    };
   }
 
   /** Poll target for the client after checkout (Rule 10a) + manage screen. */
@@ -157,6 +165,20 @@ export class SubscriptionsService {
       this.entitlements.isEntitled(userId),
     ]);
     return { ...summary, entitled };
+  }
+
+  /**
+   * Link a StoreKit purchase to the caller's pending Apple checkout. Apple IAP
+   * has no hosted checkout to bounce back from, so the client calls this right
+   * after `requestPurchase` resolves — this is the only path that links the
+   * *first* purchase (ASSN v2 webhooks keep it in sync from then on).
+   */
+  async verifyAppleTransaction(
+    userId: string,
+    transactionId: string,
+  ): Promise<SubscriptionSummary & { entitled: boolean }> {
+    await this.billing.linkAppleTransaction(userId, transactionId);
+    return this.getMySubscription(userId);
   }
 
   /**

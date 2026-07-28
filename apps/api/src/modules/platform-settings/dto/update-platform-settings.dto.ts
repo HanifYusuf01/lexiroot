@@ -3,6 +3,7 @@ import {
   IsEmail,
   IsIn,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   Length,
@@ -14,6 +15,7 @@ import {
   ADMIN_SESSION_TIMEOUTS,
   REMINDER_TIME_ZONES,
   type AdminSessionTimeout,
+  type CurrencyCode,
   type ReminderTimeZone,
 } from '@lexiroot/shared';
 
@@ -95,4 +97,11 @@ export class UpdatePlatformSettingsDto {
   @Min(1)
   @Max(10)
   maxFailedLoginAttempts?: number;
+
+  // Revenue reporting — each key/value is checked against the currency
+  // catalog and validated as a positive rate in PlatformSettingsService.update,
+  // since class-validator has no built-in "map of X" shape to declare here.
+  @IsOptional()
+  @IsObject()
+  fxRatesToUsd?: Partial<Record<CurrencyCode, number>>;
 }

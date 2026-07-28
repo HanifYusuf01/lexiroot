@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import type { SubscriptionStatus } from '@lexiroot/shared';
 import { Subscription } from './entities/subscription.entity';
+import { SubscriptionStatusEvent } from './entities/subscription-status-event.entity';
 
 /** Legal subscription transitions. A status may also stay itself (renewals). */
 const LEGAL_TRANSITIONS: Record<SubscriptionStatus, SubscriptionStatus[]> = {
@@ -69,6 +70,7 @@ export class SubscriptionStateService {
       return null;
     }
 
+    const fromStatus = sub.status;
     sub.status = patch.status;
     if (patch.currentPeriodStart !== undefined) sub.currentPeriodStart = patch.currentPeriodStart;
     if (patch.currentPeriodEnd !== undefined) sub.currentPeriodEnd = patch.currentPeriodEnd;
@@ -81,6 +83,22 @@ export class SubscriptionStateService {
       sub.providerCustomerId = patch.providerCustomerId;
     }
 
-    return repo.save(sub);
+    const saved = await repo.save(sub);
+
+    // Only an actual transition is worth logging — a same-status "stay" (e.g.
+    // a renewal that re-applies ACTIVE) doesn't change any point-in-time
+    // answer analytics would ask of this log.
+    if (fromStatus !== patch.status) {
+      await manager.getRepository(SubscriptionStatusEvent).save(
+        manager.getRepository(SubscriptionStatusEvent).create({
+          subscriptionId: sub.id,
+          userId: sub.userId,
+          fromStatus,
+          toStatus: patch.status,
+        }),
+      );
+    }
+
+    return saved;
   }
 }

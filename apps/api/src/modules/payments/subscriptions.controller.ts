@@ -3,6 +3,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { User } from '../users/entities/user.entity';
 import { CreateCheckoutDto } from './dto/create-checkout.dto';
+import { VerifyAppleTransactionDto } from './dto/verify-apple-transaction.dto';
 import { SubscriptionsService } from './subscriptions.service';
 
 /**
@@ -33,6 +34,13 @@ export class SubscriptionsController {
   @Get('me')
   me(@CurrentUser() user: User) {
     return this.subscriptions.getMySubscription(user.id);
+  }
+
+  /** Called right after a StoreKit purchase resolves on iOS — see BillingService.linkAppleTransaction. */
+  @Post('apple-iap/verify')
+  @HttpCode(200)
+  verifyAppleTransaction(@CurrentUser() user: User, @Body() dto: VerifyAppleTransactionDto) {
+    return this.subscriptions.verifyAppleTransaction(user.id, dto.transactionId);
   }
 
   @Post('cancel')

@@ -2,14 +2,16 @@ import { useCallback, useState } from 'react';
 import { Platform } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
-import type { ClientPlatform } from '@lexiroot/shared';
+import type { ClientPlatform, CreateCheckoutResponse } from '@lexiroot/shared';
 import { refreshAuthUser } from '../services/refreshAuthUser';
 import { apiErrorStatus, describeApiError } from '../utils/apiError';
 import {
   useCreateCheckoutMutation,
   useLazyMySubscriptionQuery,
+  useVerifyAppleTransactionMutation,
 } from '../services/subscriptionsApi';
 import { useAppDispatch } from '../store/hooks';
+import { AppleIapCancelledError, useAppleIap } from './useAppleIap';
 
 export type CheckoutOutcome =
   | 'success'
@@ -49,6 +51,8 @@ export function useCheckout() {
   const dispatch = useAppDispatch();
   const [createCheckout] = useCreateCheckoutMutation();
   const [fetchMySubscription] = useLazyMySubscriptionQuery();
+  const [verifyAppleTransaction] = useVerifyAppleTransactionMutation();
+  const appleIap = useAppleIap();
   const [busy, setBusy] = useState(false);
 
   const pollEntitled = useCallback(async (attempts = POLL_ATTEMPTS): Promise<boolean> => {
@@ -64,6 +68,42 @@ export function useCheckout() {
     return false;
   }, [fetchMySubscription]);
 
+  /**
+   * Apple IAP has no hosted session — purchase natively via StoreKit, verify
+   * the resulting transaction server-side (the only path that links the
+   * *first* purchase; ASSN v2 webhooks keep it in sync afterwards), then finish
+   * the transaction so StoreKit stops redelivering it.
+   */
+  const purchaseViaAppleIap = useCallback(
+    async (session: CreateCheckoutResponse): Promise<CheckoutOutcome> => {
+      if (!session.providerProductId) {
+        if (__DEV__) console.error('[checkout] apple_iap session has no providerProductId', session);
+        return 'error';
+      }
+      try {
+        const purchase = await appleIap.purchase(
+          session.providerProductId,
+          session.appAccountToken ?? '',
+        );
+        const transactionId = 'transactionId' in purchase ? purchase.transactionId : null;
+        if (!transactionId) throw new Error('Apple purchase did not return a transaction id');
+
+        const result = await verifyAppleTransaction({ transactionId }).unwrap();
+        // Only finish the transaction once it's durably recorded on our side —
+        // finishing early risks losing it silently on a crash mid-verify, since
+        // StoreKit never redelivers a finished transaction.
+        await appleIap.finishTransaction({ purchase });
+        await refreshAuthUser(dispatch);
+        return result.entitled ? 'success' : 'pending';
+      } catch (err) {
+        if (err instanceof AppleIapCancelledError) return 'cancelled';
+        if (__DEV__) console.error('[checkout] apple_iap purchase failed —', describeApiError(err));
+        return 'error';
+      }
+    },
+    [appleIap, dispatch, verifyAppleTransaction],
+  );
+
   const start = useCallback(
     async (planId: string): Promise<CheckoutOutcome> => {
       setBusy(true);
@@ -75,6 +115,11 @@ export function useCheckout() {
           platform: CLIENT_PLATFORM,
           returnDeepLink: returnUrl,
         }).unwrap();
+
+        if (session.provider === 'apple_iap') {
+          return await purchaseViaAppleIap(session);
+        }
+
         if (!session.url) {
           // A provider that returns a clientSecret instead of a hosted URL isn't
           // supported by this flow yet — surface it rather than failing blankly.
@@ -126,7 +171,7 @@ export function useCheckout() {
         setBusy(false);
       }
     },
-    [createCheckout, pollEntitled, dispatch],
+    [createCheckout, pollEntitled, dispatch, purchaseViaAppleIap],
   );
 
   return { start, busy };

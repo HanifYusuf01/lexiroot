@@ -170,6 +170,8 @@ export interface PaymentProviderStat {
   key: string;
   provider: string;
   revenue: number;
+  /** Lowercase ISO currency code `revenue` is denominated in (e.g. "usd", "ngn") — providers bill in different currencies, so this isn't always USD. */
+  currency: string;
   transactions: number;
   successRate: number;
   failedPayments: number;

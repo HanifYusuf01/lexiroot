@@ -3,6 +3,7 @@ import { CheckCircle2, Trash2 } from 'lucide-react';
 import {
   PROVIDER_TEXT,
   planFeatureLabel,
+  type PlanProviderSync,
   type PlanSyncResult,
   type SubscriptionPlan,
 } from '@lexiroot/shared';
@@ -11,10 +12,57 @@ import { apiErrorMessage } from '../../../utils/apiError';
 import { planSyncPresentation } from '../../../utils/planSync';
 import { usePlanSync } from '../../../hooks/usePlanSync';
 import { useDeleteSubscriptionPlanMutation } from '../../../services/subscriptionPlansApi';
-import { useSyncPlanToAllMutation } from '../../../services/subscriptionsApi';
+import {
+  useSyncPlanToAllMutation,
+  useSyncPlanToProviderMutation,
+} from '../../../services/subscriptionsApi';
 import { Badge } from '../../ui/Badge';
 import { ConfirmDialog } from '../../ui/ConfirmDialog';
 import { useToast } from '../../ui/Toast';
+
+/**
+ * Apple product ids are created manually in App Store Connect (there's no
+ * creation API, unlike Stripe/Paystack) — so unlike the "sync to all" button,
+ * this needs the admin to type the id in before it can sync.
+ */
+function AppleProductSync({ planId, sync }: { planId: string; sync: PlanProviderSync }) {
+  const toast = useToast();
+  const [syncToProvider, { isLoading: syncing }] = useSyncPlanToProviderMutation();
+  const [productId, setProductId] = useState(sync.providerProductId ?? '');
+
+  const handleSync = async () => {
+    const trimmed = productId.trim();
+    if (!trimmed) {
+      toast.error('Enter the App Store Connect product id first.');
+      return;
+    }
+    try {
+      await syncToProvider({ planId, provider: 'apple_iap', providerProductId: trimmed }).unwrap();
+      toast.success('Synced to Apple.');
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Could not sync to Apple.'));
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <input
+        value={productId}
+        onChange={(e) => setProductId(e.target.value)}
+        placeholder="com.lexiroot.mobile.premium.monthly"
+        className="h-7 min-w-0 flex-1 rounded-md border border-border bg-white px-2 text-xs font-medium text-neutral outline-none ring-primary/20 placeholder:text-neutral-variant focus:border-primary focus:ring-2"
+      />
+      <button
+        type="button"
+        onClick={handleSync}
+        disabled={syncing}
+        className="shrink-0 rounded-md border border-border px-2.5 py-1 text-xs font-bold text-neutral transition hover:bg-neutral-soft disabled:opacity-60"
+      >
+        {syncing ? 'Syncing…' : sync.state === 'not_synced' ? 'Sync' : 'Re-sync'}
+      </button>
+    </div>
+  );
+}
 
 interface PlanCardProps {
   plan: SubscriptionPlan;
@@ -43,6 +91,7 @@ export function PlanCard({ plan, editing, onEdit }: PlanCardProps) {
 
   const syncs = usePlanSync(plan.id);
   const presentations = syncs.map((s) => ({ provider: s.provider, ...planSyncPresentation(s) }));
+  const appleSync = syncs.find((s) => s.provider === 'apple_iap') ?? null;
   const needsAttention = presentations.some((p) => p.urgent);
   // Worst tone drives the card highlight: a drifted (error) plan silently
   // charges the wrong amount, so it outranks a merely-unsynced (warning) one.
@@ -122,6 +171,7 @@ export function PlanCard({ plan, editing, onEdit }: PlanCardProps) {
                 {p.hint}
               </p>
             ))}
+          {appleSync ? <AppleProductSync planId={plan.id} sync={appleSync} /> : null}
         </div>
       ) : null}
 

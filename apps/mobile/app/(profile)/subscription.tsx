@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as Linking from 'expo-linking';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../src/components/ui/Button';
 import { ScreenHeader } from '../../src/components/ui/ScreenHeader';
@@ -25,6 +26,16 @@ export default function SubscriptionScreen() {
   const onFreePlan = !sub || !sub.entitled;
   const isCancelling = sub?.status === 'CANCELED' || !!sub?.cancelsOn;
   const isPastDue = sub?.status === 'PAST_DUE';
+  const isAppleIap = sub?.provider === 'apple_iap';
+
+  // Apple gives no server-side cancel API — only the subscriber can cancel,
+  // via their device's Settings > [name] > Subscriptions. Deep link there
+  // instead of calling an endpoint that would just reject the request.
+  const handleManageOnApple = () => {
+    Linking.openURL('itms-apps://apps.apple.com/account/subscriptions').catch(() => {
+      Alert.alert('Could not open Subscriptions', 'Open Settings > [your name] > Subscriptions to manage this plan.');
+    });
+  };
 
   const handleCancel = () => {
     Alert.alert(
@@ -94,6 +105,8 @@ export default function SubscriptionScreen() {
               <Text style={styles.note}>
                 Your plan is set to cancel. You can keep learning until access ends.
               </Text>
+            ) : isAppleIap ? (
+              <Button label="Manage in Subscriptions" variant="outline" onPress={handleManageOnApple} />
             ) : (
               <Button
                 label={cancelling ? 'Cancelling…' : 'Cancel subscription'}

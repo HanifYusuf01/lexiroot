@@ -134,6 +134,13 @@ export interface SubscriptionSummary {
   renewsOn: string | null;
   /** ISO 8601. When cancelling, the date access ends. */
   cancelsOn: string | null;
+  /**
+   * Null when there's no subscription (free tier). Apple IAP subscriptions
+   * can't be cancelled through our API — Apple only lets the subscriber cancel,
+   * via their device's Settings > Subscriptions — so the client must branch on
+   * this before offering a "Cancel subscription" button.
+   */
+  provider: ProviderKey | null;
 }
 
 export interface Invoice {
@@ -213,5 +220,19 @@ export interface CreateCheckoutResponse {
   url: string | null;
   /** Client secret for in-app payment sheets (future providers). */
   clientSecret: string | null;
+  /** Store product id to purchase natively via StoreKit (Apple IAP). */
+  providerProductId: string | null;
+  /**
+   * Apple IAP only: pass as StoreKit's `appAccountToken` on the purchase
+   * request, so Apple's transaction echoes back an id that ties to our
+   * subscription row (support/fraud/restore-purchase reconciliation).
+   */
+  appAccountToken: string | null;
   provider: ProviderKey;
+}
+
+/** Request body for POST /subscriptions/apple-iap/verify. */
+export interface VerifyAppleTransactionRequest {
+  /** transactionId (or originalTransactionId) from the StoreKit purchase result. */
+  transactionId: string;
 }

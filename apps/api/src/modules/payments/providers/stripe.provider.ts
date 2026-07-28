@@ -78,13 +78,16 @@ export class StripeProvider implements PaymentProvider {
     return {
       url: session.url,
       clientSecret: null,
+      providerProductId: null,
       providerRef: session.id,
       providerCustomerId:
         typeof session.customer === 'string' ? session.customer : (session.customer?.id ?? null),
     };
   }
 
-  verifyAndParseWebhook(rawBody: Buffer, signature: string): NormalizedEvent {
+  // Sync under the hood; declared async to match the interface (Apple IAP's
+  // verification is a real JWS check against Apple's certificate chain).
+  async verifyAndParseWebhook(rawBody: Buffer, signature: string): Promise<NormalizedEvent> {
     // Throws Stripe.errors.StripeSignatureVerificationError on a bad signature.
     const event = this.stripe.webhooks.constructEvent(rawBody, signature, this.webhookSecret);
     const obj = event.data.object as { id?: string };

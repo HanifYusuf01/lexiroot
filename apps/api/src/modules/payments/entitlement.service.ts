@@ -132,6 +132,7 @@ export class EntitlementService {
         planId: null,
         renewsOn: null,
         cancelsOn: null,
+        provider: null,
       };
     }
     const status: SubscriptionStatus = sub.status;
@@ -145,6 +146,7 @@ export class EntitlementService {
       // "Cancels on" when winding down but access still runs to period end.
       cancelsOn:
         sub.cancelAtPeriodEnd || status === 'CANCELED' ? periodEndIso : null,
+      provider: sub.provider,
     };
   }
 }

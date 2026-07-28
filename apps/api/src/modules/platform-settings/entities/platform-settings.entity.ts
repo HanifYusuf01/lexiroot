@@ -1,5 +1,5 @@
 import { Check, Column, Entity, PrimaryColumn, UpdateDateColumn } from 'typeorm';
-import type { AdminSessionTimeout, ReminderTimeZone } from '@lexiroot/shared';
+import type { AdminSessionTimeout, CurrencyCode, ReminderTimeZone } from '@lexiroot/shared';
 
 /**
  * Singleton row holding platform-wide admin configuration. Enforced to a single
@@ -71,6 +71,18 @@ export class PlatformSettings {
 
   @Column({ name: 'max_failed_login_attempts', type: 'int', default: 4 })
   maxFailedLoginAttempts!: number;
+
+  /**
+   * Manually-set exchange rates (units of that currency per 1 USD), used only
+   * to blend non-USD provider revenue (e.g. Paystack's NGN) into the
+   * USD-denominated analytics totals — never for pricing/billing, which stays
+   * in each provider's own currency. Deliberately admin-set rather than
+   * fetched live: there's no FX provider integrated, and a silently-stale
+   * live rate would be worse than one the admin knows they set and must
+   * revisit. Keyed by CurrencyCode; USD itself is never a key (rate is 1).
+   */
+  @Column({ name: 'fx_rates_to_usd', type: 'jsonb', default: () => `'{"NGN": 1500}'::jsonb` })
+  fxRatesToUsd!: Partial<Record<CurrencyCode, number>>;
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt!: Date;

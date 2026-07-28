@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import type { ProviderKey } from '@lexiroot/shared';
@@ -64,6 +64,45 @@ export class BillingService {
       });
     });
     this.entitlements.invalidate(sub.userId);
+  }
+
+  /**
+   * Link the caller's freshly-purchased Apple transaction to their INCOMPLETE
+   * apple_iap subscription. Apple IAP has no hosted-checkout session, so unlike
+   * `linkCheckout` there's no webhook to trigger this — the client calls it
+   * right after StoreKit hands back a purchase (`SubscriptionsService
+   * .verifyAppleTransaction`). Once linked, ASSN v2 webhooks keep it in sync
+   * via `syncSubscription`/`applyInvoicePaid`.
+   *
+   * Scoped to `userId` (the authenticated caller) rather than trusting a
+   * subscription id from the client — the same "acts on your own row only"
+   * rule as `cancel()`.
+   */
+  async linkAppleTransaction(userId: string, transactionOrOriginalId: string): Promise<void> {
+    const provider = this.registry.get('apple_iap');
+    // "Any transactionId, originalTransactionId, or appTransactionId" resolves
+    // via getAllSubscriptionStatuses — fetchSubscription accepts either.
+    const snapshot = await provider.fetchSubscription(transactionOrOriginalId);
+
+    const sub = await this.dataSource.getRepository(Subscription).findOne({
+      where: { userId, provider: 'apple_iap', status: 'INCOMPLETE' },
+      order: { createdAt: 'DESC' },
+    });
+    if (!sub) {
+      throw new NotFoundException('No pending Apple checkout to link this purchase to.');
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      await this.state.apply(manager, sub.id, {
+        status: snapshot.status,
+        currentPeriodStart: snapshot.currentPeriodStart,
+        currentPeriodEnd: snapshot.currentPeriodEnd,
+        cancelAtPeriodEnd: snapshot.cancelAtPeriodEnd,
+        canceledAt: snapshot.canceledAt,
+        providerSubscriptionId: snapshot.providerSubscriptionId,
+      });
+    });
+    this.entitlements.invalidate(userId);
   }
 
   /** Mirror a provider subscription (customer.subscription.created/updated/deleted). */

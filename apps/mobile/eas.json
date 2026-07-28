@@ -16,6 +16,9 @@
       }
     },
     "production": {
+      "ios": {
+        "credentialsSource": "local"
+      },
       "android": {
         "buildType": "app-bundle"
       },

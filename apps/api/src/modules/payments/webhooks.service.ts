@@ -32,8 +32,9 @@ export class WebhooksService {
    */
   async handle(providerKey: ProviderKey, rawBody: Buffer, signature: string): Promise<void> {
     const provider = this.registry.get(providerKey);
-    // Throws StripeSignatureVerificationError on tamper → caller maps to 400.
-    const event = provider.verifyAndParseWebhook(rawBody, signature);
+    // Throws StripeSignatureVerificationError / VerificationException on tamper
+    // → caller maps to 400.
+    const event = await provider.verifyAndParseWebhook(rawBody, signature);
 
     const record = await this.claim(providerKey, event);
     if (!record) {
