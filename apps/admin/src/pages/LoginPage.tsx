@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { PasswordField } from '../components/ui/PasswordField';
 import { TextField } from '../components/ui/TextField';
@@ -68,6 +68,12 @@ export function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
           />
+          <Link
+            to="/forgot-password"
+            className="-mt-2 self-end text-xs font-bold text-primary hover:underline"
+          >
+            Forgot password?
+          </Link>
           <Button type="submit" loading={isLoading}>
             Log in
           </Button>

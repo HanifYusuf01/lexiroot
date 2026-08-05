@@ -11,10 +11,12 @@ import { RevenueAnalyticsPage } from './pages/RevenueAnalyticsPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { CulturalContentEditorPage } from './pages/CulturalContentEditorPage';
 import { CulturalContentPage } from './pages/CulturalContentPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { GamificationPage } from './pages/GamificationPage';
 import { LessonEditorPage } from './pages/LessonEditorPage';
 import { LessonsPage } from './pages/LessonsPage';
 import { LoginPage } from './pages/LoginPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ManageAccountPage } from './pages/ManageAccountPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -47,6 +49,8 @@ export function App() {
     <Routes>
       <Route path="/login" element={token ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       {/* Hosted-checkout return pages live on the marketing website (apps/web),
           not here — see apps/web/src/pages/SubscriptionReturn.tsx. */}
       <Route element={<ProtectedRoute />}>
