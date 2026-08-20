@@ -4,6 +4,7 @@ import { JwtModule, JwtSignOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LanguagesModule } from '../languages/languages.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { PlatformSettingsModule } from '../platform-settings/platform-settings.module';
 import { UsersModule } from '../users/users.module';
@@ -20,6 +21,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     PlatformSettingsModule,
     LanguagesModule,
     PaymentsModule,
+    NotificationsModule,
     PassportModule,
     TypeOrmModule.forFeature([PendingSignup]),
     JwtModule.registerAsync({

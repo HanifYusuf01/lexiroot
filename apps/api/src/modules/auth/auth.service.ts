@@ -15,6 +15,7 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { randomInt } from 'crypto';
 import { UsersService } from '../users/users.service';
 import { LanguagesService } from '../languages/languages.service';
+import { DevicesService } from '../notifications/devices.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import type {
@@ -90,6 +91,7 @@ export class AuthService {
     private readonly platformSettings: PlatformSettingsService,
     private readonly config: ConfigService,
     private readonly entitlements: EntitlementService,
+    private readonly devices: DevicesService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -468,6 +470,16 @@ export class AuthService {
       avatarUrl: user.avatarUrl,
     });
     return this.toMePayload(user);
+  }
+
+  /**
+   * Self-service account deletion (App Store Guideline 5.1.1(v)). Delegates to
+   * UsersService.deleteAccount, which scrubs PII rather than hard-deleting the
+   * row — see that method's doc comment for why.
+   */
+  async deleteAccount(userId: string): Promise<void> {
+    await this.users.deleteAccount(userId);
+    await this.devices.disableAllForUser(userId);
   }
 
   /**

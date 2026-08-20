@@ -252,4 +252,29 @@ export class UsersService {
     const result = await this.users.delete(id);
     if (!result.affected) throw new NotFoundException('User not found');
   }
+
+  /**
+   * Self-service account deletion (Apple App Store Guideline 5.1.1(v)). The
+   * row is kept — not hard-deleted — because subscriptions/payments/progress
+   * hold a userId FK without cascade (financial records must survive account
+   * deletion for accounting/legal retention). Instead we scrub all PII off the
+   * user row and set deletedAt, which JwtStrategy checks to reject the token
+   * on every subsequent request, and which clears the email/googleId/appleId
+   * so no login path (password, Google, Apple) can match this row anymore.
+   */
+  async deleteAccount(id: string): Promise<void> {
+    const user = await this.users.findOne({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+
+    user.email = `deleted-${id}@lexiroot.deleted`;
+    user.displayName = 'Deleted User';
+    user.passwordHash = null;
+    user.googleId = null;
+    user.appleId = null;
+    user.avatarUrl = null;
+    user.passwordResetToken = null;
+    user.passwordResetExpiresAt = null;
+    user.deletedAt = new Date();
+    await this.users.save(user);
+  }
 }

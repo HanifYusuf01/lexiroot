@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { Platform } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useAppleAuthMutation } from '../services/authApi';
+import { authStorage } from '../services/secureStorage';
 import { useAppDispatch } from '../store/hooks';
 import { setCredentials } from '../store/slices/authSlice';
 
@@ -51,7 +52,9 @@ export function useAppleSignIn() {
         identityToken: credential.identityToken,
         fullName: fullName || undefined,
       }).unwrap();
-      dispatch(setCredentials({ token: result.token, user: result.user }));
+      const stored = { token: result.token, user: result.user };
+      await authStorage.set(stored);
+      dispatch(setCredentials(stored));
       return { isNewUser: result.isNewUser };
     } catch (e) {
       const code = (e as { code?: string }).code;

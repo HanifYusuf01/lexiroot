@@ -50,6 +50,11 @@ export class DevicesService {
     return this.devices.find({ where: { userId }, order: { lastSeenAt: 'DESC' } });
   }
 
+  /** Disable every device on the account. Called on account deletion. */
+  async disableAllForUser(userId: string): Promise<void> {
+    await this.devices.update({ userId }, { enabled: false });
+  }
+
   /**
    * Disable every device carrying a token Expo reported as unusable
    * (DeviceNotRegistered). Called by the receipt worker.

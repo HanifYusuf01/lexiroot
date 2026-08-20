@@ -9,3 +9,6 @@ expo-env.d.ts
 credentials.json
 *.p12
 *.mobileprovision
+
+# Firebase Android config — EAS Build picks this up locally even though it's gitignored.
+google-services.json

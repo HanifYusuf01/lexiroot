@@ -3,17 +3,22 @@
     "name": "LexiRoot",
     "slug": "lexiroot",
     "scheme": "lexiroot",
-    "version": "0.0.1",
+    "version": "0.0.3",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "icon": "./assets/images/icon.png",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.lexiroot.mobile"
+      "bundleIdentifier": "com.lexiroot.mobile",
+      "buildNumber": "3",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.lexiroot.mobile",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#E35336"

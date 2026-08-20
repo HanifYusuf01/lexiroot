@@ -40,6 +40,9 @@ export function syntheticOfflineResponse(
     return body;
   }
 
-  // DELETE (clear progress) and anything else have no meaningful body.
-  return undefined;
+  // DELETE (clear progress) and anything else have no meaningful body. `null`
+  // (not `undefined`) so the wrapped `{ data: ... }` still has a defined value —
+  // RTK Query requires `data` or `error` to be non-undefined, and `{ data: undefined }`
+  // satisfies neither, which is exactly what threw the console error.
+  return null;
 }

@@ -116,6 +116,9 @@ export const authApi = api.injectEndpoints({
     changePassword: build.mutation<void, ChangePasswordBody>({
       query: (body) => ({ url: '/auth/me/password', method: 'POST', body }),
     }),
+    deleteAccount: build.mutation<void, void>({
+      query: () => ({ url: '/auth/me', method: 'DELETE' }),
+    }),
     signAvatarUpload: build.mutation<AvatarSignaturePayload, void>({
       query: () => ({ url: '/uploads/avatar/signature', method: 'POST' }),
     }),
@@ -135,5 +138,6 @@ export const {
   useMeQuery,
   useUpdateMeMutation,
   useChangePasswordMutation,
+  useDeleteAccountMutation,
   useSignAvatarUploadMutation,
 } = authApi;

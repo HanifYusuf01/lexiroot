@@ -3,26 +3,54 @@ import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-na
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { DeleteAccountModal } from '../../src/components/ui/DeleteAccountModal';
 import { LogoutModal } from '../../src/components/ui/LogoutModal';
 import { SettingsRow } from '../../src/components/ui/SettingsRow';
 import { UserAvatar } from '../../src/components/ui/UserAvatar';
 import { colors, fonts, radius, spacing } from '../../src/constants/theme';
+import { PRIVACY_URL, TERMS_URL } from '../../src/constants/legal';
 import { authStorage } from '../../src/services/secureStorage';
+import { useDeleteAccountMutation } from '../../src/services/authApi';
+import { useUnregisterDeviceMutation } from '../../src/services/devicesApi';
+import { currentInstallationId } from '../../src/services/notifications';
 import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
 import { clearCredentials } from '../../src/store/slices/authSlice';
 import { resetOnboarding } from '../../src/store/slices/onboardingSlice';
-
-const PRIVACY_URL = 'https://lexiroot.example/privacy';
-const TERMS_URL = 'https://lexiroot.example/terms';
 
 export default function ProfileTab() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [unregisterDevice] = useUnregisterDeviceMutation();
+  const [deleteAccount, { isLoading: deleting }] = useDeleteAccountMutation();
 
   async function handleLogout() {
     setLogoutOpen(false);
+    // Must run before clearCredentials() — the auth header is read from the
+    // Redux store, so unregistering after logout would send an unauthenticated
+    // request and silently fail, leaving this device subscribed to the account's
+    // pushes.
+    const installationId = await currentInstallationId();
+    await unregisterDevice(installationId).unwrap().catch(() => undefined);
+    await authStorage.clear();
+    dispatch(clearCredentials());
+    dispatch(resetOnboarding());
+    router.replace('/welcome');
+  }
+
+  async function handleDeleteAccount() {
+    try {
+      // Must run before clearCredentials(), same reasoning as logout — the
+      // auth header is read from the Redux store. The server also disables
+      // every device on the account, so no separate unregister call is needed.
+      await deleteAccount().unwrap();
+    } catch {
+      setDeleteOpen(false);
+      return;
+    }
+    setDeleteOpen(false);
     await authStorage.clear();
     dispatch(clearCredentials());
     dispatch(resetOnboarding());
@@ -122,12 +150,23 @@ export default function ProfileTab() {
             <Text style={styles.footerLink}>Terms of service</Text>
           </Pressable>
         </View>
+
+        <Pressable onPress={() => setDeleteOpen(true)} hitSlop={8} style={styles.deleteRow}>
+          <Text style={styles.deleteText}>Delete account</Text>
+        </Pressable>
       </ScrollView>
 
       <LogoutModal
         visible={logoutOpen}
         onClose={() => setLogoutOpen(false)}
         onConfirm={handleLogout}
+      />
+      <DeleteAccountModal
+        visible={deleteOpen}
+        loading={deleting}
+        confirmEmail={user?.email ?? ''}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={handleDeleteAccount}
       />
     </SafeAreaView>
   );
@@ -222,5 +261,14 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: 14,
     color: colors.primary,
+  },
+  deleteRow: {
+    alignItems: 'center',
+    marginTop: spacing.lg,
+  },
+  deleteText: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.error,
   },
 });

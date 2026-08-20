@@ -31,9 +31,17 @@ export function Footer() {
         </div>
       </div>
 
-      <p className="border-t border-primary-border/40 py-5 text-center text-sm text-neutral-variant">
-        © 2026 LexiRoot. All Rights Reserved.
-      </p>
+      <div className="flex flex-col items-center gap-3 border-t border-primary-border/40 py-5 text-center text-sm text-neutral-variant sm:flex-row sm:justify-center sm:gap-6">
+        <p>© 2026 LexiRoot. All Rights Reserved.</p>
+        <div className="flex gap-4">
+          <a href="/privacy" className="hover:text-primary">
+            Privacy Policy
+          </a>
+          <a href="/terms" className="hover:text-primary">
+            Terms of Use
+          </a>
+        </div>
+      </div>
     </footer>
   );
 }

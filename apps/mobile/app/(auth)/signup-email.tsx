@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button } from '../../src/components/ui/Button';
+import { LegalDisclaimer } from '../../src/components/ui/LegalDisclaimer';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
 import { TextField } from '../../src/components/ui/TextField';
 import { colors, fonts, spacing } from '../../src/constants/theme';
@@ -157,9 +158,7 @@ export default function EmailSignup() {
         </ScrollView>
         <View style={styles.footer}>
           <Button label="Create Account" onPress={handleSubmit} loading={isLoading} />
-          <Text style={styles.disclaimer}>
-            By continuing, you agree to our Terms & Privacy Policy.
-          </Text>
+          <LegalDisclaimer />
         </View>
       </KeyboardAvoidingView>
     </ScreenContainer>
@@ -179,11 +178,5 @@ const styles = StyleSheet.create({
   },
   footer: {
     gap: spacing.sm,
-  },
-  disclaimer: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    color: colors.neutralVariant,
-    textAlign: 'center',
   },
 });

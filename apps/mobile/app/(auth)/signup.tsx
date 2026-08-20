@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { GoogleIcon } from '../../src/components/icons/GoogleIcon';
 import { MascotHeadIcon } from '../../src/components/icons/MascotHeadIcon';
+import { LegalDisclaimer } from '../../src/components/ui/LegalDisclaimer';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
 import { SocialButton } from '../../src/components/ui/SocialButton';
 import { useAppleSignIn } from '../../src/hooks/useAppleSignIn';
@@ -73,6 +74,9 @@ export default function SignupOptions() {
             <Text style={styles.loginLink}>Log in</Text>
           </Pressable>
         </View>
+        <View style={styles.disclaimerRow}>
+          <LegalDisclaimer />
+        </View>
       </View>
     </ScreenContainer>
   );
@@ -124,6 +128,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.xs,
     paddingTop: spacing.xs,
+  },
+  disclaimerRow: {
+    paddingTop: spacing.sm,
   },
   loginText: {
     fontFamily: fonts.regular,

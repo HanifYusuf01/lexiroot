@@ -103,4 +103,11 @@ export class User {
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt!: Date;
+
+  // Set when the user requests account deletion. The row is kept (rather than
+  // hard-deleted) so financial/legal records with a userId FK stay intact —
+  // PII is scrubbed instead. JwtAuthGuard rejects any token for a deleted user.
+  @Exclude()
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true })
+  deletedAt!: Date | null;
 }

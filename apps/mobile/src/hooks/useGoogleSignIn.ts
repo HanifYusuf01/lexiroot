@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useGoogleAuthMutation } from '../services/authApi';
+import { authStorage } from '../services/secureStorage';
 import { useAppDispatch } from '../store/hooks';
 import { setCredentials } from '../store/slices/authSlice';
 
@@ -63,7 +64,9 @@ export function useGoogleSignIn() {
         throw new Error('No ID token returned from Google');
       }
       const result = await googleAuth({ idToken }).unwrap();
-      dispatch(setCredentials({ token: result.token, user: result.user }));
+      const stored = { token: result.token, user: result.user };
+      await authStorage.set(stored);
+      dispatch(setCredentials(stored));
       return { isNewUser: result.isNewUser };
     } catch (e) {
       if (isErrorWithCode(e) && e.code === statusCodes.SIGN_IN_CANCELLED) {

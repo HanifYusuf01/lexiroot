@@ -1,10 +1,14 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { GoogleIcon } from '../../src/components/icons/GoogleIcon';
 import { Button } from '../../src/components/ui/Button';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
+import { SocialButton } from '../../src/components/ui/SocialButton';
 import { TextField } from '../../src/components/ui/TextField';
 import { colors, fonts, spacing } from '../../src/constants/theme';
+import { useAppleSignIn } from '../../src/hooks/useAppleSignIn';
+import { useGoogleSignIn } from '../../src/hooks/useGoogleSignIn';
 import { useLoginMutation } from '../../src/services/authApi';
 import { authStorage } from '../../src/services/secureStorage';
 import { useAppDispatch } from '../../src/store/hooks';
@@ -21,10 +25,27 @@ export default function Login() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const [login, { isLoading }] = useLoginMutation();
+  const { signIn: googleSignIn, loading: googleLoading, error: googleError } = useGoogleSignIn();
+  const {
+    signIn: appleSignIn,
+    loading: appleLoading,
+    error: appleError,
+    available: appleAvailable,
+  } = useAppleSignIn();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<FormErrors>({});
+
+  async function handleGoogle() {
+    const result = await googleSignIn();
+    if (result) router.replace(result.isNewUser ? '/intro' : '/home');
+  }
+
+  async function handleApple() {
+    const result = await appleSignIn();
+    if (result) router.replace(result.isNewUser ? '/intro' : '/home');
+  }
 
   async function handleSubmit() {
     const next: FormErrors = {};
@@ -73,6 +94,31 @@ export default function Login() {
         <View style={styles.body}>
           <Text style={styles.title}>Welcome Back</Text>
           <Text style={styles.subtitle}>Continue your learning journey.</Text>
+
+          <View style={styles.social}>
+            <SocialButton
+              label={googleLoading ? 'Signing in…' : 'Continue with Google'}
+              icon={<GoogleIcon size={20} />}
+              onPress={handleGoogle}
+              disabled={googleLoading}
+            />
+            {googleError ? <Text style={styles.error}>{googleError}</Text> : null}
+            {appleAvailable ? (
+              <SocialButton
+                label={appleLoading ? 'Signing in…' : 'Continue with Apple'}
+                iconName="logo-apple"
+                onPress={handleApple}
+                disabled={appleLoading}
+              />
+            ) : null}
+            {appleError ? <Text style={styles.error}>{appleError}</Text> : null}
+          </View>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR</Text>
+            <View style={styles.dividerLine} />
+          </View>
 
           <View style={styles.fields}>
             <TextField
@@ -132,6 +178,32 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing.xs,
     marginBottom: spacing.xl,
+  },
+  social: {
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  error: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.error,
+    textAlign: 'center',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.neutralVariant,
   },
   fields: {
     gap: spacing.md,
