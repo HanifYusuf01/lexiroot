@@ -13,6 +13,7 @@ import { authStorage } from '../../src/services/secureStorage';
 import { useDeleteAccountMutation } from '../../src/services/authApi';
 import { useUnregisterDeviceMutation } from '../../src/services/devicesApi';
 import { currentInstallationId } from '../../src/services/notifications';
+import { useTabBarClearance } from '../../src/hooks/useTabBarClearance';
 import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
 import { clearCredentials } from '../../src/store/slices/authSlice';
 import { resetOnboarding } from '../../src/store/slices/onboardingSlice';
@@ -21,6 +22,7 @@ export default function ProfileTab() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
+  const tabBarClearance = useTabBarClearance();
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [unregisterDevice] = useUnregisterDeviceMutation();
@@ -60,7 +62,7 @@ export default function ProfileTab() {
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, { paddingBottom: tabBarClearance }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.userBar}>

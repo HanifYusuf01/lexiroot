@@ -5,8 +5,12 @@ import { Platform, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radius } from '../../src/constants/theme';
 
-const TAB_BAR_HEIGHT = 66;
-const TAB_BAR_GAP = 12;
+// Exported so any tab screen can compute exact clearance for the floating
+// pill (e.g. a ScrollView's contentContainerStyle paddingBottom) instead of
+// relying on react-navigation's `sceneStyle` padding, which doesn't reliably
+// propagate into a screen's own nested ScrollView.
+export const TAB_BAR_HEIGHT = 66;
+export const TAB_BAR_GAP = 12;
 // Horizontal breathing room so the pill doesn't hug the screen edges.
 const TAB_BAR_SIDE_MARGIN = 36;
 
