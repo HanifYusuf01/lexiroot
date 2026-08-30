@@ -64,8 +64,11 @@ export class PushOutboxJob {
    * and return them. SKIP LOCKED lets concurrent workers make progress without
    * blocking on each other's claimed rows.
    */
-  private claimBatch(): Promise<ClaimedOutbox[]> {
-    return this.dataSource.query(
+  private async claimBatch(): Promise<ClaimedOutbox[]> {
+    // TypeORM's postgres driver returns `[rows, rowCount]` for UPDATE/DELETE —
+    // unlike SELECT/INSERT, which return the rows directly. Destructure, or
+    // `claimed.length` is the tuple's length (always 2) instead of the batch's.
+    const [rows]: [ClaimedOutbox[], number] = await this.dataSource.query(
       `UPDATE "notification_outbox" SET "status" = 'processing', "updated_at" = now()
         WHERE "id" IN (
           SELECT "id" FROM "notification_outbox"
@@ -77,6 +80,7 @@ export class PushOutboxJob {
       RETURNING "id", "user_id", "title", "body", "data", "channel_id", "attempts"`,
       [BATCH_SIZE],
     );
+    return rows;
   }
 
   /** Sends one outbox row to all of the user's enabled devices. */
