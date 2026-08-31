@@ -25,8 +25,10 @@ import type {
   LearningReason,
   PlanFeatureKey,
 } from '@lexiroot/shared';
+import { AppleAuthDto } from './dto/apple-auth.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangePendingEmailDto } from './dto/change-pending-email.dto';
+import { GoogleAuthDto } from './dto/google-auth.dto';
 import { LoginDto } from './dto/login.dto';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
@@ -78,6 +80,23 @@ export interface GoogleAuthResponse extends AuthResponse {
 export interface AppleAuthResponse extends AuthResponse {
   /** True when this Apple sign-in just created the account (routes to onboarding). */
   isNewUser: boolean;
+}
+
+/**
+ * The onboarding answers a social sign-in may carry, shaped for `users.create`.
+ *
+ * Social sign-in is both sign-up and sign-in on one endpoint, so these are
+ * applied only on the branch that creates the user. Omitted keys stay absent
+ * rather than becoming null, so a caller that sends nothing behaves exactly as
+ * before.
+ */
+function onboardingProfile(dto: GoogleAuthDto | AppleAuthDto) {
+  return {
+    ...(dto.language !== undefined ? { language: dto.language as LanguageCode } : {}),
+    ...(dto.level !== undefined ? { level: dto.level } : {}),
+    ...(dto.reason !== undefined ? { learningReason: dto.reason } : {}),
+    ...(dto.country !== undefined ? { country: dto.country } : {}),
+  };
 }
 
 @Injectable()
@@ -212,7 +231,8 @@ export class AuthService {
    * issues our own JWT session. New accounts come back with `isNewUser: true`
    * so the client can route them through onboarding.
    */
-  async googleAuth(idToken: string): Promise<GoogleAuthResponse> {
+  async googleAuth(dto: GoogleAuthDto): Promise<GoogleAuthResponse> {
+    const { idToken } = dto;
     const audience = this.googleAudiences();
     if (audience.length === 0) {
       throw new BadRequestException('Google sign-in is not configured');
@@ -248,6 +268,7 @@ export class AuthService {
       avatarUrl: payload.picture ?? null,
       passwordHash: null,
       emailVerifiedAt: new Date(),
+      ...onboardingProfile(dto),
     });
     const session = await this.issueSession(created);
     return { ...session, isNewUser: true };
@@ -259,7 +280,8 @@ export class AuthService {
    * arrives on the user's first authorization (Apple never puts it in the
    * token), so later sign-ins fall back to whatever display name we already have.
    */
-  async appleAuth(identityToken: string, fullName?: string): Promise<AppleAuthResponse> {
+  async appleAuth(dto: AppleAuthDto): Promise<AppleAuthResponse> {
+    const { identityToken, fullName } = dto;
     const audience = this.appleAudiences();
     if (audience.length === 0) {
       throw new BadRequestException('Apple sign-in is not configured');
@@ -298,6 +320,7 @@ export class AuthService {
       appleId: payload.sub,
       passwordHash: null,
       emailVerifiedAt: new Date(),
+      ...onboardingProfile(dto),
     });
     const session = await this.issueSession(created);
     return { ...session, isNewUser: true };

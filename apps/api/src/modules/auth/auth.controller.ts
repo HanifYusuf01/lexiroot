@@ -43,13 +43,13 @@ export class AuthController {
   @Post('google')
   @HttpCode(HttpStatus.OK)
   google(@Body() dto: GoogleAuthDto) {
-    return this.auth.googleAuth(dto.idToken);
+    return this.auth.googleAuth(dto);
   }
 
   @Post('apple')
   @HttpCode(HttpStatus.OK)
   apple(@Body() dto: AppleAuthDto) {
-    return this.auth.appleAuth(dto.identityToken, dto.fullName);
+    return this.auth.appleAuth(dto);
   }
 
   @Post('verify-email')

@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import { ErrorCode, useIAP, type Purchase } from 'expo-iap';
+import { ErrorCode, getAvailablePurchases, useIAP, type Purchase } from 'expo-iap';
 
 export class AppleIapCancelledError extends Error {}
 
@@ -50,5 +50,13 @@ export function useAppleIap() {
     [requestPurchase],
   );
 
-  return { connected, purchase, finishTransaction };
+  /**
+   * Everything this Apple Account already owns, straight from StoreKit. Restore
+   * has to read the store rather than a purchase event: the transaction we need
+   * may have been made on another device, or before a reinstall, so it will
+   * never arrive through `onPurchaseSuccess` on this install.
+   */
+  const restore = useCallback((): Promise<Purchase[]> => getAvailablePurchases(), []);
+
+  return { connected, purchase, finishTransaction, restore };
 }

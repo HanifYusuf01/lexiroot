@@ -31,6 +31,20 @@ interface OnboardingState {
   completed: boolean;
 }
 
+/**
+ * The onboarding answers, shaped for the auth endpoints — signup and both
+ * social sign-ins send the same set. `level` is mapped to the backend's
+ * three-tier vocabulary here, so callers never deal with the UI-only options.
+ */
+export function onboardingSignupFields(state: OnboardingState) {
+  return {
+    language: state.language ?? undefined,
+    level: state.level ? toBackendLevel(state.level) : undefined,
+    reason: state.reason ?? undefined,
+    country: state.country ?? undefined,
+  };
+}
+
 const initialState: OnboardingState = {
   reason: null,
   level: null,

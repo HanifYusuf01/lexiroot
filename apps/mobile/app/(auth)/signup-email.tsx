@@ -17,7 +17,7 @@ import { useSignupMutation } from '../../src/services/authApi';
 import { pendingSignupStorage } from '../../src/services/secureStorage';
 import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
 import { setPendingEmail } from '../../src/store/slices/authSlice';
-import { toBackendLevel } from '../../src/store/slices/onboardingSlice';
+import { onboardingSignupFields } from '../../src/store/slices/onboardingSlice';
 
 const PASSWORD_HELPER =
   'Password must be at least 8 characters long and include 1 capital letter and one symbol.';
@@ -82,10 +82,7 @@ export default function EmailSignup() {
         email: email.trim().toLowerCase(),
         displayName: `${firstName.trim()} ${lastName.trim()}`,
         password,
-        language: onboarding.language ?? undefined,
-        level: onboarding.level ? toBackendLevel(onboarding.level) : undefined,
-        reason: onboarding.reason ?? undefined,
-        country: onboarding.country ?? undefined,
+        ...onboardingSignupFields(onboarding),
       }).unwrap();
       await pendingSignupStorage.set(result.email);
       dispatch(setPendingEmail(result.email));

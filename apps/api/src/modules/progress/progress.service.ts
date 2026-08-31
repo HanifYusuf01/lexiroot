@@ -1,7 +1,13 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
-import type { LessonProgressState } from '@lexiroot/shared';
+import { DataSource, EntityManager, Repository } from 'typeorm';
+import {
+  LEARNING_LEVELS,
+  nextLearningLevel,
+  type LanguageCode,
+  type LearningLevel,
+  type LessonProgressState,
+} from '@lexiroot/shared';
 import { GamificationService } from '../gamification/gamification.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Lesson } from '../lessons/entities/lesson.entity';
@@ -23,6 +29,31 @@ function isSameUtcDay(a: Date, b: Date): boolean {
     a.getUTCMonth() === b.getUTCMonth() &&
     a.getUTCDate() === b.getUTCDate()
   );
+}
+
+/**
+ * The tier to promote a learner into, or null to leave them where they are.
+ *
+ * Walks forward from their current tier while each one is finished, so a
+ * learner who clears several tiers in one go (or whose earlier tiers were
+ * completed before promotion existed) lands on the first unfinished one rather
+ * than advancing a single step per lesson.
+ */
+function nextTierFor(
+  current: LearningLevel | null,
+  completedTiers: LearningLevel[],
+): LearningLevel | null {
+  const done = new Set(completedTiers);
+  let tier: LearningLevel = current ?? LEARNING_LEVELS[0];
+  let promotedTo: LearningLevel | null = null;
+  while (done.has(tier)) {
+    const next = nextLearningLevel(tier);
+    // Top tier finished — there is nowhere left to promote to.
+    if (!next) break;
+    promotedTo = next;
+    tier = next;
+  }
+  return promotedTo;
 }
 
 function isPrevUtcDay(prev: Date, today: Date): boolean {
@@ -121,6 +152,37 @@ export class ProgressService {
     };
   }
 
+  /**
+   * Tiers in which the user has completed every published lesson.
+   *
+   * Scoped to the language they're learning: finishing Beginner Yoruba
+   * shouldn't wait on Beginner lessons in a language they never picked. Drafts
+   * and archived lessons are excluded — unpublished content must never gate
+   * progression. A tier with no published lessons counts as complete for
+   * nobody, hence the `total > 0` guard.
+   */
+  private async completedTiers(
+    manager: EntityManager,
+    userId: string,
+    language: LanguageCode | null,
+  ): Promise<LearningLevel[]> {
+    const rows: Array<{ tier: LearningLevel; total: string; done: string }> = await manager.query(
+      `SELECT l."tier" AS tier,
+              COUNT(*) AS total,
+              COUNT(lc."id") AS done
+         FROM "lessons" l
+         LEFT JOIN "lesson_completions" lc
+           ON lc."lesson_id" = l."id" AND lc."user_id" = $1
+        WHERE l."status" = 'published'
+          AND ($2::varchar IS NULL OR l."language" = $2)
+        GROUP BY l."tier"`,
+      [userId, language],
+    );
+    return rows
+      .filter((r) => Number(r.total) > 0 && Number(r.done) === Number(r.total))
+      .map((r) => r.tier);
+  }
+
   async completeLesson(
     userId: string,
     lessonId: string,
@@ -187,10 +249,24 @@ export class ProgressService {
         });
       }
 
+      // Tier standing is derived from lesson completion, never from the
+      // onboarding answer — that was only ever a starting guess.
+      const completedTiers = await this.completedTiers(manager, userId, user.language);
+
+      // Promote out of a finished tier so the learner is served the next one
+      // (the levels screen reads `user.level` to decide which tier to show).
+      // Only ever forward: a re-completed lesson must not demote anyone.
+      const promotedTo = nextTierFor(user.level, completedTiers);
+      if (promotedTo) {
+        user.level = promotedTo;
+        await manager.getRepository(User).save(user);
+      }
+
       const newAchievements = await this.gamification.awardForUser(manager, userId, {
         lessonsCompleted: user.lessonsCompleted ?? 0,
         xp: user.xp ?? 0,
         longestStreakDays: user.longestStreakDays ?? 0,
+        completedTiers,
       });
 
       return { completion, xpAwarded, streak, totalXp: user.xp, newAchievements };

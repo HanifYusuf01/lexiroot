@@ -43,6 +43,8 @@ function achievementIcon(iconKey: string) {
       return 'flame' as const;
     case 'star':
       return 'star' as const;
+    case 'trophy':
+      return 'trophy' as const;
     case 'medal':
     default:
       return 'ribbon' as const;

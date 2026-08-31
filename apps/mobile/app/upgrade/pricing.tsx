@@ -52,7 +52,7 @@ export default function UpgradePricing() {
   const { next } = useLocalSearchParams<{ next?: string }>();
   const [audience, setAudience] = useState<Audience>('individual');
   const { data: plans, isLoading } = useSubscriptionPlansQuery();
-  const { start: startCheckout, busy: checkoutBusy } = useCheckout();
+  const { start: startCheckout, restore: restorePurchases, busy: checkoutBusy } = useCheckout();
 
   // Free is the default entitlement, not a purchasable card — show paid plans only.
   const visible = useMemo(
@@ -84,6 +84,24 @@ export default function UpgradePricing() {
   // wherever the stack happened to start.
   const leaveToDestination = () => {
     router.replace((next ?? '/home') as never);
+  };
+
+  // Apple requires a restore path (Guideline 3.1.1), and it's the only self-serve
+  // way back for a purchase that completed at Apple but never reached our API.
+  const handleRestore = async () => {
+    const outcome = await restorePurchases();
+    if (outcome === 'restored') {
+      Alert.alert('Purchases restored', 'Your plan is active again.', [
+        { text: 'OK', onPress: leaveToDestination },
+      ]);
+    } else if (outcome === 'nothing_to_restore') {
+      Alert.alert(
+        'Nothing to restore',
+        'We couldn’t find an earlier purchase for this account. If you paid with a different account, sign in with that one and try again.',
+      );
+    } else {
+      Alert.alert('Restore failed', 'We couldn’t check your purchases. Please try again.');
+    }
   };
 
   const handleSubscribe = async () => {
@@ -165,6 +183,12 @@ export default function UpgradePricing() {
             onPress={handleSubscribe}
           />
           <Text style={styles.fineprint}>Cancel anytime.</Text>
+          <Button
+            label="Restore purchases"
+            variant="outline"
+            disabled={checkoutBusy}
+            onPress={handleRestore}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>

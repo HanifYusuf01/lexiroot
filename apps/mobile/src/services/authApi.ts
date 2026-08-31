@@ -25,6 +25,18 @@ interface ChangePendingEmailResponse {
   email: string;
 }
 
+/**
+ * Onboarding answers sent alongside a social sign-in. The server applies them
+ * only when the sign-in creates the account, so sending them for a returning
+ * user is harmless.
+ */
+export interface OnboardingBody {
+  language?: string;
+  level?: LearningLevel;
+  reason?: LearningReason;
+  country?: CountryCode;
+}
+
 interface SignupBody {
   email: string;
   displayName: string;
@@ -84,10 +96,13 @@ export const authApi = api.injectEndpoints({
     login: build.mutation<AuthResponse, LoginBody>({
       query: (body) => ({ url: '/auth/login', method: 'POST', body }),
     }),
-    googleAuth: build.mutation<GoogleAuthResponse, { idToken: string }>({
+    googleAuth: build.mutation<GoogleAuthResponse, { idToken: string } & OnboardingBody>({
       query: (body) => ({ url: '/auth/google', method: 'POST', body }),
     }),
-    appleAuth: build.mutation<AppleAuthResponse, { identityToken: string; fullName?: string }>({
+    appleAuth: build.mutation<
+      AppleAuthResponse,
+      { identityToken: string; fullName?: string } & OnboardingBody
+    >({
       query: (body) => ({ url: '/auth/apple', method: 'POST', body }),
     }),
     verifyEmail: build.mutation<AuthResponse, VerifyEmailBody>({

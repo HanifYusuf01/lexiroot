@@ -1,4 +1,11 @@
-export type AchievementKind = 'lessons_completed' | 'xp_total' | 'streak_days';
+import { LEARNING_LEVELS, type LearningLevel } from '../constants';
+
+export type AchievementKind =
+  | 'lessons_completed'
+  | 'xp_total'
+  | 'streak_days'
+  /** Earned by finishing every published lesson in a tier — see TIER_ACHIEVEMENT_CODES. */
+  | 'tier_completed';
 
 export type AchievementCode =
   | 'first_lesson'
@@ -11,7 +18,31 @@ export type AchievementCode =
   | 'streak_3'
   | 'streak_7'
   | 'streak_30'
-  | 'streak_120';
+  | 'streak_120'
+  | 'tier_beginner'
+  | 'tier_intermediate'
+  | 'tier_advanced';
+
+/**
+ * Which achievement a tier unlocks. `tier_completed` achievements carry no
+ * threshold — the tier is identified by code, so this map is the only place
+ * the pairing lives.
+ */
+export const TIER_ACHIEVEMENT_CODES: Record<LearningLevel, AchievementCode> = {
+  beginner: 'tier_beginner',
+  intermediate: 'tier_intermediate',
+  advanced: 'tier_advanced',
+};
+
+/**
+ * The tier a learner moves up to after finishing `level`, or null at the top.
+ * LEARNING_LEVELS is ordered easiest → hardest, so progression is its order.
+ */
+export function nextLearningLevel(level: LearningLevel): LearningLevel | null {
+  const i = LEARNING_LEVELS.indexOf(level);
+  if (i === -1) return null;
+  return LEARNING_LEVELS[i + 1] ?? null;
+}
 
 export interface Achievement {
   id: string;
@@ -136,6 +167,9 @@ export const ACHIEVEMENT_CATALOG: AchievementSeed[] = [
   { code: 'streak_7',        title: 'Week Warrior',      description: 'Practised 7 days in a row',       iconKey: 'flame',     kind: 'streak_days',       threshold: 7,     order: 90 },
   { code: 'streak_30',       title: 'Monthly Master',    description: 'Practised 30 days in a row',      iconKey: 'flame',     kind: 'streak_days',       threshold: 30,    order: 100 },
   { code: 'streak_120',      title: 'Streak Sovereign',  description: 'Practised 120 days in a row',     iconKey: 'flame',     kind: 'streak_days',       threshold: 120,   order: 110 },
+  { code: 'tier_beginner',     title: 'Beginner Complete',     description: 'Finished every Beginner lesson',     iconKey: 'trophy', kind: 'tier_completed', threshold: 0, order: 120 },
+  { code: 'tier_intermediate', title: 'Intermediate Complete', description: 'Finished every Intermediate lesson', iconKey: 'trophy', kind: 'tier_completed', threshold: 0, order: 130 },
+  { code: 'tier_advanced',     title: 'Advanced Complete',     description: 'Finished every Advanced lesson',     iconKey: 'trophy', kind: 'tier_completed', threshold: 0, order: 140 },
 ];
 
 // Legacy / unused — keep types but they aren't backed by tables yet.

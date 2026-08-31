@@ -20,6 +20,8 @@ export type CheckoutOutcome =
   | 'pending'
   | 'error';
 
+export type RestoreOutcome = 'restored' | 'nothing_to_restore' | 'error';
+
 /** The API rejects a second checkout while a live subscription exists. */
 const HTTP_CONFLICT = 409;
 
@@ -104,6 +106,62 @@ export function useCheckout() {
     [appleIap, dispatch, verifyAppleTransaction],
   );
 
+  /**
+   * Recover access the learner has already paid for (App Review Guideline
+   * 3.1.1 requires this to exist).
+   *
+   * On iOS it replays StoreKit's own record of what the Apple Account owns and
+   * re-links each transaction server-side. That is the only way back from a
+   * purchase that completed at Apple but never reached `/apple-iap/verify` — a
+   * crash or dropped connection mid-verify leaves the learner charged with no
+   * entitlement, and StoreKit never redelivers a finished transaction.
+   *
+   * Elsewhere there is no store receipt to replay: card subscriptions are tied
+   * to the account server-side, so restoring is just a resync.
+   */
+  const restore = useCallback(async (): Promise<RestoreOutcome> => {
+    setBusy(true);
+    try {
+      if (CLIENT_PLATFORM !== 'ios') {
+        const data = await fetchMySubscription(undefined, false).unwrap();
+        if (!data.entitled) return 'nothing_to_restore';
+        await refreshAuthUser(dispatch);
+        return 'restored';
+      }
+
+      const purchases = await appleIap.restore();
+      let entitled = false;
+
+      for (const purchase of purchases) {
+        const transactionId = 'transactionId' in purchase ? purchase.transactionId : null;
+        if (!transactionId) continue;
+        try {
+          const result = await verifyAppleTransaction({ transactionId }).unwrap();
+          // Safe to finish now that it's durably linked. An already-finished
+          // transaction must not fail the restore, hence the swallowed catch.
+          await appleIap.finishTransaction({ purchase }).catch(() => undefined);
+          if (result.entitled) {
+            entitled = true;
+            break;
+          }
+        } catch (err) {
+          // One stale transaction shouldn't abandon the rest — an Apple Account
+          // can hold transactions from expired or superseded subscriptions.
+          if (__DEV__) console.error('[restore] verify failed —', describeApiError(err));
+        }
+      }
+
+      if (!entitled) return 'nothing_to_restore';
+      await refreshAuthUser(dispatch);
+      return 'restored';
+    } catch (err) {
+      if (__DEV__) console.error('[restore] failed —', describeApiError(err));
+      return 'error';
+    } finally {
+      setBusy(false);
+    }
+  }, [appleIap, dispatch, fetchMySubscription, verifyAppleTransaction]);
+
   const start = useCallback(
     async (planId: string): Promise<CheckoutOutcome> => {
       setBusy(true);
@@ -174,5 +232,5 @@ export function useCheckout() {
     [createCheckout, pollEntitled, dispatch, purchaseViaAppleIap],
   );
 
-  return { start, busy };
+  return { start, restore, busy };
 }

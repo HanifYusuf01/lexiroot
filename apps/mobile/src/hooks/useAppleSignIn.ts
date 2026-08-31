@@ -3,7 +3,8 @@ import { Platform } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useAppleAuthMutation } from '../services/authApi';
 import { authStorage } from '../services/secureStorage';
-import { useAppDispatch } from '../store/hooks';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { onboardingSignupFields } from '../store/slices/onboardingSlice';
 import { setCredentials } from '../store/slices/authSlice';
 
 /** Sign in with Apple is iOS-only — no Android/web equivalent exists. */
@@ -22,6 +23,9 @@ interface AppleSignInResult {
 export function useAppleSignIn() {
   const dispatch = useAppDispatch();
   const [appleAuth] = useAppleAuthMutation();
+  // See useGoogleSignIn — the onboarding answers only reach the account through
+  // the sign-in that creates it.
+  const onboarding = useAppSelector((s) => s.onboarding);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +55,7 @@ export function useAppleSignIn() {
       const result = await appleAuth({
         identityToken: credential.identityToken,
         fullName: fullName || undefined,
+        ...onboardingSignupFields(onboarding),
       }).unwrap();
       const stored = { token: result.token, user: result.user };
       await authStorage.set(stored);
@@ -66,7 +71,7 @@ export function useAppleSignIn() {
     } finally {
       setLoading(false);
     }
-  }, [appleAuth, dispatch]);
+  }, [appleAuth, dispatch, onboarding]);
 
   return { signIn, loading, error, available: isAppleSignInAvailable };
 }

@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
 import { useGoogleAuthMutation } from '../services/authApi';
 import { authStorage } from '../services/secureStorage';
-import { useAppDispatch } from '../store/hooks';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { onboardingSignupFields } from '../store/slices/onboardingSlice';
 import { setCredentials } from '../store/slices/authSlice';
 
 // Load the native Google module defensively. It is only present in a custom dev
@@ -42,6 +43,10 @@ interface GoogleSignInResult {
 export function useGoogleSignIn() {
   const dispatch = useAppDispatch();
   const [googleAuth] = useGoogleAuthMutation();
+  // Onboarding runs before the account exists, so its answers ride along with
+  // the sign-in that creates it — otherwise a social sign-up silently starts
+  // everyone on the default tier.
+  const onboarding = useAppSelector((s) => s.onboarding);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,7 +68,10 @@ export function useGoogleSignIn() {
       if (!idToken) {
         throw new Error('No ID token returned from Google');
       }
-      const result = await googleAuth({ idToken }).unwrap();
+      const result = await googleAuth({
+        idToken,
+        ...onboardingSignupFields(onboarding),
+      }).unwrap();
       const stored = { token: result.token, user: result.user };
       await authStorage.set(stored);
       dispatch(setCredentials(stored));
@@ -77,7 +85,7 @@ export function useGoogleSignIn() {
     } finally {
       setLoading(false);
     }
-  }, [dispatch, googleAuth]);
+  }, [dispatch, googleAuth, onboarding]);
 
   return { signIn, loading, error, available: isGoogleSignInAvailable };
 }

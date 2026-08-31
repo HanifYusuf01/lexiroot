@@ -3,7 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 import {
   levelFromXp,
+  TIER_ACHIEVEMENT_CODES,
   type GamificationStats,
+  type LearningLevel,
   type LeaderboardEntry,
   type LeaderboardPage,
   type RecentBadge,
@@ -390,9 +392,18 @@ export class GamificationService {
   async awardForUser(
     manager: EntityManager,
     userId: string,
-    stats: { lessonsCompleted: number; xp: number; longestStreakDays: number },
+    stats: {
+      lessonsCompleted: number;
+      xp: number;
+      longestStreakDays: number;
+      /** Tiers the user has finished every published lesson in. */
+      completedTiers?: LearningLevel[];
+    },
   ): Promise<Achievement[]> {
     const catalog = await manager.getRepository(Achievement).find();
+    const earnedTierCodes = new Set(
+      (stats.completedTiers ?? []).map((tier) => TIER_ACHIEVEMENT_CODES[tier]),
+    );
     const eligible = catalog.filter((a) => {
       switch (a.kind) {
         case 'lessons_completed':
@@ -401,6 +412,9 @@ export class GamificationService {
           return stats.xp >= a.threshold;
         case 'streak_days':
           return stats.longestStreakDays >= a.threshold;
+        case 'tier_completed':
+          // Matched by code, not threshold — a tier isn't a count.
+          return earnedTierCodes.has(a.code);
         default:
           return false;
       }

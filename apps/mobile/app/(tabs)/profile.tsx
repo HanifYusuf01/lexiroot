@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LEARNING_LEVEL_LABELS } from '@lexiroot/shared';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { DeleteAccountModal } from '../../src/components/ui/DeleteAccountModal';
@@ -78,6 +79,13 @@ export default function ProfileTab() {
               <Text style={styles.userEmail} numberOfLines={1}>
                 {user?.email ?? ''}
               </Text>
+              {user?.level ? (
+                <View style={styles.levelBadge}>
+                  <Text style={styles.levelBadgeText}>
+                    {LEARNING_LEVEL_LABELS[user.level]}
+                  </Text>
+                </View>
+              ) : null}
             </View>
             <Pressable onPress={() => router.push('/edit')} hitSlop={12} style={styles.editBtn}>
               <MaterialCommunityIcons name="account-edit" size={22} color={colors.primary} />
@@ -219,6 +227,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.neutralVariant,
     marginTop: 2,
+  },
+  // Shrink-wraps rather than filling `userText`, which is flex: 1.
+  levelBadge: {
+    alignSelf: 'flex-start',
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    backgroundColor: colors.primarySoft,
+  },
+  levelBadgeText: {
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    color: colors.primary,
   },
   section: {
     paddingHorizontal: spacing.lg,
