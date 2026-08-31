@@ -222,6 +222,7 @@ export class SubscriptionsService {
       .addSelect('p.name', 'planName')
       .addSelect('sub.provider', 'provider')
       .addSelect('sub.status', 'status')
+      .addSelect('sub.current_period_start', 'currentPeriodStart')
       .addSelect('sub.current_period_end', 'currentPeriodEnd')
       .addSelect('sub.cancel_at_period_end', 'cancelAtPeriodEnd')
       .addSelect('sub.created_at', 'createdAt')
@@ -237,6 +238,7 @@ export class SubscriptionsService {
         planName: string | null;
         provider: ProviderKey;
         status: SubscriptionStatus;
+        currentPeriodStart: Date | null;
         currentPeriodEnd: Date | null;
         cancelAtPeriodEnd: boolean;
         createdAt: Date;
@@ -252,6 +254,7 @@ export class SubscriptionsService {
       provider: r.provider,
       status: r.status,
       statusText: SUBSCRIPTION_STATUS_TEXT[r.status],
+      currentPeriodStart: r.currentPeriodStart ? r.currentPeriodStart.toISOString() : null,
       currentPeriodEnd: r.currentPeriodEnd ? r.currentPeriodEnd.toISOString() : null,
       cancelAtPeriodEnd: r.cancelAtPeriodEnd,
       createdAt: r.createdAt.toISOString(),

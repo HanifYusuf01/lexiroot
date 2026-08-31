@@ -209,6 +209,9 @@ export interface AdminSubscription {
   provider: ProviderKey;
   status: SubscriptionStatus;
   statusText: string;
+  /** Start of the period `currentPeriodEnd` closes — the two are one billing
+   *  period apart, unlike `createdAt`, which predates every renewal. */
+  currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
   createdAt: string;

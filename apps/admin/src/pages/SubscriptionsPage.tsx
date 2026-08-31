@@ -72,7 +72,16 @@ export function SubscriptionsPage() {
                       {sub.cancelAtPeriodEnd && sub.status === 'ACTIVE' ? ' (cancelling)' : ''}
                     </span>
                   </TableCell>
-                  <TableCell>{sub.currentPeriodEnd ? formatDate(sub.currentPeriodEnd) : '—'}</TableCell>
+                  <TableCell>
+                    <div>{sub.currentPeriodEnd ? formatDate(sub.currentPeriodEnd) : '—'}</div>
+                    {sub.currentPeriodStart && sub.currentPeriodEnd ? (
+                      // The period's own start, not `createdAt` — after a renewal
+                      // those differ, and pairing the wrong one reads as bad math.
+                      <div className="text-xs text-neutral-variant">
+                        from {formatDate(sub.currentPeriodStart)}
+                      </div>
+                    ) : null}
+                  </TableCell>
                   <TableCell>{formatDate(sub.createdAt)}</TableCell>
                 </TableRow>
               ))
