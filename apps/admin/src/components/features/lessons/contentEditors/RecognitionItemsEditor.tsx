@@ -19,17 +19,23 @@ function blankPayload(): RecognitionItemPayload {
   return { word: '', meaning: '', imageUrl: '', audioUrl: '' };
 }
 
-export function RecognitionItemsEditor({
-  prompt,
-  onPromptChange,
-  items,
-  onItemsChange,
-}: Props) {
+export function RecognitionItemsEditor({ prompt, onPromptChange, items, onItemsChange }: Props) {
+  /**
+   * Insert a blank row at `index`, shifting the rest down. Content order is
+   * positional (orderIndex mirrors array position), so every row is reindexed
+   * afterwards — otherwise an inserted line would sort to the wrong place.
+   */
+  function insertAt(index: number) {
+    const copy = items.slice();
+    copy.splice(index, 0, {
+      kind: 'recognition-item',
+      orderIndex: index,
+      payload: blankPayload(),
+    });
+    onItemsChange(copy.map((row, i) => ({ ...row, orderIndex: i })));
+  }
   function add() {
-    onItemsChange([
-      ...items,
-      { kind: 'recognition-item', orderIndex: items.length, payload: blankPayload() },
-    ]);
+    insertAt(items.length);
   }
   function patch(index: number, next: Partial<RecognitionItemPayload>) {
     const existing = items[index];
@@ -47,9 +53,7 @@ export function RecognitionItemsEditor({
   return (
     <div className="space-y-4">
       <div>
-        <label className="mb-1.5 block text-xs font-semibold text-neutral">
-          Instruction Text
-        </label>
+        <label className="mb-1.5 block text-xs font-semibold text-neutral">Instruction Text</label>
         <input
           type="text"
           value={prompt.instruction}
@@ -95,8 +99,8 @@ export function RecognitionItemsEditor({
               {items.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-6 text-center text-xs text-neutral-variant">
-                    No recognition items yet. Click{' '}
-                    <span className="font-semibold">Add</span> to start.
+                    No recognition items yet. Click <span className="font-semibold">Add</span> to
+                    start.
                   </td>
                 </tr>
               ) : null}
@@ -133,6 +137,14 @@ export function RecognitionItemsEditor({
                     />
                   </td>
                   <td className="px-3 py-2 text-right align-middle">
+                    <button
+                      type="button"
+                      onClick={() => insertAt(i + 1)}
+                      className="rounded p-1.5 text-neutral-variant hover:bg-primary/10 hover:text-primary"
+                      title="Insert row below"
+                    >
+                      <Plus size={14} />
+                    </button>
                     <button
                       type="button"
                       onClick={() => remove(i)}

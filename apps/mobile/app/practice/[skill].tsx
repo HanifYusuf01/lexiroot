@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { LessonType } from '@lexiroot/shared';
+import type { LessonType, LearningLevel } from '@lexiroot/shared';
 import { DailyChallengeCard } from '../../src/components/practice/DailyChallengeCard';
 import { SkillPath, type PathStep } from '../../src/components/practice/SkillPath';
 import { useListLessonsQuery } from '../../src/services/lessonsApi';
@@ -36,8 +36,11 @@ export default function SkillPathScreen() {
   const { skill } = useLocalSearchParams<{ skill: SkillKey }>();
   const theme = skill && skillThemes[skill];
   const user = useAppSelector((s) => s.auth.user);
+  const tier: LearningLevel = user?.level ?? 'beginner';
+  // Same scoping as the practice tab: the skill path is the learner's current
+  // tier only, so it can't run ahead into tiers they haven't reached.
   const lessonsQuery = useListLessonsQuery(
-    { language: user?.country ? undefined : undefined, limit: 100 },
+    { tier, status: 'published', limit: 100 },
     { skip: !skill, refetchOnMountOrArgChange: true },
   );
   const progressQuery = useGetProgressQuery(undefined, { skip: !skill });

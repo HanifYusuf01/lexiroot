@@ -10,24 +10,26 @@ interface Row {
 const ROWS: Row[] = [
   {
     trigger: '/',
-    description: 'High tone (acute) on previous vowel',
+    description: 'High tone (acute) on previous vowel or syllabic n',
     examples: [
       { in: 'a/', out: 'á' },
       { in: 'e/', out: 'é' },
       { in: 'i/', out: 'í' },
       { in: 'o/', out: 'ó' },
       { in: 'u/', out: 'ú' },
+      { in: 'n/', out: 'ń' },
     ],
   },
   {
     trigger: '\\ or ;',
-    description: 'Low tone (grave) on previous vowel',
+    description: 'Low tone (grave) on previous vowel or syllabic n',
     examples: [
       { in: 'a\\', out: 'à' },
       { in: 'e;', out: 'è' },
       { in: 'i\\', out: 'ì' },
       { in: 'o;', out: 'ò' },
       { in: 'u\\', out: 'ù' },
+      { in: 'n\\', out: 'ǹ' },
     ],
   },
   {
@@ -37,6 +39,15 @@ const ROWS: Row[] = [
       { in: 'e.', out: 'ẹ' },
       { in: 'o.', out: 'ọ' },
       { in: 's.', out: 'ṣ' },
+    ],
+  },
+  {
+    trigger: 'n',
+    description: 'Syllabic n — mid tone is unmarked, so plain n needs no trigger',
+    examples: [
+      { in: 'n/', out: 'ń' },
+      { in: 'n', out: 'n' },
+      { in: 'n;', out: 'ǹ' },
     ],
   },
   {

@@ -13,15 +13,22 @@ function blankPayload(): VocabularyEntryPayload {
 }
 
 export function VocabularyEditor({ value, onChange }: Props) {
+  /**
+   * Insert a blank row at `index`, shifting the rest down. Content order is
+   * positional (orderIndex mirrors array position), so every row is reindexed
+   * afterwards — otherwise an inserted line would sort to the wrong place.
+   */
+  function insertAt(index: number) {
+    const copy = value.slice();
+    copy.splice(index, 0, {
+      kind: 'vocabulary',
+      orderIndex: index,
+      payload: blankPayload(),
+    });
+    onChange(copy.map((row, i) => ({ ...row, orderIndex: i })));
+  }
   function add() {
-    onChange([
-      ...value,
-      {
-        kind: 'vocabulary',
-        orderIndex: value.length,
-        payload: blankPayload(),
-      },
-    ]);
+    insertAt(value.length);
   }
   function patch(index: number, next: Partial<VocabularyEntryPayload>) {
     const existing = value[index];
@@ -66,7 +73,8 @@ export function VocabularyEditor({ value, onChange }: Props) {
             {value.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-xs text-neutral-variant">
-                  No vocabulary words yet. Click <span className="font-semibold">Add</span> to start.
+                  No vocabulary words yet. Click <span className="font-semibold">Add</span> to
+                  start.
                 </td>
               </tr>
             ) : null}
@@ -103,6 +111,14 @@ export function VocabularyEditor({ value, onChange }: Props) {
                   />
                 </Td>
                 <Td className="text-right">
+                  <button
+                    type="button"
+                    onClick={() => insertAt(i + 1)}
+                    className="rounded p-1.5 text-neutral-variant hover:bg-primary/10 hover:text-primary"
+                    title="Insert row below"
+                  >
+                    <Plus size={14} />
+                  </button>
                   <button
                     type="button"
                     onClick={() => remove(i)}

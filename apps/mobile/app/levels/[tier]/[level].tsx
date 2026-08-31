@@ -31,7 +31,7 @@ import { RecognitionExercise } from '../../../src/screens/practice/RecognitionEx
 import { WordArrangeExercise } from '../../../src/screens/practice/WordArrangeExercise';
 import { neutralExerciseTheme, type SkillTheme } from '../../../src/constants/theme';
 import { colors, fonts, radius, spacing } from '../../../src/constants/theme';
-import { useAudioPlayback } from '../../../src/hooks/useAudioPlayback';
+import { SLOW_PLAYBACK_RATE, useAudioPlayback } from '../../../src/hooks/useAudioPlayback';
 import { useHasFeature } from '../../../src/hooks/useEntitlements';
 import { FREE_ACCESS_LEVEL } from '../../../src/constants/entitlements';
 import { useAppSelector } from '../../../src/store/hooks';
@@ -583,6 +583,8 @@ function ContentStep({ entry, progress, xp, levelNumber, onClose, onContinue }: 
   const entryAudioUrl =
     (entry.payload as unknown as { audioUrl?: string } | undefined)?.audioUrl ?? null;
   const audio = useAudioPlayback(entryAudioUrl);
+  // Sticky across replays of this card — matches the exercise screen's toggle.
+  const [slow, setSlow] = useState(false);
   const card = useMemo(() => {
     const p = entry.payload as unknown as Record<string, unknown>;
     if (entry.kind === 'letter') {
@@ -649,9 +651,21 @@ function ContentStep({ entry, progress, xp, levelNumber, onClose, onContinue }: 
         <View style={styles.playRow}>
           <PlayButton
             theme={neutralExerciseTheme}
-            onPress={audio.play}
+            onPress={slow ? audio.playSlow : audio.play}
             isPlaying={audio.isPlaying}
           />
+          <Pressable
+            onPress={() => setSlow((v) => !v)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={slow ? 'Play at normal speed' : 'Play slowly'}
+            accessibilityState={{ selected: slow }}
+            style={[styles.speedToggle, slow && styles.speedToggleOn]}
+          >
+            <Text style={[styles.speedToggleText, slow && styles.speedToggleTextOn]}>
+              {`${SLOW_PLAYBACK_RATE}x`}
+            </Text>
+          </Pressable>
         </View>
         {card}
       </ScrollView>
@@ -945,8 +959,30 @@ const styles = StyleSheet.create({
     color: colors.neutralVariant,
     textAlign: 'center',
   },
+  // Sits beside the play button; filled while slow playback is armed.
+  speedToggle: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+  },
+  speedToggleOn: {
+    backgroundColor: colors.primary,
+  },
+  speedToggleText: {
+    fontFamily: fonts.extrabold,
+    fontSize: 13,
+    color: colors.primary,
+  },
+  speedToggleTextOn: {
+    color: colors.white,
+  },
   playRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
     paddingVertical: spacing.md,
   },
   bottomCta: {

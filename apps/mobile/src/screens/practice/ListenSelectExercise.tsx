@@ -7,7 +7,7 @@ import { ExerciseLessonHeader } from '../../components/exercise/ExerciseLessonHe
 import { ExerciseTopBar } from '../../components/exercise/ExerciseTopBar';
 import { OptionCard } from '../../components/exercise/OptionCard';
 import { PlayButton } from '../../components/exercise/PlayButton';
-import { useAudioPlayback } from '../../hooks/useAudioPlayback';
+import { SLOW_PLAYBACK_RATE, useAudioPlayback } from '../../hooks/useAudioPlayback';
 import { colors, fonts, spacing, type SkillTheme } from '../../constants/theme';
 
 interface ListenSelectOption {
@@ -46,6 +46,9 @@ export function ListenSelectExercise({
 }: ListenSelectExerciseProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>('answering');
+  // Slow playback is a sticky choice for the exercise, not a one-shot: a learner
+  // who needs half speed for one clip almost always wants it for the next too.
+  const [slow, setSlow] = useState(false);
   const audio = useAudioPlayback(audioUrl);
 
   const handleCheck = () => {
@@ -93,7 +96,8 @@ export function ListenSelectExercise({
         <ExerciseLessonHeader
           title={skillTitle}
           level={level}
-          speedBadge="1x"
+          speedBadge={slow ? `${SLOW_PLAYBACK_RATE}x` : '1x'}
+          onSpeedPress={() => setSlow((v) => !v)}
           theme={theme}
         />
       </View>
@@ -102,7 +106,11 @@ export function ListenSelectExercise({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.playRow}>
-          <PlayButton theme={theme} onPress={audio.play} isPlaying={audio.isPlaying} />
+          <PlayButton
+            theme={theme}
+            onPress={slow ? audio.playSlow : audio.play}
+            isPlaying={audio.isPlaying}
+          />
         </View>
 
         {instruction ? (

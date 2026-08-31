@@ -2,11 +2,22 @@ import { useEffect, useState } from 'react';
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import { useOfflineMediaUri } from './useOfflineMediaUri';
 
+/**
+ * Half speed. Slow enough to separate Yoruba tones and consonant clusters,
+ * without the clip dragging so much that the word stops sounding like itself.
+ */
+export const SLOW_PLAYBACK_RATE = 0.5;
+const NORMAL_PLAYBACK_RATE = 1;
+
 interface PlaybackHandle {
   play: () => void;
+  /** Replay the clip at SLOW_PLAYBACK_RATE, pitch preserved. */
+  playSlow: () => void;
   stop: () => void;
   isReady: boolean;
   isPlaying: boolean;
+  /** True while the current playback is the slowed one — for toggling UI. */
+  isPlayingSlow: boolean;
   /** Current playback position in seconds. 0 until playback starts. */
   currentTime: number;
   /** Total clip duration in seconds, or 0 until the player has loaded metadata. */
@@ -43,6 +54,7 @@ export function useAudioPlayback(url: string | null | undefined): PlaybackHandle
   const cleanUrl = useOfflineMediaUri(url);
   const player = useAudioPlayer(cleanUrl ? { uri: cleanUrl } : null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [rate, setRate] = useState(NORMAL_PLAYBACK_RATE);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
@@ -55,6 +67,7 @@ export function useAudioPlayback(url: string | null | undefined): PlaybackHandle
     setCurrentTime(0);
     setDuration(0);
     setIsPlaying(false);
+    setRate(NORMAL_PLAYBACK_RATE);
   }, [cleanUrl]);
 
   // Poll the player while it's active so the UI can mirror playback position
@@ -80,21 +93,37 @@ export function useAudioPlayback(url: string | null | undefined): PlaybackHandle
     return () => clearInterval(id);
   }, [isPlaying, player]);
 
+  // Both play paths share this: rewind, set the rate, go. Rate is applied on
+  // every start rather than once, because the player is reused across normal
+  // and slow replays and would otherwise keep whichever rate ran last.
+  function start(nextRate: number) {
+    if (!cleanUrl) return;
+    try {
+      player.seekTo(0);
+      // Without pitch correction a half-speed clip drops an octave and stops
+      // being a usable pronunciation model — the whole point of slow playback.
+      player.shouldCorrectPitch = true;
+      player.setPlaybackRate(nextRate, 'high');
+      player.play();
+      setCurrentTime(0);
+      setRate(nextRate);
+      setIsPlaying(true);
+    } catch {
+      // swallow — UI doesn't surface playback failures
+    }
+  }
+
   return {
     isReady: !!cleanUrl,
     isPlaying,
+    isPlayingSlow: isPlaying && rate < NORMAL_PLAYBACK_RATE,
     currentTime,
     duration,
     play() {
-      if (!cleanUrl) return;
-      try {
-        player.seekTo(0);
-        player.play();
-        setCurrentTime(0);
-        setIsPlaying(true);
-      } catch {
-        // swallow — UI doesn't surface playback failures
-      }
+      start(NORMAL_PLAYBACK_RATE);
+    },
+    playSlow() {
+      start(SLOW_PLAYBACK_RATE);
     },
     stop() {
       if (!cleanUrl) return;

@@ -11,6 +11,8 @@ import { createPortal } from 'react-dom';
  *      - `/` after a vowel → high tone (acute):  a/ → á  e/ → é  i/ → í  o/ → ó  u/ → ú
  *      - `\` after a vowel → low  tone (grave):  a\ → à  e\ → è  i\ → ì  o\ → ò  u\ → ù
  *      - `.` after e/o/s → sub-dot:              e. → ẹ  o. → ọ  s. → ṣ
+ *      - tone marks also apply to the syllabic nasal: n/ → ń  n\ → ǹ
+ *        (mid tone is unmarked, so plain `n` needs no shortcut)
  *      - Capital forms apply identically (A/ → Á, etc.).
  *
  * 2. **Palette popover** — the "Á" button opens a grid of Yoruba glyphs. Clicking a
@@ -40,32 +42,40 @@ const SHORTCUTS: Record<string, string> = {
   'i/': 'í',
   'o/': 'ó',
   'u/': 'ú',
+  // Syllabic nasal — carries tone like a vowel. Mid tone is unmarked (plain n),
+  // so only the high and low forms need a shortcut.
+  'n/': 'ń',
   'A/': 'Á',
   'E/': 'É',
   'I/': 'Í',
   'O/': 'Ó',
   'U/': 'Ú',
+  'N/': 'Ń',
   // grave  (\ or ;)
   'a\\': 'à',
   'e\\': 'è',
   'i\\': 'ì',
   'o\\': 'ò',
   'u\\': 'ù',
+  'n\\': 'ǹ',
   'A\\': 'À',
   'E\\': 'È',
   'I\\': 'Ì',
   'O\\': 'Ò',
   'U\\': 'Ù',
+  'N\\': 'Ǹ',
   'a;': 'à',
   'e;': 'è',
   'i;': 'ì',
   'o;': 'ò',
   'u;': 'ù',
+  'n;': 'ǹ',
   'A;': 'À',
   'E;': 'È',
   'I;': 'Ì',
   'O;': 'Ò',
   'U;': 'Ù',
+  'N;': 'Ǹ',
   // sub-dot  (.)
   'e.': 'ẹ',
   'o.': 'ọ',
@@ -92,12 +102,14 @@ const PALETTE_LOWER: string[][] = [
   ['á', 'à', 'é', 'è', 'í', 'ì'],
   ['ó', 'ò', 'ú', 'ù', 'ẹ', 'ọ'],
   ['ṣ', 'ẹ́', 'ẹ̀', 'ọ́', 'ọ̀'],
+  ['ń', 'ǹ'],
 ];
 
 const PALETTE_UPPER: string[][] = [
   ['Á', 'À', 'É', 'È', 'Í', 'Ì'],
   ['Ó', 'Ò', 'Ú', 'Ù', 'Ẹ', 'Ọ'],
   ['Ṣ', 'Ẹ́', 'Ẹ̀', 'Ọ́', 'Ọ̀'],
+  ['Ń', 'Ǹ'],
 ];
 
 const TRIGGER_KEYS = new Set(['/', '\\', ';', '.']);

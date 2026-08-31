@@ -27,11 +27,22 @@ export function NumbersEditor({
   language,
   translationLanguageLabel = 'English',
 }: Props) {
+  /**
+   * Insert a blank row at `index`, shifting the rest down. Content order is
+   * positional (orderIndex mirrors array position), so every row is reindexed
+   * afterwards — otherwise an inserted line would sort to the wrong place.
+   */
+  function insertAt(index: number) {
+    const copy = value.slice();
+    copy.splice(index, 0, {
+      kind: 'number',
+      orderIndex: index,
+      payload: blankPayload(),
+    });
+    onChange(copy.map((row, i) => ({ ...row, orderIndex: i })));
+  }
   function add() {
-    onChange([
-      ...value,
-      { kind: 'number', orderIndex: value.length, payload: blankPayload() },
-    ]);
+    insertAt(value.length);
   }
   function patch(index: number, next: Partial<NumberEntryPayload>) {
     const existing = value[index];
@@ -111,6 +122,14 @@ export function NumbersEditor({
                   />
                 </td>
                 <td className="px-3 py-2 text-right align-middle">
+                  <button
+                    type="button"
+                    onClick={() => insertAt(i + 1)}
+                    className="rounded p-1.5 text-neutral-variant hover:bg-primary/10 hover:text-primary"
+                    title="Insert row below"
+                  >
+                    <Plus size={14} />
+                  </button>
                   <button
                     type="button"
                     onClick={() => remove(i)}

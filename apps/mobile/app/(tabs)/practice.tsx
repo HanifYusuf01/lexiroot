@@ -31,8 +31,11 @@ const SKILL_TO_LESSON_TYPE: Record<SkillKey, LessonType> = {
 export default function PracticeTab() {
   const user = useAppSelector((s) => s.auth.user);
   const tier: LearningLevel = user?.level ?? 'beginner';
+  // Scoped to the learner's tier and to published lessons — practice must show
+  // the same set the levels screen does, or progress reads against a ladder
+  // spanning every tier (and unreleased drafts).
   const lessonsQuery = useListLessonsQuery(
-    { limit: 100 },
+    { tier, status: 'published', limit: 100 },
     { refetchOnMountOrArgChange: true },
   );
   const progressQuery = useGetProgressQuery();
