@@ -55,18 +55,47 @@ export class EntitlementService {
     this.cache.delete(userId);
   }
 
-  /** The most relevant subscription for entitlement (live before terminal). */
+  /**
+   * The most relevant subscription for entitlement (live before terminal).
+   *
+   * Considers subscriptions the user owns *and* any they hold a family seat on,
+   * so one paid family plan entitles every accepted member. Owned rows are
+   * preferred when both are live: the summary a learner sees should describe the
+   * plan they pay for, not somebody else's.
+   *
+   * A shared seat only counts while the membership is accepted and not revoked;
+   * whether the underlying subscription is still *live* is then decided by
+   * `isEntitledNow` exactly as it is for an owner, so a lapsed family plan drops
+   * every member automatically.
+   */
   private async activeSubscription(userId: string): Promise<Subscription | null> {
-    const rows = await this.subscriptions.find({
-      where: { userId },
-      order: { createdAt: 'DESC' },
-    });
-    // Prefer an entitled/live one; fall back to the most recent for summaries.
-    return (
-      rows.find((s) => s.status !== 'EXPIRED' && s.status !== 'INCOMPLETE') ??
-      rows[0] ??
-      null
-    );
+    const [owned, shared] = await Promise.all([
+      this.subscriptions.find({ where: { userId }, order: { createdAt: 'DESC' } }),
+      this.sharedSubscriptions(userId),
+    ]);
+    const live = (rows: Subscription[]) =>
+      rows.find((s) => s.status !== 'EXPIRED' && s.status !== 'INCOMPLETE') ?? null;
+
+    // Owned-live → shared-live → most recent owned (summaries for lapsed users)
+    // → shared, so someone whose own plan expired still sees family access.
+    return live(owned) ?? live(shared) ?? owned[0] ?? shared[0] ?? null;
+  }
+
+  /** Subscriptions this user is an accepted, unrevoked family member of. */
+  private sharedSubscriptions(userId: string): Promise<Subscription[]> {
+    return this.subscriptions
+      .createQueryBuilder('sub')
+      .innerJoin(
+        'subscription_members',
+        'm',
+        `m.subscription_id = sub.id
+           AND m.user_id = :userId
+           AND m.accepted_at IS NOT NULL
+           AND m.revoked_at IS NULL`,
+        { userId },
+      )
+      .orderBy('sub.created_at', 'DESC')
+      .getMany();
   }
 
   private isEntitledNow(sub: Subscription | null): boolean {

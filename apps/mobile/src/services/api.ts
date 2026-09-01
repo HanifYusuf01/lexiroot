@@ -119,6 +119,7 @@ export const api = createApi({
     'CulturalContent',
     'Leaderboard',
     'Achievements',
+    'Family',
   ],
   endpoints: () => ({}),
 });

@@ -1,16 +1,21 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from '../auth/auth.module';
 import { SubscriptionPlan } from '../subscriptions/entities/subscription-plan.entity';
+import { User } from '../users/entities/user.entity';
 import { AdminPlanProviderController } from './admin-plan-provider.controller';
 import { AdminSubscriptionsController } from './admin-subscriptions.controller';
 import { BillingService } from './billing.service';
 import { EntitlementService } from './entitlement.service';
+import { FamilyController, PublicFamilyInviteController } from './family.controller';
+import { FamilyService } from './family.service';
 import { Invoice } from './entities/invoice.entity';
 import { Payment } from './entities/payment.entity';
 import { PaymentMethod } from './entities/payment-method.entity';
 import { PaymentRefund } from './entities/payment-refund.entity';
 import { PlanProviderPrice } from './entities/plan-provider-price.entity';
 import { Subscription } from './entities/subscription.entity';
+import { SubscriptionMember } from './entities/subscription-member.entity';
 import { SubscriptionStatusEvent } from './entities/subscription-status-event.entity';
 import { WebhookEvent } from './entities/webhook-event.entity';
 import { PlanProviderSyncService } from './plan-provider-sync.service';
@@ -42,13 +47,20 @@ import { WebhooksService } from './webhooks.service';
       WebhookEvent,
       SubscriptionPlan,
       SubscriptionStatusEvent,
+      SubscriptionMember,
+      User,
     ]),
+    // Circular: AuthModule needs EntitlementService for /auth/me, and the
+    // family invite flow here needs EmailService.
+    forwardRef(() => AuthModule),
   ],
   controllers: [
     SubscriptionsController,
     WebhooksController,
     AdminPlanProviderController,
     AdminSubscriptionsController,
+    FamilyController,
+    PublicFamilyInviteController,
   ],
   providers: [
     StripeProvider,
@@ -61,6 +73,7 @@ import { WebhooksService } from './webhooks.service';
     SubscriptionsService,
     WebhooksService,
     PlanProviderSyncService,
+    FamilyService,
   ],
   exports: [EntitlementService, BillingService, SubscriptionStateService],
 })

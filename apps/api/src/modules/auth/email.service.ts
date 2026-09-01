@@ -21,6 +21,14 @@ interface SendAdminInvitationEmailInput {
   inviteUrl: string;
 }
 
+interface SendFamilyInvitationEmailInput {
+  email: string;
+  inviterName: string;
+  planName: string;
+  inviteUrl: string;
+  expiresInDays: number;
+}
+
 interface SendWelcomeEmailInput {
   email: string;
   displayName: string;
@@ -83,6 +91,25 @@ export class EmailService {
           )}</strong>. Set your password to activate your account.</p>
           ${this.button('Accept invitation', input.inviteUrl)}
           <p style="font-size:13px;color:${MUTED_COLOR};">This invitation expires in 7 days. If you weren't expecting it, you can ignore this email.</p>
+        `,
+      }),
+    });
+  }
+
+  async sendFamilyInvitationEmail(input: SendFamilyInvitationEmailInput): Promise<void> {
+    await this.send({
+      to: input.email,
+      subject: `${input.inviterName} invited you to their LexiRoot family plan`,
+      devHint: `family invite url: ${input.inviteUrl}`,
+      html: await this.layout({
+        heading: 'Join the family plan',
+        bodyHtml: `
+          <p><strong>${escapeHtml(input.inviterName)}</strong> has invited you to their LexiRoot
+          <strong>${escapeHtml(input.planName)}</strong> plan.</p>
+          <p>You'll get your own account with your own languages, streak and progress — the
+          plan is shared, your learning isn't.</p>
+          ${this.button('Accept invitation', input.inviteUrl)}
+          <p style="font-size:13px;color:${MUTED_COLOR};">This invitation expires in ${input.expiresInDays} days and can only be accepted from this email address. If you weren't expecting it, you can ignore this email.</p>
         `,
       }),
     });

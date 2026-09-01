@@ -139,6 +139,13 @@ export default function ProfileTab() {
               title="Manage subscription"
               subtitle="View your plan, renewal date, or cancel"
               onPress={() => router.push('/subscription' as never)}
+            />
+            {/* Shown to everyone; the screen itself explains the plan when the
+                user isn't on one, rather than the row vanishing unexplained. */}
+            <SettingsRow
+              title="Family plan"
+              subtitle="Share Premium with up to 5 other people"
+              onPress={() => router.push('/family' as never)}
               last
             />
           </View>

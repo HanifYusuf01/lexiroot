@@ -239,3 +239,53 @@ export interface VerifyAppleTransactionRequest {
   /** transactionId (or originalTransactionId) from the StoreKit purchase result. */
   transactionId: string;
 }
+
+/**
+ * Family plan sharing. One paid family subscription entitles several separate
+ * accounts — each keeps its own profile, language and progress; only the
+ * entitlement is shared.
+ *
+ * Six seats *including the owner*, so a family owner can invite five others.
+ */
+export const FAMILY_MAX_SEATS = 6;
+
+export type FamilySeatStatus = 'owner' | 'member' | 'pending';
+
+export interface FamilySeat {
+  /** Membership row id; null for the owner, who has no membership row. */
+  id: string | null;
+  status: FamilySeatStatus;
+  /** Null while an invite is still pending — nobody has accepted it yet. */
+  userId: string | null;
+  email: string;
+  displayName: string | null;
+  invitedAt: string | null;
+  acceptedAt: string | null;
+}
+
+export interface FamilyOverview {
+  /** False when the caller's plan carries no `family_sharing` feature. */
+  enabled: boolean;
+  /** True when the caller owns the subscription (only owners may invite). */
+  isOwner: boolean;
+  maxSeats: number;
+  /** Owner + accepted members + still-pending invites. */
+  usedSeats: number;
+  seats: FamilySeat[];
+}
+
+export interface FamilyInvitePreview {
+  email: string;
+  /** Display name of whoever sent the invite, for the accept screen. */
+  invitedByName: string | null;
+  planName: string | null;
+  expiresAt: string;
+}
+
+export interface AcceptFamilyInviteResult {
+  /**
+   * True when the accepting user already had their own live subscription.
+   * They keep both — the client warns them they're still being billed.
+   */
+  hadOwnSubscription: boolean;
+}

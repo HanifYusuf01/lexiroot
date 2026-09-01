@@ -1,3 +1,4 @@
+import { FAMILY_MAX_SEATS } from '@lexiroot/shared';
 import type { PlanPeriod, SubscriptionPlan } from '@lexiroot/shared';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
@@ -152,7 +153,9 @@ export default function UpgradePricing() {
           />
         </View>
         {audience === 'family' ? (
-          <Text style={styles.audienceHint}>· Allows up to 3 users</Text>
+          // Driven by the seat cap the server enforces, so the promise on the
+          // paywall can't drift from what the family screen actually allows.
+          <Text style={styles.audienceHint}>· Allows up to {FAMILY_MAX_SEATS} users</Text>
         ) : null}
 
         {isLoading ? (
