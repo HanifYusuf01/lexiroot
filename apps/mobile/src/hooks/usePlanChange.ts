@@ -7,7 +7,7 @@ import {
   useVerifyAppleTransactionMutation,
 } from '../services/subscriptionsApi';
 import { useAppDispatch } from '../store/hooks';
-import { AppleIapCancelledError, useAppleIap } from './useAppleIap';
+import { AppleIapCancelledError, transactionIdOf, useAppleIap } from './useAppleIap';
 import { CLIENT_PLATFORM } from './useCheckout';
 
 export type PlanChangeOutcome =
@@ -55,7 +55,7 @@ export function usePlanChange() {
           session.providerProductId,
           session.appAccountToken ?? '',
         );
-        const transactionId = 'transactionId' in purchase ? purchase.transactionId : null;
+        const transactionId = transactionIdOf(purchase);
         if (!transactionId) throw new Error('Apple purchase did not return a transaction id');
 
         // Same ordering rule as first purchase: verify server-side before

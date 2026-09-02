@@ -9,7 +9,8 @@ import {
   useFamilyInvitePreviewQuery,
 } from '../src/services/familyApi';
 import { describeApiError } from '../src/utils/apiError';
-import { useAppSelector } from '../src/store/hooks';
+import { refreshAuthUser } from '../src/services/refreshAuthUser';
+import { useAppDispatch, useAppSelector } from '../src/store/hooks';
 
 /**
  * Landing screen for a family invitation deep link
@@ -21,7 +22,9 @@ import { useAppSelector } from '../src/store/hooks';
  */
 export default function FamilyInviteScreen() {
   const { token } = useLocalSearchParams<{ token?: string }>();
+  const dispatch = useAppDispatch();
   const signedIn = useAppSelector((s) => !!s.auth.token);
+  const currentEmail = useAppSelector((s) => s.auth.user?.email ?? null);
   const { data, isLoading, error } = useFamilyInvitePreviewQuery(
     { token: token ?? '' },
     { skip: !token },
@@ -29,11 +32,30 @@ export default function FamilyInviteScreen() {
   const [accept] = useAcceptFamilyInviteMutation();
   const [busy, setBusy] = useState(false);
 
+  /**
+   * Signed in, but as somebody else. The server refuses this (the invite is
+   * addressed to an email, not to whoever holds the link), so offering the
+   * button and letting it 403 tells the person nothing about what to do —
+   * least of all which account they are actually in.
+   */
+  const wrongAccount =
+    signedIn &&
+    !!currentEmail &&
+    !!data &&
+    currentEmail.toLowerCase() !== data.email.toLowerCase();
+
   async function handleAccept() {
     if (!token) return;
     setBusy(true);
     try {
       const result = await accept({ token }).unwrap();
+
+      // Accepting a seat *is* an entitlement change, so the auth user has to be
+      // re-read the way checkout does it. Invalidating the `User` cache tag is
+      // not enough: gating reads `features` off the auth slice, which only
+      // `setUser` writes — so without this the new member stays gated behind the
+      // upgrade wall until they sign out and back in.
+      await refreshAuthUser(dispatch).catch(() => undefined);
       if (result.hadOwnSubscription) {
         // They now have two entitlement sources. Harmless functionally, but
         // they're paying twice — say so rather than let it go unnoticed.
@@ -85,7 +107,17 @@ export default function FamilyInviteScreen() {
 
       {token && data ? (
         <View style={styles.footer}>
-          {signedIn ? (
+          {wrongAccount ? (
+            <>
+              <Text style={styles.body_}>
+                This invitation is for {data.email}, but you're signed in as {currentEmail}.
+              </Text>
+              <Text style={styles.meta}>
+                Sign out from Profile, sign in as {data.email}, then open this link again. Each seat
+                is its own account — the person joining keeps their own languages and progress.
+              </Text>
+            </>
+          ) : signedIn ? (
             <Button
               label={busy ? 'Joining…' : 'Accept invitation'}
               disabled={busy}

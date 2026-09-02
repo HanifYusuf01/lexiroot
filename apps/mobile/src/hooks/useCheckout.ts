@@ -11,7 +11,7 @@ import {
   useVerifyAppleTransactionMutation,
 } from '../services/subscriptionsApi';
 import { useAppDispatch } from '../store/hooks';
-import { AppleIapCancelledError, useAppleIap } from './useAppleIap';
+import { AppleIapCancelledError, transactionIdOf, useAppleIap } from './useAppleIap';
 
 export type CheckoutOutcome =
   | 'success'
@@ -87,7 +87,7 @@ export function useCheckout() {
           session.providerProductId,
           session.appAccountToken ?? '',
         );
-        const transactionId = 'transactionId' in purchase ? purchase.transactionId : null;
+        const transactionId = transactionIdOf(purchase);
         if (!transactionId) throw new Error('Apple purchase did not return a transaction id');
 
         const result = await verifyAppleTransaction({ transactionId }).unwrap();
@@ -133,7 +133,7 @@ export function useCheckout() {
       let entitled = false;
 
       for (const purchase of purchases) {
-        const transactionId = 'transactionId' in purchase ? purchase.transactionId : null;
+        const transactionId = transactionIdOf(purchase);
         if (!transactionId) continue;
         try {
           const result = await verifyAppleTransaction({ transactionId }).unwrap();

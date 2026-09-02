@@ -4,6 +4,22 @@ import { ErrorCode, getAvailablePurchases, useIAP, type Purchase } from 'expo-ia
 export class AppleIapCancelledError extends Error {}
 
 /**
+ * The transaction id on a StoreKit purchase, or null.
+ *
+ * Guards the shape rather than trusting it. `'transactionId' in purchase`
+ * throws `right operand of 'in' is not an object` under Hermes the moment
+ * `purchase` is undefined — which is fatal in a release build, where an
+ * unhandled rejection takes down the screen instead of showing a red box. The
+ * value comes from a native module and a replayed StoreKit transaction, so it
+ * is not ours to assume.
+ */
+export function transactionIdOf(purchase: unknown): string | null {
+  if (typeof purchase !== 'object' || purchase === null) return null;
+  const id = (purchase as { transactionId?: unknown }).transactionId;
+  return typeof id === 'string' ? id : null;
+}
+
+/**
  * Drives a single StoreKit subscription purchase via expo-iap. `purchase(sku,
  * appAccountToken)` resolves with the resulting `Purchase` once StoreKit hands
  * one back, or rejects (with `AppleIapCancelledError` on a user cancel).

@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { MascotSadIcon } from '../icons/MascotSadIcon';
 import { colors, fonts, radius, spacing } from '../../constants/theme';
 
 /**
@@ -87,7 +88,13 @@ export class AppErrorBoundary extends Component<Props, State> {
     return (
       <View style={styles.container}>
         <ScrollView contentContainerStyle={styles.content}>
-          <Text style={styles.emoji}>🦜</Text>
+          {/* The app's own mascot, not the 🦜 emoji it used to render — that
+              one is a different bird in a different palette on every platform,
+              and a crash screen is the worst place to look like someone else's
+              app. Sad variant, the same one the lesson-failure screen uses. */}
+          <View style={styles.mascot}>
+            <MascotSadIcon size={72} />
+          </View>
           <Text style={styles.title}>Something went wrong</Text>
           <Text style={styles.subtitle}>
             The app hit an unexpected error. Tap below to continue. If this keeps
@@ -96,6 +103,15 @@ export class AppErrorBoundary extends Component<Props, State> {
           <View style={styles.detailsBox}>
             <Text style={styles.detailsLabel}>Error details</Text>
             <Text style={styles.detailsText}>{error.message || String(error)}</Text>
+            {/* The message alone rarely identifies the cause — "right operand
+                of 'in' is not an object" is true of every such check in the
+                bundle. These few frames are what turn a screenshot into a
+                location, and this boundary also catches errors thrown outside
+                the React tree, where there is no component stack to fall back
+                on. Trimmed because the full trace is minified and endless. */}
+            {topFrames(error) ? (
+              <Text style={styles.detailsStack}>{topFrames(error)}</Text>
+            ) : null}
           </View>
           <TouchableOpacity style={styles.button} onPress={this.handleReset} activeOpacity={0.85}>
             <Text style={styles.buttonLabel}>Try again</Text>
@@ -104,6 +120,19 @@ export class AppErrorBoundary extends Component<Props, State> {
       </View>
     );
   }
+}
+
+/** The first few stack frames, if the error carries a usable stack. */
+function topFrames(error: Error): string | null {
+  const stack = typeof error.stack === 'string' ? error.stack : '';
+  const frames = stack
+    .split('\n')
+    .map((line) => line.trim())
+    // Drop the leading "TypeError: message" line — it repeats what is already
+    // shown above it.
+    .filter((line) => line.startsWith('at '))
+    .slice(0, 4);
+  return frames.length ? frames.join('\n') : null;
 }
 
 const styles = StyleSheet.create({
@@ -116,9 +145,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: spacing.xl,
   },
-  emoji: {
-    fontSize: 48,
-    textAlign: 'center',
+  mascot: {
+    alignItems: 'center',
     marginBottom: spacing.md,
   },
   title: {
@@ -152,6 +180,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: 13,
     color: colors.neutral,
+  },
+  detailsStack: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.neutralVariant,
+    marginTop: 8,
+    lineHeight: 15,
   },
   button: {
     backgroundColor: colors.primary,
