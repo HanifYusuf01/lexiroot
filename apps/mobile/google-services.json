@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "874011553032",
+    "project_id": "lexiroot-demo",
+    "storage_bucket": "lexiroot-demo.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:874011553032:android:b3e0bf5fb50c4aa82390bd",
+        "android_client_info": {
+          "package_name": "com.lexiroot.mobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "874011553032-079j7m6i0tu7r52ra1t4fgoq7tp4ktr6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDrT-KcWSsbVcdZiRq7-hkb-4VHZPsSiNg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "874011553032-079j7m6i0tu7r52ra1t4fgoq7tp4ktr6.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "874011553032-a5rl7phjd7qsu7medrtimgfas0a4f8j7.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.lexiroot.mobile"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

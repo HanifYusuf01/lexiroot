@@ -10,5 +10,8 @@ credentials.json
 *.p12
 *.mobileprovision
 
-# Firebase Android config — EAS Build picks this up locally even though it's gitignored.
-google-services.json
+# Firebase Android config (google-services.json) is tracked on purpose. EAS Build
+# uploads only git-tracked files, so ignoring it fails the Android build with
+# "google-services.json is missing". It holds no secret — the same values ship
+# inside every APK — and its Android API key is restricted by package name and
+# signing certificate, not by keeping the file private.
