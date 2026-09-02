@@ -47,6 +47,17 @@ export class Subscription {
   @Column({ name: 'canceled_at', type: 'timestamptz', nullable: true })
   canceledAt!: Date | null;
 
+  /**
+   * A downgrade already agreed with the provider that takes effect at
+   * `pendingPlanEffectiveAt`. Until then `planId` — and everything it entitles
+   * — still stands, because the current period was paid at that price.
+   */
+  @Column({ name: 'pending_plan_id', type: 'uuid', nullable: true })
+  pendingPlanId!: string | null;
+
+  @Column({ name: 'pending_plan_effective_at', type: 'timestamptz', nullable: true })
+  pendingPlanEffectiveAt!: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 

@@ -1,4 +1,5 @@
 import { Plus, Trash2 } from 'lucide-react';
+import { InsertRowButton } from './InsertRowButton';
 import type { LessonEntryInput, SentenceEntryPayload } from '@lexiroot/shared';
 import { AudioRecorder } from './AudioRecorder';
 import { YorubaInput } from '../../../ui/YorubaInput';
@@ -45,18 +46,27 @@ export function SentenceEditor({ value, onChange }: Props) {
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-xs text-neutral-variant">
           Add full Yoruba sentences learners will read, hear and understand in context.
         </p>
-        <button
-          type="button"
-          onClick={add}
-          className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-white px-2.5 text-xs font-semibold text-neutral hover:bg-neutral-soft"
-        >
-          <Plus size={12} />
-          Add
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {value.length > 0 ? (
+            <InsertRowButton
+              onClick={() => insertAt(0)}
+              label="Insert row at top"
+              variant="top"
+            />
+          ) : null}
+          <button
+            type="button"
+            onClick={add}
+            className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-white px-2.5 text-xs font-semibold text-neutral hover:bg-neutral-soft"
+          >
+            <Plus size={12} />
+            Add
+          </button>
+        </div>
       </div>
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
@@ -105,14 +115,7 @@ export function SentenceEditor({ value, onChange }: Props) {
                   />
                 </td>
                 <td className="px-3 py-2 text-right align-middle">
-                  <button
-                    type="button"
-                    onClick={() => insertAt(i + 1)}
-                    className="rounded p-1.5 text-neutral-variant hover:bg-primary/10 hover:text-primary"
-                    title="Insert row below"
-                  >
-                    <Plus size={14} />
-                  </button>
+                  <InsertRowButton onClick={() => insertAt(i + 1)} label="Insert row below" />
                   <button
                     type="button"
                     onClick={() => remove(i)}

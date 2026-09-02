@@ -39,7 +39,7 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // The server routes to a payment provider partly off the platform (iOS must bill
 // through Apple IAP). Platform.OS is wider than the platforms the API knows about,
 // so anything exotic falls back to `web` (card checkout).
-const CLIENT_PLATFORM: ClientPlatform =
+export const CLIENT_PLATFORM: ClientPlatform =
   Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web';
 
 /**

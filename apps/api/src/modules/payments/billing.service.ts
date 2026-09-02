@@ -3,8 +3,10 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import type { ProviderKey } from '@lexiroot/shared';
 import { EntitlementService } from './entitlement.service';
+import { FamilyService } from './family.service';
 import { Invoice } from './entities/invoice.entity';
 import { Payment } from './entities/payment.entity';
+import { PlanProviderPrice } from './entities/plan-provider-price.entity';
 import { Subscription } from './entities/subscription.entity';
 import { PaymentProviderRegistry } from './providers/payment-provider.registry';
 import type {
@@ -30,6 +32,7 @@ export class BillingService {
     private readonly registry: PaymentProviderRegistry,
     private readonly state: SubscriptionStateService,
     private readonly entitlements: EntitlementService,
+    private readonly family: FamilyService,
   ) {}
 
   /** Link a completed hosted checkout to our subscription, then sync it. */
@@ -92,6 +95,12 @@ export class BillingService {
       throw new NotFoundException('No pending Apple checkout to link this purchase to.');
     }
 
+    // The product Apple actually charged for is the authority on which plan
+    // this is, not the one we staged at checkout: a plan change buys a
+    // different product in the same group, and the learner may well have picked
+    // it in the App Store's own sheet rather than through our screen.
+    const purchasedPlanId = await this.planIdForAppleProduct(snapshot.providerProductId ?? null);
+
     await this.dataSource.transaction(async (manager) => {
       await this.state.apply(manager, sub.id, {
         status: snapshot.status,
@@ -100,9 +109,19 @@ export class BillingService {
         cancelAtPeriodEnd: snapshot.cancelAtPeriodEnd,
         canceledAt: snapshot.canceledAt,
         providerSubscriptionId: snapshot.providerSubscriptionId,
+        ...(purchasedPlanId
+          ? { planId: purchasedPlanId, pendingPlanId: null, pendingPlanEffectiveAt: null }
+          : {}),
       });
     });
     this.entitlements.invalidate(userId);
+
+    // An Apple plan change lands here rather than through a pending row, so the
+    // same seat cleanup has to run: the learner may have downgraded to a plan
+    // that shares nothing, in the App Store's own sheet.
+    if (purchasedPlanId) {
+      await this.family.endSeatsForPlanChange(sub.id, sub.planId, purchasedPlanId);
+    }
   }
 
   /** Mirror a provider subscription (customer.subscription.created/updated/deleted). */
@@ -154,6 +173,10 @@ export class BillingService {
     // Authoritative period comes from the subscription, not the invoice line.
     const subSnap = await provider.fetchSubscription(invoiceSnap.providerSubscriptionId);
 
+    // Captured before the transaction so the post-commit step knows whether the
+    // plan actually moved, and to what.
+    const appliedPlanId = this.pendingPlanIsDue(sub) ? (sub.pendingPlanId as string) : null;
+
     await this.dataSource.transaction(async (manager) => {
       // Lock the subscription for the duration of the money movement (Rule 2d).
       await manager
@@ -166,16 +189,31 @@ export class BillingService {
       const invoice = await this.upsertInvoice(manager, sub, providerKey, invoiceSnap, 'PAID');
       await this.upsertPayment(manager, sub, providerKey, invoice, invoiceSnap, 'PAID');
 
-      // Advance period + activate (guarded, replay-safe).
+      // Advance period + activate (guarded, replay-safe), and land a scheduled
+      // downgrade in the same move: this invoice IS the new period, so the plan
+      // the learner paid the bigger price for has just run out. Doing it here
+      // rather than on a timer means the plan can never change without the
+      // money that justified it arriving first.
       await this.state.apply(manager, sub.id, {
         status: subSnap.status === 'ACTIVE' ? 'ACTIVE' : subSnap.status,
         currentPeriodStart: subSnap.currentPeriodStart,
         currentPeriodEnd: subSnap.currentPeriodEnd,
         cancelAtPeriodEnd: subSnap.cancelAtPeriodEnd,
         canceledAt: subSnap.canceledAt,
+        ...(appliedPlanId
+          ? { planId: appliedPlanId, pendingPlanId: null, pendingPlanEffectiveAt: null }
+          : {}),
       });
     });
     this.entitlements.invalidate(sub.userId);
+
+    // After commit, never inside it: ending seats notifies real people, and a
+    // rolled-back transaction must not have told anyone they lost access.
+    // `sub` was read before the transaction, so `sub.planId` is still the plan
+    // the seats were held on — which is the one the members need named.
+    if (appliedPlanId) {
+      await this.family.endSeatsForPlanChange(sub.id, sub.planId, appliedPlanId);
+    }
   }
 
   /** A renewal charge failed → PAST_DUE, access retained during dunning. */
@@ -207,6 +245,30 @@ export class BillingService {
   }
 
   // --- helpers ---
+
+  /**
+   * Whether a scheduled downgrade has come due. No effective date means
+   * "at the next renewal", which is exactly where this is asked.
+   */
+  private pendingPlanIsDue(sub: Subscription): boolean {
+    if (!sub.pendingPlanId) return false;
+    if (!sub.pendingPlanEffectiveAt) return true;
+    return sub.pendingPlanEffectiveAt.getTime() <= Date.now();
+  }
+
+  /**
+   * The catalog plan an Apple product id belongs to, or null if we don't sell
+   * it. Apple names the product in every transaction, and a plan change inside
+   * a subscription group is *only* visible as that id changing — the
+   * subscription itself keeps its original transaction id.
+   */
+  private async planIdForAppleProduct(productId: string | null): Promise<string | null> {
+    if (!productId) return null;
+    const price = await this.dataSource.getRepository(PlanProviderPrice).findOne({
+      where: { provider: 'apple_iap', providerPriceId: productId, active: true },
+    });
+    return price?.planId ?? null;
+  }
 
   private findByProviderSub(
     providerKey: ProviderKey,

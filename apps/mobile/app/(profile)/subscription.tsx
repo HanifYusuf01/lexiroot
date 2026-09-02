@@ -22,6 +22,13 @@ export default function SubscriptionScreen() {
     () => plans?.find((p) => p.id === sub?.planId)?.name ?? null,
     [plans, sub?.planId],
   );
+  // A downgrade already agreed but not yet in force. Named here so the screen
+  // says what will happen rather than leaving the learner to wonder whether
+  // their request took.
+  const pendingPlanName = useMemo(
+    () => plans?.find((p) => p.id === sub?.pendingPlanId)?.name ?? null,
+    [plans, sub?.pendingPlanId],
+  );
 
   const onFreePlan = !sub || !sub.entitled;
   const isCancelling = sub?.status === 'CANCELED' || !!sub?.cancelsOn;
@@ -99,6 +106,29 @@ export default function SubscriptionScreen() {
                 <Text style={styles.statusLabel}>Renews on</Text>
                 <Text style={styles.statusValue}>{formatDate(sub.renewsOn)}</Text>
               </View>
+            ) : null}
+
+            {pendingPlanName ? (
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Switching to</Text>
+                <Text style={styles.statusValue}>
+                  {pendingPlanName}
+                  {sub?.pendingPlanEffectiveAt
+                    ? ` · ${formatDate(sub.pendingPlanEffectiveAt)}`
+                    : ''}
+                </Text>
+              </View>
+            ) : null}
+
+            {/* Offered before cancelling: someone whose plan is too big or too
+                small is better served by switching than by leaving, and this is
+                the screen they arrive at to do something about it. */}
+            {!isCancelling ? (
+              <Button
+                label={pendingPlanName ? 'Change scheduled plan' : 'Change plan'}
+                variant="outline"
+                onPress={() => router.push('/change-plan' as never)}
+              />
             ) : null}
 
             {isCancelling ? (

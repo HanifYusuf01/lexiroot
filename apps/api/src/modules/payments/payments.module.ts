@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { SubscriptionPlan } from '../subscriptions/entities/subscription-plan.entity';
 import { User } from '../users/entities/user.entity';
 import { AdminPlanProviderController } from './admin-plan-provider.controller';
@@ -53,6 +54,8 @@ import { WebhooksService } from './webhooks.service';
     // Circular: AuthModule needs EntitlementService for /auth/me, and the
     // family invite flow here needs EmailService.
     forwardRef(() => AuthModule),
+    // Seat changes tell the affected learner by push as well as by email.
+    NotificationsModule,
   ],
   controllers: [
     SubscriptionsController,

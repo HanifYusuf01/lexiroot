@@ -81,7 +81,14 @@ export class EntitlementService {
     return live(owned) ?? live(shared) ?? owned[0] ?? shared[0] ?? null;
   }
 
-  /** Subscriptions this user is an accepted, unrevoked family member of. */
+  /**
+   * Subscriptions this user is an accepted, unrevoked family member of.
+   *
+   * The plan join is not decoration: a seat only entitles while the plan it
+   * hangs off still sells family sharing. Without it, an owner moving from a
+   * Family plan to an Individual one — or an admin editing the plan's features
+   * — would leave every member entitled by a plan that no longer includes them.
+   */
   private sharedSubscriptions(userId: string): Promise<Subscription[]> {
     return this.subscriptions
       .createQueryBuilder('sub')
@@ -93,6 +100,11 @@ export class EntitlementService {
            AND m.accepted_at IS NOT NULL
            AND m.revoked_at IS NULL`,
         { userId },
+      )
+      .innerJoin(
+        'subscription_plans',
+        'p',
+        `p.id = sub.plan_id AND p.features @> '["family_sharing"]'::jsonb`,
       )
       .orderBy('sub.created_at', 'DESC')
       .getMany();
@@ -162,6 +174,8 @@ export class EntitlementService {
         renewsOn: null,
         cancelsOn: null,
         provider: null,
+        pendingPlanId: null,
+        pendingPlanEffectiveAt: null,
       };
     }
     const status: SubscriptionStatus = sub.status;
@@ -176,6 +190,10 @@ export class EntitlementService {
       cancelsOn:
         sub.cancelAtPeriodEnd || status === 'CANCELED' ? periodEndIso : null,
       provider: sub.provider,
+      pendingPlanId: sub.pendingPlanId,
+      pendingPlanEffectiveAt: sub.pendingPlanEffectiveAt
+        ? sub.pendingPlanEffectiveAt.toISOString()
+        : null,
     };
   }
 }

@@ -28,12 +28,18 @@ export type NotificationChannelId =
 /**
  * Server-driven notification types. `daily_reminder` is intentionally absent —
  * that one is scheduled locally on the device, never sent from the server.
+ *
+ * `family_seat_revoked` is the first *account* notice here rather than an
+ * engagement one: it tells someone their access has ended, which is a fact
+ * about their account they cannot discover any other way. It is therefore not
+ * gated on a settings toggle — see SETTING_KEY_FOR_TYPE on the API.
  */
 export const NOTIFICATION_TYPES = [
   'achievement_unlocked',
   'cultural_content_published',
   'streak_reminder',
   'lesson_available',
+  'family_seat_revoked',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -43,6 +49,7 @@ export const NOTIFICATION_TYPE_CHANNEL: Record<NotificationType, NotificationCha
   cultural_content_published: NOTIFICATION_CHANNELS.content,
   streak_reminder: NOTIFICATION_CHANNELS.reminders,
   lesson_available: NOTIFICATION_CHANNELS.content,
+  family_seat_revoked: NOTIFICATION_CHANNELS.account,
 };
 
 /**

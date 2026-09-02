@@ -9,12 +9,22 @@ import {
 import { UserSettings } from '../settings/entities/user-settings.entity';
 import { NotificationOutbox } from './entities/notification-outbox.entity';
 
-/** Which settings toggle gates each server-driven notification type. */
-const SETTING_KEY_FOR_TYPE: Record<NotificationType, keyof UserSettings> = {
+/**
+ * Which settings toggle gates each server-driven notification type.
+ *
+ * `null` means the type is always delivered. Reserved for account notices —
+ * facts about someone's own account they have no other way of learning. Every
+ * toggle here defaults to off (notifications are opt-in), so gating an account
+ * notice would mean almost nobody ever receives it, and silencing "your access
+ * has ended" behind a *streak reminder* switch would be the wrong promise
+ * anyway. Engagement notifications stay gated; keep this list short.
+ */
+const SETTING_KEY_FOR_TYPE: Record<NotificationType, keyof UserSettings | null> = {
   achievement_unlocked: 'achievementAlerts',
   cultural_content_published: 'culturalContentAlert',
   streak_reminder: 'streakReminder',
   lesson_available: 'culturalContentAlert',
+  family_seat_revoked: null,
 };
 
 export interface EnqueueInput {
@@ -81,6 +91,11 @@ export class NotificationsService {
     payload: { title: string; body: string; data?: Omit<NotificationData, 'type'>; dedupeKey: string },
   ): Promise<number> {
     const settingKey = SETTING_KEY_FOR_TYPE[type];
+    if (settingKey === null) {
+      // An ungated type has no toggle column to select recipients by, and
+      // broadcasting an account notice to every user would be wrong regardless.
+      throw new Error(`${type} is an account notice and cannot be broadcast.`);
+    }
     const recipients = await this.settings
       .createQueryBuilder('s')
       .select('s.user_id', 'userId')
@@ -104,9 +119,13 @@ export class NotificationsService {
   }
 
   private async isTypeEnabled(userId: string, type: NotificationType): Promise<boolean> {
+    const settingKey = SETTING_KEY_FOR_TYPE[type];
+    // Account notices carry no toggle and are never suppressed — including for
+    // a user who has no settings row at all.
+    if (settingKey === null) return true;
     const row = await this.settings.findOne({ where: { userId } });
     if (!row) return false; // no settings row => defaults are all off (opt-in)
-    return Boolean(row[SETTING_KEY_FOR_TYPE[type]]);
+    return Boolean(row[settingKey]);
   }
 
   /** Maps a UserSettings entity property to its snake_case column name. */

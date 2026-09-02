@@ -10,6 +10,7 @@ import type { ProviderKey, SubscriptionStatus } from '@lexiroot/shared';
 import type { PaymentsConfig } from '../../../config/payments.config';
 import { PaystackClient } from './paystack.client';
 import type {
+  ChangePlanInput,
   CheckoutOutcome,
   CheckoutResult,
   CreateCheckoutInput,
@@ -215,6 +216,20 @@ export class PaystackProvider implements PaymentProvider {
       code: sub.subscription_code,
       token: sub.email_token,
     });
+  }
+
+  /**
+   * Paystack has no way to move a live subscription onto another plan — a
+   * subscription is bound to the plan it was created with, and the documented
+   * route is to disable it and start a new one, which loses the billing anchor
+   * and re-charges in full. Rather than do that silently behind a "change plan"
+   * button, reject it: the learner keeps what they paid for and can cancel and
+   * re-subscribe deliberately.
+   */
+  changePlan(_input: ChangePlanInput): Promise<void> {
+    throw new BadRequestException(
+      'Paystack subscriptions cannot be moved between plans. Cancel this plan and subscribe to the new one when it ends.',
+    );
   }
 
   async syncPlanPrice(input: SyncPlanPriceInput): Promise<SyncPlanPriceResult> {

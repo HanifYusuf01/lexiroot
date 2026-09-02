@@ -23,6 +23,16 @@ export interface SubscriptionPatch {
   canceledAt?: Date | null;
   providerSubscriptionId?: string | null;
   providerCustomerId?: string | null;
+  /**
+   * Which plan the subscription is on. Moves on an upgrade (immediately) or
+   * when a scheduled downgrade comes due at renewal — never on its own. It
+   * lives here rather than being written directly so that the plan a
+   * subscription entitles only ever changes under the same row lock as its
+   * status, and lands in the same transaction as the money that justified it.
+   */
+  planId?: string;
+  pendingPlanId?: string | null;
+  pendingPlanEffectiveAt?: Date | null;
 }
 
 /**
@@ -81,6 +91,11 @@ export class SubscriptionStateService {
     }
     if (patch.providerCustomerId !== undefined) {
       sub.providerCustomerId = patch.providerCustomerId;
+    }
+    if (patch.planId !== undefined) sub.planId = patch.planId;
+    if (patch.pendingPlanId !== undefined) sub.pendingPlanId = patch.pendingPlanId;
+    if (patch.pendingPlanEffectiveAt !== undefined) {
+      sub.pendingPlanEffectiveAt = patch.pendingPlanEffectiveAt;
     }
 
     const saved = await repo.save(sub);

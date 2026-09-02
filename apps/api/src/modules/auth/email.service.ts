@@ -29,6 +29,19 @@ interface SendFamilyInvitationEmailInput {
   expiresInDays: number;
 }
 
+interface SendFamilySeatRemovedEmailInput {
+  email: string;
+  displayName: string;
+  /** Whoever owned the plan, for "removed from *whose* plan". */
+  ownerName: string;
+  planName: string;
+  /**
+   * Why the seat ended: the owner removed them, or the owner moved to a plan
+   * that no longer shares. Both end access; only one is about them.
+   */
+  reason: 'removed' | 'plan_changed';
+}
+
 interface SendWelcomeEmailInput {
   email: string;
   displayName: string;
@@ -110,6 +123,40 @@ export class EmailService {
           plan is shared, your learning isn't.</p>
           ${this.button('Accept invitation', input.inviteUrl)}
           <p style="font-size:13px;color:${MUTED_COLOR};">This invitation expires in ${input.expiresInDays} days and can only be accepted from this email address. If you weren't expecting it, you can ignore this email.</p>
+        `,
+      }),
+    });
+  }
+
+  /**
+   * Tell someone their family-plan seat has ended.
+   *
+   * Without this the only signal is the app quietly locking, which reads as
+   * "you were never subscribed" rather than "your seat ended" — so the two
+   * things worth saying are what happened and that nothing of theirs was lost.
+   */
+  async sendFamilySeatRemovedEmail(input: SendFamilySeatRemovedEmailInput): Promise<void> {
+    const cause =
+      input.reason === 'plan_changed'
+        ? `<strong>${escapeHtml(input.ownerName)}</strong> has moved off the
+           <strong>${escapeHtml(input.planName)}</strong> plan you shared, so your seat on it has ended.`
+        : `<strong>${escapeHtml(input.ownerName)}</strong> has removed your seat on their
+           <strong>${escapeHtml(input.planName)}</strong> plan.`;
+
+    await this.send({
+      to: input.email,
+      subject: 'Your LexiRoot family plan seat has ended',
+      html: await this.layout({
+        heading: 'Your shared plan has ended',
+        bodyHtml: `
+          <p>Hi ${escapeHtml(input.displayName)},</p>
+          <p>${cause}</p>
+          <p><strong>Your account is untouched.</strong> Sign in as usual — your languages, streak,
+          XP and every lesson you have finished are exactly where you left them. What changes is
+          that premium levels are locked again until you are on a plan.</p>
+          <p style="font-size:13px;color:${MUTED_COLOR};">You can subscribe from Profile &rsaquo;
+          Subscription in the app at any time, or accept a new family invitation. Everything you
+          have already learned comes straight back.</p>
         `,
       }),
     });

@@ -55,6 +55,27 @@ const SUB_TYPE_LABEL_BY_CATEGORY: Record<
   },
 };
 
+/**
+ * A place to slot an exercise in, drawn between cards.
+ *
+ * Quiet but always visible, rather than appearing only on hover: an insert
+ * control nobody can see is the same as not having one, which is exactly how
+ * the icon-only version in the table editors was read.
+ */
+function InsertExerciseDivider({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Insert an exercise here"
+      className="flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-border py-1 text-[11px] font-semibold text-neutral-variant transition hover:border-primary hover:bg-primary-softer hover:text-primary"
+    >
+      <Plus size={11} />
+      Insert here
+    </button>
+  );
+}
+
 function emptyPayload(subType: ExerciseSubType): ExerciseInput['payload'] {
   if (subType === 'listen-select') {
     const p: ListenSelectPayload = { audioUrl: '', instruction: '', options: [] };
@@ -128,15 +149,28 @@ export function ExerciseContentEditor({ value, onChange, restrictToCategory }: P
     onChange(copy.map((ex, i) => ({ ...ex, orderIndex: i })));
   }
 
-  function addCard() {
+  /**
+   * Insert a blank exercise of the active category at `index` in the full list.
+   *
+   * The index is into `value`, not the filtered view: cards of other categories
+   * may sit between two visible ones, and splicing at a filtered position would
+   * drop the new card into the wrong place. `orderIndex` is positional and
+   * spans every category, so the whole list is reindexed afterwards.
+   */
+  function insertAt(index: number) {
     const subType = defaultSubTypeFor(activeCategory);
-    const next: ExerciseInput = {
+    const copy = value.slice();
+    copy.splice(index, 0, {
       category: activeCategory,
       subType,
-      orderIndex: value.length,
+      orderIndex: index,
       payload: emptyPayload(subType),
-    };
-    onChange([...value, next]);
+    });
+    onChange(copy.map((ex, i) => ({ ...ex, orderIndex: i })));
+  }
+
+  function addCard() {
+    insertAt(value.length);
   }
 
   const allowedSubTypes = EXERCISE_CATEGORY_SUB_TYPES[activeCategory];
@@ -183,7 +217,11 @@ export function ExerciseContentEditor({ value, onChange, restrictToCategory }: P
 
       <div className="space-y-4">
         {inActive.map(({ ex, originalIndex }, indexInActive) => (
-          <div key={originalIndex} className="rounded-lg border border-border bg-white p-4">
+          <div key={originalIndex}>
+            {/* Before every card, so the first one also gives a way in at the
+                top — otherwise a new exercise could only ever be appended. */}
+            <InsertExerciseDivider onClick={() => insertAt(originalIndex)} />
+            <div className="mt-2 rounded-lg border border-border bg-white p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
               {showSubTypePicker ? (
                 <select
@@ -239,6 +277,7 @@ export function ExerciseContentEditor({ value, onChange, restrictToCategory }: P
                 onChange={(payload) => updateAt(originalIndex, { ...ex, payload })}
               />
             )}
+            </div>
           </div>
         ))}
 

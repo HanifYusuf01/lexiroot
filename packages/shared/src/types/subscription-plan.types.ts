@@ -124,3 +124,43 @@ export interface CreateSubscriptionPlan {
   premium?: boolean;
   features?: PlanFeatureKey[];
 }
+
+/**
+ * Where one plan sits relative to another, for upgrade/downgrade decisions.
+ *
+ * Rank, never price. A Yearly plan costs more up front than a Monthly one but
+ * less per month, so comparing amounts would call the same move an upgrade or a
+ * downgrade depending on which number you looked at — and differently again in
+ * a currency whose overrides were set by hand. Instead: Family outranks
+ * Individual (it is the strictly larger product), and within a scope a longer
+ * commitment outranks a shorter one. That is the same "level" model Apple's
+ * subscription groups use, which is what StoreKit actually applies on iOS
+ * whatever we decide here, so the two can't disagree.
+ */
+const PLAN_SCOPE_RANK: Record<PlanScope, number> = { individual: 0, family: 1 };
+const PLAN_PERIOD_RANK: Record<PlanPeriod, number> = { Month: 0, Quarter: 1, Year: 2 };
+
+/** Comparable rank of a plan. Higher is the bigger product. */
+export function planRank(plan: Pick<SubscriptionPlan, 'scope' | 'period'>): number {
+  return (PLAN_SCOPE_RANK[plan.scope] ?? 0) * 10 + (PLAN_PERIOD_RANK[plan.period] ?? 0);
+}
+
+/** Which way a move between two plans goes. */
+export const PLAN_CHANGE_DIRECTIONS = ['upgrade', 'downgrade', 'same'] as const;
+export type PlanChangeDirection = (typeof PLAN_CHANGE_DIRECTIONS)[number];
+
+/**
+ * The direction of a move from `from` to `to`. `same` covers both "it's the
+ * plan you're already on" and two plans that rank identically — neither is
+ * worth charging or scheduling for.
+ */
+export function planChangeDirection(
+  from: Pick<SubscriptionPlan, 'id' | 'scope' | 'period'>,
+  to: Pick<SubscriptionPlan, 'id' | 'scope' | 'period'>,
+): PlanChangeDirection {
+  if (from.id === to.id) return 'same';
+  const delta = planRank(to) - planRank(from);
+  if (delta > 0) return 'upgrade';
+  if (delta < 0) return 'downgrade';
+  return 'same';
+}

@@ -6,6 +6,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { DeleteAccountModal } from '../../src/components/ui/DeleteAccountModal';
 import { LogoutModal } from '../../src/components/ui/LogoutModal';
+import { PlanStatusCard } from '../../src/components/subscription/PlanStatusCard';
 import { SettingsRow } from '../../src/components/ui/SettingsRow';
 import { UserAvatar } from '../../src/components/ui/UserAvatar';
 import { colors, fonts, radius, spacing } from '../../src/constants/theme';
@@ -134,6 +135,10 @@ export default function ProfileTab() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Subscription</Text>
+          {/* Plan-aware: the free tier gets the upgrade pitch, a subscriber gets
+              the plan they're on and a way to move between plans. One card
+              rather than two, so it can never pitch what they already bought. */}
+          <PlanStatusCard />
           <View style={styles.group}>
             <SettingsRow
               title="Manage subscription"
@@ -261,6 +266,7 @@ const styles = StyleSheet.create({
   },
   group: {
     gap: 0,
+    marginTop: spacing.xs,
   },
   logout: {
     marginHorizontal: spacing.lg,

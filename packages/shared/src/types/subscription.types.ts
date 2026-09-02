@@ -11,6 +11,8 @@
  * `*_STATUS_TEXT` maps so labels can change without a data migration.
  */
 
+import type { PlanChangeDirection } from './subscription-plan.types';
+
 /** Payment service providers we integrate with. Only `stripe` is live today. */
 export const PROVIDER_KEYS = ['stripe', 'paystack', 'apple_iap'] as const;
 export type ProviderKey = (typeof PROVIDER_KEYS)[number];
@@ -141,6 +143,15 @@ export interface SubscriptionSummary {
    * this before offering a "Cancel subscription" button.
    */
   provider: ProviderKey | null;
+  /**
+   * A downgrade the subscriber has already asked for that takes effect at the
+   * end of the current period. Null when nothing is scheduled. They keep the
+   * plan named by `planId` — and everything it grants — until then, which is
+   * why this is a separate field rather than an early write to `planId`.
+   */
+  pendingPlanId: string | null;
+  /** ISO 8601. When `pendingPlanId` takes over. Null when nothing is pending. */
+  pendingPlanEffectiveAt: string | null;
 }
 
 export interface Invoice {
@@ -288,4 +299,58 @@ export interface AcceptFamilyInviteResult {
    * They keep both — the client warns them they're still being billed.
    */
   hadOwnSubscription: boolean;
+}
+
+/**
+ * Request body for POST /subscriptions/change-plan — move an existing, live
+ * subscription onto a different plan. Distinct from checkout, which opens a
+ * *new* subscription and is rejected outright while one is live.
+ */
+export interface ChangePlanRequest {
+  /** The plan to move onto. Must differ in rank from the current one. */
+  planId: string;
+  /** Calling platform, same meaning as on checkout (drives the Apple branch). */
+  platform?: ClientPlatform;
+  /**
+   * Acknowledges that this change ends the seats of everyone on the caller's
+   * family plan. Required — the request is refused without it — whenever the
+   * target plan drops family sharing and people are still on the plan, so
+   * nobody's access can be taken away by a tap that never mentioned them.
+   *
+   * It is an acknowledgement, not an instruction to act now: the seats end when
+   * the plan change itself takes effect, at the end of the paid period.
+   */
+  confirmRemovesSeats?: boolean;
+}
+
+/**
+ * How a requested plan change is being carried out.
+ *
+ * - `applied`   — done: the subscriber is on the new plan now and the provider
+ *                 has invoiced the difference. Upgrades on a card provider.
+ * - `scheduled` — accepted, takes effect at `effectiveAt` (the end of the paid
+ *                 period). Downgrades: they paid for the bigger plan through
+ *                 the end of this period, so they keep it until then.
+ * - `store`     — nothing changed server-side yet. Apple owns the money for an
+ *                 IAP subscription, so the client must run a StoreKit purchase
+ *                 of `providerProductId` in the same subscription group; Apple
+ *                 then applies an upgrade immediately or a downgrade at
+ *                 renewal, and tells us via App Store Server Notifications.
+ */
+export const PLAN_CHANGE_MODES = ['applied', 'scheduled', 'store'] as const;
+export type PlanChangeMode = (typeof PLAN_CHANGE_MODES)[number];
+
+/** Response from POST /subscriptions/change-plan. */
+export interface ChangePlanResponse {
+  mode: PlanChangeMode;
+  direction: PlanChangeDirection;
+  /** The plan being moved onto. */
+  planId: string;
+  /** ISO 8601 for `scheduled`; null when it is already in force or store-driven. */
+  effectiveAt: string | null;
+  /** `store` mode only: the App Store product the client must purchase. */
+  providerProductId: string | null;
+  /** `store` mode only: pass as StoreKit's `appAccountToken`, as on checkout. */
+  appAccountToken: string | null;
+  provider: ProviderKey;
 }

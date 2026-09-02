@@ -21,6 +21,7 @@ import {
 import type { ProviderKey, SubscriptionStatus } from '@lexiroot/shared';
 import type { PaymentsConfig } from '../../../config/payments.config';
 import type {
+  ChangePlanInput,
   CheckoutOutcome,
   CheckoutResult,
   CreateCheckoutInput,
@@ -219,6 +220,10 @@ export class AppleIapProvider implements PaymentProvider {
       providerSubscriptionId: originalTransactionId,
       // Apple has no separate "customer" concept — identity is the transaction chain.
       providerCustomerId: null,
+      // The product the chain currently bills for. An upgrade or downgrade
+      // inside a subscription group keeps the same originalTransactionId and
+      // only swaps this, so it is the one signal that the plan moved.
+      providerProductId: transaction.productId ?? null,
       status: this.mapStatus(item.status),
       currentPeriodStart: msToDate(transaction.purchaseDate),
       currentPeriodEnd: msToDate(transaction.expiresDate),
@@ -266,6 +271,21 @@ export class AppleIapProvider implements PaymentProvider {
   cancelSubscription(_providerSubscriptionId: string, _atPeriodEnd: boolean): Promise<void> {
     throw new BadRequestException(
       'Apple subscriptions can only be managed by the subscriber, via Settings > Subscriptions on their device.',
+    );
+  }
+
+  /**
+   * Apple owns plan changes for an IAP subscription: the subscriber picks the
+   * new product themselves, in-app, and StoreKit applies an upgrade immediately
+   * (prorating the unused time) or a downgrade at the next renewal. There is no
+   * server-side call to make, so this must never be reached —
+   * `SubscriptionsService.changePlan` hands the client a product id instead and
+   * lets the resulting DID_CHANGE_RENEWAL_PREF / DID_RENEW notification carry
+   * the change back.
+   */
+  changePlan(_input: ChangePlanInput): Promise<void> {
+    throw new BadRequestException(
+      'Apple subscriptions change plan through the App Store, not our API — purchase the new product via StoreKit.',
     );
   }
 

@@ -6,22 +6,27 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import {
   type AdminSubscription,
+  type ChangePlanResponse,
   type ClientPlatform,
   type CountryCode,
   type CreateCheckoutResponse,
+  type PlanPeriod,
+  planChangeDirection,
   type ProviderKey,
   type SubscriptionStatus,
   SUBSCRIPTION_STATUS_TEXT,
   type SubscriptionSummary,
 } from '@lexiroot/shared';
 import type { PaymentsConfig } from '../../config/payments.config';
+import { SubscriptionPlan } from '../subscriptions/entities/subscription-plan.entity';
 import { BillingService } from './billing.service';
 import { EntitlementService } from './entitlement.service';
 import { PlanProviderPrice } from './entities/plan-provider-price.entity';
 import { Subscription } from './entities/subscription.entity';
+import { SubscriptionMember } from './entities/subscription-member.entity';
 import { PaymentProviderRegistry } from './providers/payment-provider.registry';
 
 /** Statuses that mean the user already has (or is finishing paying for) a plan. */
@@ -32,6 +37,15 @@ function withRedirect(baseUrl: string, deepLink?: string): string {
   if (!deepLink) return baseUrl;
   const sep = baseUrl.includes('?') ? '&' : '?';
   return `${baseUrl}${sep}redirect=${encodeURIComponent(deepLink)}`;
+}
+
+export interface ChangePlanOptions {
+  userId: string;
+  planId: string;
+  /** Calling platform. Only used to phrase errors — the provider is fixed. */
+  platform?: ClientPlatform;
+  /** The caller has been told this ends everyone else's seat, and said yes. */
+  confirmRemovesSeats?: boolean;
 }
 
 export interface CreateCheckoutOptions {
@@ -54,6 +68,10 @@ export class SubscriptionsService {
     private readonly subscriptions: Repository<Subscription>,
     @InjectRepository(PlanProviderPrice)
     private readonly prices: Repository<PlanProviderPrice>,
+    @InjectRepository(SubscriptionPlan)
+    private readonly plans: Repository<SubscriptionPlan>,
+    @InjectRepository(SubscriptionMember)
+    private readonly members: Repository<SubscriptionMember>,
     private readonly registry: PaymentProviderRegistry,
     private readonly entitlements: EntitlementService,
     private readonly config: ConfigService,
@@ -206,6 +224,204 @@ export class SubscriptionsService {
     this.entitlements.invalidate(userId);
 
     return this.getMySubscription(userId);
+  }
+
+  /**
+   * Move a live subscription onto another plan.
+   *
+   * Deliberately not checkout: checkout opens a *new* subscription and is
+   * rejected outright while one is live (409). Changing plan keeps the same
+   * subscription — and its billing anchor — so the learner is never charged a
+   * fresh full period for switching.
+   *
+   * Timing is the whole design. An upgrade is applied now and the provider
+   * invoices the prorated difference, because the learner is asking to have
+   * more immediately. A downgrade is *scheduled* for the end of the period they
+   * have already paid for: taking the bigger plan away the moment they ask
+   * would be charging them for access we then removed. `pendingPlanId` holds
+   * that promise until the renewal lands (see BillingService.applyInvoicePaid).
+   *
+   * Apple is the exception on both counts — see the `apple_iap` branch.
+   */
+  async changePlan(options: ChangePlanOptions): Promise<ChangePlanResponse> {
+    const { userId, planId, confirmRemovesSeats } = options;
+
+    const rows = await this.subscriptions.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
+    // Scoped to the caller's own rows (Rule 9d) — a family *member* has no
+    // subscription of their own, so they land here rather than being allowed to
+    // change the plan somebody else pays for.
+    const sub = rows.find((s) => (LIVE_STATUSES as readonly string[]).includes(s.status));
+    if (!sub) {
+      throw new NotFoundException(
+        'You do not have a subscription to change. Choose a plan to subscribe first.',
+      );
+    }
+    if (!sub.providerSubscriptionId) {
+      throw new BadRequestException('Subscription is not yet linked to the provider.');
+    }
+    if (sub.cancelAtPeriodEnd || sub.status === 'CANCELED') {
+      throw new BadRequestException(
+        'This plan is already set to end. Let it run out, then subscribe to the plan you want.',
+      );
+    }
+
+    const [current, target] = await Promise.all([
+      this.plans.findOne({ where: { id: sub.planId } }),
+      this.plans.findOne({ where: { id: planId } }),
+    ]);
+    if (!target) throw new NotFoundException('Plan not found.');
+    if (!current) {
+      throw new BadRequestException('Your current plan is no longer in the catalog.');
+    }
+    if (!target.premium) {
+      throw new BadRequestException('Cancel your subscription to move back to the free plan.');
+    }
+
+    const direction = planChangeDirection(
+      { id: current.id, scope: current.scope, period: current.period as PlanPeriod },
+      { id: target.id, scope: target.scope, period: target.period as PlanPeriod },
+    );
+    if (direction === 'same') {
+      throw new BadRequestException('You are already on that plan.');
+    }
+
+    await this.assertFamilySeatsFreed(sub, current, target, confirmRemovesSeats === true);
+
+    const price = await this.prices.findOne({
+      where: { planId, provider: sub.provider, active: true },
+    });
+    if (!price) {
+      throw new BadRequestException(
+        `That plan is not available via ${sub.provider} yet. Sync its ${sub.provider} price first.`,
+      );
+    }
+
+    if (sub.provider === 'apple_iap') {
+      // Apple owns the money here: only the subscriber can change an IAP
+      // subscription, from inside the app. Hand the client the product to buy
+      // in the same subscription group — StoreKit applies an upgrade
+      // immediately and a downgrade at renewal, matching what we do ourselves
+      // for card providers — and let the resulting notification (and the
+      // client's own verify call) move `plan_id`.
+      return {
+        mode: 'store',
+        direction,
+        planId,
+        effectiveAt: null,
+        providerProductId: price.providerPriceId,
+        appAccountToken: sub.id,
+        provider: sub.provider,
+      };
+    }
+
+    // A subscription's currency is fixed once it exists — no card provider will
+    // re-denominate a live subscription. Caught here rather than as a provider
+    // error, which would surface to the learner as an unexplained failure.
+    if (price.currency.toLowerCase() !== sub.currency.toLowerCase()) {
+      throw new BadRequestException(
+        'That plan is priced in a different currency from your subscription.',
+      );
+    }
+
+    const immediate = direction === 'upgrade';
+    await this.registry.get(sub.provider).changePlan({
+      providerSubscriptionId: sub.providerSubscriptionId,
+      providerPriceId: price.providerPriceId,
+      immediate,
+      // Stable per (subscription, target price, timing) so a double-tap that
+      // reaches the provider twice doesn't invoice the difference twice.
+      idempotencyKey: `change:${sub.id}:${price.providerPriceId}:${immediate ? 'now' : 'renewal'}`,
+    });
+
+    const effectiveAt = immediate ? null : sub.currentPeriodEnd;
+    if (immediate) {
+      sub.planId = planId;
+      sub.pendingPlanId = null;
+      sub.pendingPlanEffectiveAt = null;
+    } else {
+      sub.pendingPlanId = planId;
+      sub.pendingPlanEffectiveAt = sub.currentPeriodEnd;
+    }
+    await this.subscriptions.save(sub);
+
+    // An upgrade changes what the plan grants right now, for the owner and for
+    // anyone holding a seat on it (Rule 5b).
+    this.entitlements.invalidate(userId);
+    if (immediate) await this.invalidateSeatHolders(sub.id);
+
+    return {
+      mode: immediate ? 'applied' : 'scheduled',
+      direction,
+      planId,
+      effectiveAt: effectiveAt ? effectiveAt.toISOString() : null,
+      providerProductId: null,
+      appAccountToken: null,
+      provider: sub.provider,
+    };
+  }
+
+  /**
+   * Don't let a plan change end other people's access behind the owner's back.
+   *
+   * Their seats stop entitling the moment the change takes effect (see
+   * `EntitlementService.sharedSubscriptions`), and they'd find out by losing
+   * access. So the change is refused until the caller has explicitly said yes
+   * to that — `confirmed` comes from a dialog that names the people involved.
+   * Confirming does not end the seats now: they run until the change itself
+   * does, at the end of the period already paid for.
+   *
+   * Pending invitations count as well as accepted members. They are seats in
+   * every sense that matters here — the person on the other end is expecting
+   * access — and leaving one outstanding would let it be redeemed onto a plan
+   * that no longer shares anything.
+   */
+  private async assertFamilySeatsFreed(
+    sub: Subscription,
+    current: SubscriptionPlan,
+    target: SubscriptionPlan,
+    confirmed: boolean,
+  ): Promise<void> {
+    const sharesToday = current.features?.includes('family_sharing');
+    const sharesAfter = target.features?.includes('family_sharing');
+    if (!sharesToday || sharesAfter) return;
+
+    const seats = await this.members.find({
+      where: { subscriptionId: sub.id, revokedAt: IsNull() },
+    });
+    if (seats.length === 0 || confirmed) return;
+
+    // Name both plans and spell out what is actually on the plan. A bare count
+    // reads as a seat number ("but my plan has 6?") when the point is that
+    // these are the specific people the owner added.
+    const accepted = seats.filter((s) => s.acceptedAt).length;
+    const invited = seats.length - accepted;
+    const detail = [
+      accepted > 0 ? `${accepted} ${accepted === 1 ? 'person' : 'people'}` : null,
+      invited > 0
+        ? `${invited} pending ${invited === 1 ? 'invitation' : 'invitations'}`
+        : null,
+    ]
+      .filter((part): part is string => part !== null)
+      .join(' and ');
+
+    // Reached only when the client asked without confirming — an out-of-date
+    // app, or a direct API call. The in-app path shows the dialog instead.
+    throw new BadRequestException(
+      `${target.name} only covers your own account, and your ${current.name} still has ${detail} on it. Confirm the change to end their access, or remove them from Family plan settings first.`,
+    );
+  }
+
+  /** Drop the cached entitlement of everyone holding a seat on a subscription. */
+  private async invalidateSeatHolders(subscriptionId: string): Promise<void> {
+    const seats = await this.members.find({
+      where: { subscriptionId, acceptedAt: Not(IsNull()), revokedAt: IsNull() },
+    });
+    for (const seat of seats) {
+      if (seat.userId) this.entitlements.invalidate(seat.userId);
+    }
   }
 
   /** Cross-user list for the admin subscriptions table. */

@@ -56,6 +56,14 @@ export interface CheckoutResult {
 export interface ProviderSubSnapshot {
   providerSubscriptionId: string;
   providerCustomerId: string | null;
+  /**
+   * The product the subscription currently bills for, when the provider says so
+   * cheaply. Apple fills it (a plan change inside a subscription group keeps the
+   * same subscription and swaps the product id, which is the only signal that
+   * the plan moved); Stripe and Paystack return null — their plan changes are
+   * server-initiated, so we already know.
+   */
+  providerProductId?: string | null;
   status: SubscriptionStatus;
   currentPeriodStart: Date | null;
   currentPeriodEnd: Date | null;
@@ -133,6 +141,21 @@ export interface SyncPlanPriceResult {
   interval: string;
 }
 
+/** Input for moving a live subscription onto a different price. */
+export interface ChangePlanInput {
+  providerSubscriptionId: string;
+  /** The price to move onto. */
+  providerPriceId: string;
+  /**
+   * Whether the new price takes effect now, invoicing the prorated difference
+   * (an upgrade), or from the next renewal with no charge or credit today (a
+   * downgrade — the current period is already paid for at the higher price).
+   */
+  immediate: boolean;
+  /** Stable key so a retried/double-tapped change doesn't charge twice. */
+  idempotencyKey: string;
+}
+
 export interface PaymentProvider {
   readonly key: ProviderKey;
 
@@ -168,6 +191,17 @@ export interface PaymentProvider {
 
   /** Cancel a subscription, deferring to period end when requested (Rule 5c). */
   cancelSubscription(providerSubscriptionId: string, atPeriodEnd: boolean): Promise<void>;
+
+  /**
+   * Move a live subscription onto a different price, keeping the same
+   * subscription (and its billing anchor) rather than opening a new one.
+   *
+   * Providers that can't do this — Apple IAP, where only the subscriber can
+   * change plan, from inside the app via StoreKit — throw, and the caller must
+   * not reach them. `SubscriptionsService.changePlan` routes Apple to the
+   * client instead.
+   */
+  changePlan(input: ChangePlanInput): Promise<void>;
 
   /** Create/update the provider price+product for a catalog plan (admin sync). */
   syncPlanPrice(input: SyncPlanPriceInput): Promise<SyncPlanPriceResult>;

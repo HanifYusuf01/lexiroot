@@ -1,4 +1,9 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import type {
@@ -9,6 +14,7 @@ import type {
 } from '@lexiroot/shared';
 import type { PaymentsConfig } from '../../../config/payments.config';
 import type {
+  ChangePlanInput,
   CheckoutOutcome,
   CheckoutResult,
   CreateCheckoutInput,
@@ -160,6 +166,32 @@ export class StripeProvider implements PaymentProvider {
     } else {
       await this.stripe.subscriptions.cancel(providerSubscriptionId);
     }
+  }
+
+  /**
+   * Swap the subscription's single item onto a new price.
+   *
+   * The billing anchor is left alone either way, so the renewal date never
+   * moves under the subscriber. What differs is the money: an upgrade invoices
+   * the prorated difference straight away (`always_invoice`), while a downgrade
+   * takes `none` — no credit, no charge — and simply bills the smaller amount
+   * from the next renewal, which is when the plan they already paid for runs
+   * out. Our own `plan_id` follows the same timing, via `pending_plan_id`.
+   */
+  async changePlan(input: ChangePlanInput): Promise<void> {
+    const sub = await this.stripe.subscriptions.retrieve(input.providerSubscriptionId);
+    const item = sub.items.data[0];
+    if (!item) {
+      throw new BadRequestException('Stripe subscription has no billable item to change.');
+    }
+    await this.stripe.subscriptions.update(
+      input.providerSubscriptionId,
+      {
+        items: [{ id: item.id, price: input.providerPriceId }],
+        proration_behavior: input.immediate ? 'always_invoice' : 'none',
+      },
+      { idempotencyKey: input.idempotencyKey },
+    );
   }
 
   async syncPlanPrice(input: SyncPlanPriceInput): Promise<SyncPlanPriceResult> {

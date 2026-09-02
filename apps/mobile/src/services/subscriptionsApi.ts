@@ -1,4 +1,6 @@
 import type {
+  ChangePlanRequest,
+  ChangePlanResponse,
   CreateCheckoutRequest,
   CreateCheckoutResponse,
   SubscriptionSummary,
@@ -21,6 +23,15 @@ export const subscriptionsApi = api.injectEndpoints({
       query: () => '/subscriptions/me',
       providesTags: ['Subscription'],
     }),
+    // Moving an existing subscription between plans. Not checkout — checkout
+    // 409s while a subscription is live, because it would open a second one.
+    changePlan: build.mutation<ChangePlanResponse, ChangePlanRequest>({
+      query: (body) => ({ url: '/subscriptions/change-plan', method: 'POST', body }),
+      // An upgrade lands immediately, so both the plan shown and the features
+      // gating the app have moved. A scheduled downgrade changes neither yet,
+      // but does change what the manage screen must say.
+      invalidatesTags: ['Subscription', 'User'],
+    }),
     cancelSubscription: build.mutation<MySubscription, void>({
       query: () => ({ url: '/subscriptions/cancel', method: 'POST' }),
       // Entitlement changed → refresh both the subscription and the auth user.
@@ -38,6 +49,7 @@ export const subscriptionsApi = api.injectEndpoints({
 });
 
 export const {
+  useChangePlanMutation,
   useCreateCheckoutMutation,
   useMySubscriptionQuery,
   useLazyMySubscriptionQuery,

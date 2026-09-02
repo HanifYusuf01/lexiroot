@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -16,6 +17,7 @@ import {
   type FamilySeat,
 } from '@lexiroot/shared';
 import { EmailService } from '../auth/email.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { User } from '../users/entities/user.entity';
 import { SubscriptionPlan } from '../subscriptions/entities/subscription-plan.entity';
 import { EntitlementService } from './entitlement.service';
@@ -35,6 +37,8 @@ const INVITE_TTL_DAYS = 7;
  */
 @Injectable()
 export class FamilyService {
+  private readonly logger = new Logger(FamilyService.name);
+
   constructor(
     @InjectRepository(Subscription)
     private readonly subscriptions: Repository<Subscription>,
@@ -46,6 +50,7 @@ export class FamilyService {
     private readonly users: Repository<User>,
     private readonly entitlements: EntitlementService,
     private readonly email: EmailService,
+    private readonly notifications: NotificationsService,
     private readonly config: ConfigService,
   ) {}
 
@@ -241,6 +246,14 @@ export class FamilyService {
     if (!subscription || !(LIVE_STATUSES as readonly string[]).includes(subscription.status)) {
       throw new BadRequestException('This family plan is no longer active.');
     }
+    // The plan can lose family sharing between the invite being sent and it
+    // being opened — the owner switches to an individual plan, or an admin
+    // edits the plan's features. Accepting then would hand out a seat that
+    // entitles nothing, so refuse instead of letting them find out later.
+    const plan = await this.plans.findOne({ where: { id: subscription.planId } });
+    if (!plan?.features?.includes('family_sharing')) {
+      throw new BadRequestException('This plan no longer includes family sharing.');
+    }
     if (subscription.userId === userId) {
       throw new BadRequestException('You already own this plan.');
     }
@@ -280,12 +293,116 @@ export class FamilyService {
     });
     if (!member || member.revokedAt) throw new NotFoundException('Seat not found.');
 
+    const wasAccepted = !!member.acceptedAt;
     member.revokedAt = new Date();
     await this.members.save(member);
 
     // A removed member must lose access now, not when their cache entry ages out.
     if (member.userId) this.entitlements.invalidate(member.userId);
+
+    // Only somebody who actually had access needs telling. Cancelling an invite
+    // that was never accepted takes nothing away, so it stays silent.
+    if (wasAccepted && member.userId) {
+      await this.announceSeatEnded(member.userId, subscription.planId, userId, 'removed');
+    }
     return this.overview(userId);
+  }
+
+  /**
+   * End every live seat on a subscription because the plan behind them no
+   * longer shares.
+   *
+   * Called when a scheduled downgrade actually lands (BillingService), not when
+   * it is requested — the members keep what the owner already paid for until
+   * the period ends. Pending invites are revoked too: an unaccepted invite to a
+   * plan that no longer shares would only lead somewhere disappointing.
+   */
+  async endSeatsForPlanChange(
+    subscriptionId: string,
+    previousPlanId: string,
+    newPlanId: string,
+  ): Promise<void> {
+    const plan = await this.plans.findOne({ where: { id: newPlanId } });
+    if (plan?.features?.includes('family_sharing')) return;
+
+    const subscription = await this.subscriptions.findOne({ where: { id: subscriptionId } });
+    if (!subscription) return;
+
+    const seats = await this.liveSeats(subscriptionId);
+    if (seats.length === 0) return;
+
+    const revokedAt = new Date();
+    for (const seat of seats) {
+      seat.revokedAt = revokedAt;
+    }
+    await this.members.save(seats);
+
+    for (const seat of seats) {
+      if (!seat.userId) continue; // a pending invite has nobody to tell
+      this.entitlements.invalidate(seat.userId);
+      // The plan they're told about is the one they *had* — by now the
+      // subscription's own `planId` has already moved to the new one.
+      await this.announceSeatEnded(
+        seat.userId,
+        previousPlanId,
+        subscription.userId,
+        'plan_changed',
+      );
+    }
+  }
+
+  /**
+   * Tell someone their seat has ended, by push and by email.
+   *
+   * Both, deliberately: the push is what they see in the moment, the email is
+   * what survives and explains that their account and progress are intact. A
+   * learner who only sees the app lock reads it as "I was never subscribed".
+   *
+   * Never allowed to fail the caller — the seat has already ended, and a
+   * bounced email is not a reason to leave the plan in a half-changed state.
+   */
+  private async announceSeatEnded(
+    memberUserId: string,
+    planId: string,
+    ownerId: string,
+    reason: 'removed' | 'plan_changed',
+  ): Promise<void> {
+    try {
+      const [member, owner, plan] = await Promise.all([
+        this.users.findOne({ where: { id: memberUserId } }),
+        this.users.findOne({ where: { id: ownerId } }),
+        this.plans.findOne({ where: { id: planId } }),
+      ]);
+      if (!member) return;
+
+      const ownerName = owner?.displayName ?? 'The plan owner';
+      const planName = plan?.name ?? 'family';
+
+      await this.notifications.enqueue({
+        userId: memberUserId,
+        type: 'family_seat_revoked',
+        title: 'Your shared plan has ended',
+        body:
+          reason === 'plan_changed'
+            ? `${ownerName} moved off the ${planName} plan you shared. Your account and progress are safe.`
+            : `${ownerName} removed your seat on their ${planName} plan. Your account and progress are safe.`,
+        data: { route: '/subscription' },
+        // One notice per seat ending, however many times this is reached.
+        dedupeKey: `family-seat-ended:${memberUserId}:${planId}:${reason}`,
+      });
+
+      await this.email.sendFamilySeatRemovedEmail({
+        email: member.email,
+        displayName: member.displayName ?? 'there',
+        ownerName,
+        planName,
+        reason,
+      });
+    } catch (err) {
+      this.logger.error(
+        `Could not tell ${memberUserId} their family seat ended: ${(err as Error).message}`,
+      );
+    }
   }
 
   /** Leave a family plan you were invited to (the member's own action). */
