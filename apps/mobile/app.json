@@ -3,7 +3,7 @@
     "name": "LexiRoot",
     "slug": "lexiroot",
     "scheme": "lexiroot",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.lexiroot.mobile",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
