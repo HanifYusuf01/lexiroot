@@ -201,14 +201,50 @@ export class AppleIapProvider implements PaymentProvider {
     }
   }
 
-  /** Re-fetch current status by the subscription's original transaction id. */
-  async fetchSubscription(originalTransactionId: string): Promise<ProviderSubSnapshot> {
-    const response = await this.apiClient.getAllSubscriptionStatuses(originalTransactionId);
-    const item = (response.data ?? [])
+  /**
+   * Re-fetch current status by any transaction id in the subscription's chain.
+   *
+   * Callers pass whatever id they have — the client sends the `transactionId`
+   * StoreKit just handed it, webhooks carry an `originalTransactionId`. Apple's
+   * endpoint accepts either, but the *response* is keyed by
+   * `originalTransactionId` only, so a plain equality match silently fails for
+   * every purchase after the first: a re-subscribe or a renewal mints a new
+   * `transactionId` that equals no `originalTransactionId` in the group. In
+   * sandbox that is minutes away, since subscriptions there renew every few
+   * minutes.
+   */
+  async fetchSubscription(transactionOrOriginalId: string): Promise<ProviderSubSnapshot> {
+    const response = await this.apiClient.getAllSubscriptionStatuses(transactionOrOriginalId);
+    const candidates = (response.data ?? [])
       .flatMap((group) => group.lastTransactions ?? [])
-      .find((t) => t.originalTransactionId === originalTransactionId);
+      .filter((t) => !!t.signedTransactionInfo);
+
+    let item = candidates.find((t) => t.originalTransactionId === transactionOrOriginalId);
+    if (!item) {
+      // The id names a transaction inside a chain rather than the chain itself.
+      // Ask Apple which chain it belongs to instead of guessing: the response
+      // can hold several subscription groups, and picking the first would
+      // attach the purchase to whichever one happened to come back first.
+      const info = await this.apiClient.getTransactionInfo(transactionOrOriginalId);
+      const decoded = info.signedTransactionInfo
+        ? await this.verifier.verifyAndDecodeTransaction(info.signedTransactionInfo)
+        : null;
+      const chainId = decoded?.originalTransactionId ?? null;
+      item = chainId ? candidates.find((t) => t.originalTransactionId === chainId) : undefined;
+    }
     if (!item?.signedTransactionInfo) {
-      throw new NotFoundException(`No Apple subscription found for ${originalTransactionId}`);
+      // The only trace of a failed verify: the exception itself is a 404, which
+      // Nest returns to the client without logging, so a purchase that dies
+      // here leaves no server-side record of why. Name what Apple did return —
+      // an empty list means the wrong environment (a Sandbox purchase looked up
+      // in Production, or the reverse), while a list that simply doesn't
+      // contain the id means the chain lookup failed.
+      this.logger.warn(
+        `No Apple subscription for ${transactionOrOriginalId} in ${this.appleConfig.environment}. ` +
+          `Apple returned ${candidates.length} transaction(s): ` +
+          `[${candidates.map((t) => t.originalTransactionId).join(', ') || 'none'}]`,
+      );
+      throw new NotFoundException(`No Apple subscription found for ${transactionOrOriginalId}`);
     }
 
     const transaction = await this.verifier.verifyAndDecodeTransaction(item.signedTransactionInfo);
@@ -217,7 +253,12 @@ export class AppleIapProvider implements PaymentProvider {
       : null;
 
     return {
-      providerSubscriptionId: originalTransactionId,
+      // Always the chain id, never the id we were called with. Storing a
+      // mid-chain transactionId here would orphan the subscription: every later
+      // App Store notification identifies it by originalTransactionId, and
+      // `findByProviderSub` would stop matching it.
+      providerSubscriptionId:
+        transaction.originalTransactionId ?? item.originalTransactionId ?? transactionOrOriginalId,
       // Apple has no separate "customer" concept — identity is the transaction chain.
       providerCustomerId: null,
       // The product the chain currently bills for. An upgrade or downgrade
