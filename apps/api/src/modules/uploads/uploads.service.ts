@@ -9,6 +9,8 @@ export interface AvatarSignaturePayload {
   signature: string;
   folder: string;
   uploadUrl: string;
+  /** Bytes. Signed, so Cloudinary rejects anything larger server-side. */
+  maxFileSize: number;
 }
 
 export interface MediaSignaturePayload {
@@ -20,6 +22,17 @@ export interface MediaSignaturePayload {
   uploadUrl: string;
   resourceType: 'image' | 'video';
 }
+
+/**
+ * Ceiling on an avatar upload, in bytes.
+ *
+ * Signed into the request so Cloudinary enforces it — a client-side check
+ * would be advice, not a limit. Without one, any signed-in account can post
+ * files of any size into its avatar folder as often as it likes, and Cloudinary
+ * bills us for the storage and the bandwidth. Generous for a profile picture,
+ * useless as a file dump.
+ */
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
 @Injectable()
 export class UploadsService {
@@ -40,8 +53,9 @@ export class UploadsService {
    */
   signAvatarUpload(userId: string): AvatarSignaturePayload {
     const timestamp = Math.floor(Date.now() / 1000);
+    // Scoped per user, so one account's signature cannot overwrite another's.
     const folder = `lexiroot/avatars/${userId}`;
-    const paramsToSign = { timestamp, folder };
+    const paramsToSign = { timestamp, folder, max_file_size: MAX_AVATAR_BYTES };
     let signature: string;
     try {
       signature = cloudinary.utils.api_sign_request(paramsToSign, this.apiSecret);
@@ -54,6 +68,7 @@ export class UploadsService {
       timestamp,
       signature,
       folder,
+      maxFileSize: MAX_AVATAR_BYTES,
       uploadUrl: `https://api.cloudinary.com/v1_1/${this.cloudName}/image/upload`,
     };
   }

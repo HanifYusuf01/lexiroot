@@ -41,6 +41,13 @@ import type {
  * resolved by listing the customer's subscriptions for the plan — Paystack does
  * not echo our metadata onto the subscription object.
  */
+/**
+ * Nigeria is not a launch market yet, so Paystack is dormant: the code stays,
+ * the rails stay wired, but nothing routes to it. Flip to `true` (or read a
+ * config flag) on the day Nigeria opens.
+ */
+const PAYSTACK_ENABLED = false;
+
 @Injectable()
 export class PaystackProvider implements PaymentProvider {
   readonly key: ProviderKey = 'paystack';
@@ -49,8 +56,21 @@ export class PaystackProvider implements PaymentProvider {
 
   constructor(private readonly config: ConfigService) {}
 
+  /**
+   * Held back deliberately, not unfinished.
+   *
+   * Paystack is fully implemented and its webhook endpoint stays mounted so any
+   * subscription already billing through it keeps reconciling — `registry.get()`
+   * is unchecked precisely so existing rows survive. What `false` prevents is
+   * anything *new* routing here: checkout, provider resolution and plan sync all
+   * gate on this flag, so no learner can be charged through Paystack and no
+   * outbound Paystack call is made while Nigeria is out of scope commercially.
+   *
+   * To bring it back, drop `PAYSTACK_ENABLED` to a config read again and restore
+   * Nigeria in `provider-preference.ts`. Nothing else needs touching.
+   */
   get available(): boolean {
-    return Boolean(this.paystackConfig.secretKey);
+    return PAYSTACK_ENABLED && Boolean(this.paystackConfig.secretKey);
   }
 
   private get paystackConfig(): PaymentsConfig['paystack'] {

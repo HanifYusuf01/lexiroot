@@ -1,6 +1,12 @@
 import { ReactNode } from 'react';
 import { BookOpen, Crown, Flame, Zap } from 'lucide-react';
-import { LANGUAGE_LABELS, LEARNING_LEVEL_LABELS } from '@lexiroot/shared';
+import {
+  COUNTRIES,
+  ENTITLED_SUBSCRIPTION_STATUSES,
+  LANGUAGE_LABELS,
+  LEARNING_LEVEL_LABELS,
+} from '@lexiroot/shared';
+import { useSubscriptionsQuery } from '../../../services/subscriptionsApi';
 import { Modal } from '../../ui/Modal';
 import { Avatar } from '../../ui/Avatar';
 import { Badge } from '../../ui/Badge';
@@ -73,6 +79,30 @@ function ActivityRow({ icon, description, timestamp }: ActivityRowProps) {
 }
 
 export function UserOverviewModal({ user, onClose }: Props) {
+  // Only fetched while the modal is open — the roster behind it has no use for
+  // this, and it is one request for the whole table rather than one per row.
+  const { data: subscriptions, isLoading: loadingPlan } = useSubscriptionsQuery(undefined, {
+    skip: !user,
+  });
+
+  /**
+   * What the learner is actually on. This row read "Premium" for everyone,
+   * including free users — a hardcoded value in the shape of real data, which
+   * is worse than no row at all because nothing marks it as untrustworthy.
+   *
+   * A subscription counts only while it is in an entitled status; a cancelled
+   * or expired one leaves them on Free, which is what the app itself enforces.
+   */
+  const accountType = (() => {
+    if (!user) return '—';
+    if (loadingPlan) return 'Loading…';
+    const live = (subscriptions ?? []).find(
+      (s) => s.userId === user.id && ENTITLED_SUBSCRIPTION_STATUSES.includes(s.status),
+    );
+    if (!live) return 'Free';
+    return live.planName ? `${live.planName} · ${live.statusText}` : live.statusText;
+  })();
+
   return (
     <Modal open={!!user} onClose={onClose} size="lg">
       {user ? (
@@ -132,9 +162,15 @@ export function UserOverviewModal({ user, onClose }: Props) {
           <div className="mt-6">
             <h3 className="text-sm font-bold text-neutral">Additional Details</h3>
             <div className="mt-2 rounded-xl border border-border px-4">
-              <DetailRow label="Account Type" value="Premium" />
+              <DetailRow label="Account Type" value={accountType} />
               <DetailRow label="Last Active" value={formatRelative(user.lastActiveAt)} />
-              <DetailRow label="Location" value="Nigeria" />
+              {/* Read from the user, not assumed. This said "Nigeria" for
+                  everyone, which was wrong for every learner outside it and
+                  invisibly so — the row looked like real data. */}
+              <DetailRow
+                label="Location"
+                value={user.country ? COUNTRIES[user.country].name : '—'}
+              />
               <DetailRow
                 label="Role"
                 value={<span className="capitalize">{user.role}</span>}

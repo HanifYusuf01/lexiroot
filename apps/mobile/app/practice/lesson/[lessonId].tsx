@@ -15,6 +15,7 @@ import { useCompleteLessonMutation } from '../../../src/services/progressApi';
 import { useAppSelector } from '../../../src/store/hooks';
 import { useHasFeature } from '../../../src/hooks/useEntitlements';
 import { FREE_ACCESS_LEVEL } from '../../../src/constants/entitlements';
+import { isPaywallError } from '../../../src/utils/apiError';
 import { UpgradeGateScreen } from '../../../src/components/lesson/UpgradeGateScreen';
 import { CorrectMeaningExercise } from '../../../src/screens/practice/CorrectMeaningExercise';
 import { ListenSelectExercise } from '../../../src/screens/practice/ListenSelectExercise';
@@ -109,8 +110,10 @@ export default function LessonPracticeScreen() {
     );
   }
 
-  // Free learners only get the free access level of practice — later levels gate.
-  if (!hasUnlimited && level > FREE_ACCESS_LEVEL) {
+  // Free learners only get the free access level of practice — later levels
+  // gate. The 403 arm covers a plan that lapsed mid-session, where the cached
+  // auth user still says `hasUnlimited` but the API has already said no.
+  if ((!hasUnlimited && level > FREE_ACCESS_LEVEL) || isPaywallError(exercisesQuery.error)) {
     return (
       <View style={styles.root}>
         <Stack.Screen options={{ headerShown: false }} />

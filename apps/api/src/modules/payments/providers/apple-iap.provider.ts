@@ -261,6 +261,11 @@ export class AppleIapProvider implements PaymentProvider {
         transaction.originalTransactionId ?? item.originalTransactionId ?? transactionOrOriginalId,
       // Apple has no separate "customer" concept — identity is the transaction chain.
       providerCustomerId: null,
+      // Set by us on the purchase request (`CreateCheckoutResponse
+      // .appAccountToken` = our subscription id) and echoed on every
+      // transaction in the chain. The only thing tying an Apple purchase to a
+      // LexiRoot account — see BillingService.linkAppleTransaction.
+      appAccountToken: transaction.appAccountToken ?? null,
       // The product the chain currently bills for. An upgrade or downgrade
       // inside a subscription group keeps the same originalTransactionId and
       // only swaps this, so it is the one signal that the plan moved.

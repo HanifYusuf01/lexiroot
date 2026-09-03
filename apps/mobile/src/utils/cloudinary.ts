@@ -31,6 +31,9 @@ export async function uploadAvatarToCloudinary({
   form.append('timestamp', String(signature.timestamp));
   form.append('signature', signature.signature);
   form.append('folder', signature.folder);
+  // Part of what the server signed — Cloudinary recomputes the signature over
+  // every field, so omitting this would make the upload fail outright.
+  form.append('max_file_size', String(signature.maxFileSize));
 
   const res = await fetch(signature.uploadUrl, {
     method: 'POST',

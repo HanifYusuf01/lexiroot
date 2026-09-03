@@ -69,6 +69,29 @@ function isNetworkError(error?: FetchBaseQueryError): boolean {
  * by `flushOutbox` on reconnect. Reads fall through unchanged: when offline the
  * persisted RTK Query cache continues to serve the last-known data.
  */
+/**
+ * Writes that may be queued and replayed after a reconnect.
+ *
+ * Deliberately an allowlist. The outbox was built for learning progress, whose
+ * replays are safe by construction — completion dedupes on (user, lesson),
+ * progress is an upsert, clearing is a DELETE — but it was catching *every*
+ * non-GET, including ones where a silent replay is the wrong answer entirely:
+ * cancelling a subscription the learner then decided to keep, emailing a family
+ * invitation the owner abandoned, revoking somebody's seat, opening a checkout.
+ *
+ * Everything not listed here fails normally when offline, so the person is told
+ * it didn't happen instead of being quietly promised it later.
+ */
+const QUEUEABLE_WRITES: RegExp[] = [
+  /^\/me\/lessons\/[^/]+\/complete$/,
+  /^\/me\/lesson-progress(\/|$)/,
+];
+
+function isQueueableWrite(url: string): boolean {
+  const path = url.split('?')[0];
+  return QUEUEABLE_WRITES.some((pattern) => pattern.test(path));
+}
+
 const offlineAwareBaseQuery: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError> = async (
   args,
   apiCtx,
@@ -76,10 +99,12 @@ const offlineAwareBaseQuery: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQ
 ) => {
   const { url, method, body } = normalizeArgs(args);
   const isWrite = method !== 'GET';
+  // Only learning writes are safe to replay unattended — see QUEUEABLE_WRITES.
+  const queueable = isWrite && isQueueableWrite(url);
   const online = selectIsOnline(apiCtx.getState() as Parameters<typeof selectIsOnline>[0]);
 
   // Known offline: don't even attempt the network — queue immediately.
-  if (isWrite && !online) {
+  if (queueable && !online) {
     apiCtx.dispatch(enqueue({ url, method, body }));
     return { data: syntheticOfflineResponse(url, method, body) };
   }
@@ -88,7 +113,7 @@ const offlineAwareBaseQuery: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQ
 
   // Thought we were online but the request failed at the network layer: queue
   // it so the change isn't lost, and let the UI proceed optimistically.
-  if (isWrite && isNetworkError(result.error)) {
+  if (queueable && isNetworkError(result.error)) {
     apiCtx.dispatch(enqueue({ url, method, body }));
     return { data: syntheticOfflineResponse(url, method, body) };
   }

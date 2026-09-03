@@ -8,7 +8,7 @@ import {
   useAcceptFamilyInviteMutation,
   useFamilyInvitePreviewQuery,
 } from '../src/services/familyApi';
-import { describeApiError } from '../src/utils/apiError';
+import { apiErrorMessage } from '../src/utils/apiError';
 import { refreshAuthUser } from '../src/services/refreshAuthUser';
 import { useAppDispatch, useAppSelector } from '../src/store/hooks';
 
@@ -70,7 +70,7 @@ export default function FamilyInviteScreen() {
         { text: 'Start learning', onPress: () => router.replace('/home') },
       ]);
     } catch (err) {
-      Alert.alert('Could not accept', describeApiError(err));
+      Alert.alert('Could not accept', apiErrorMessage(err));
     } finally {
       setBusy(false);
     }

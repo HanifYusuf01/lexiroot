@@ -18,9 +18,12 @@ import { colors, fonts, radius, spacing } from '../../src/constants/theme';
 import {
   useFamilyOverviewQuery,
   useInviteFamilyMemberMutation,
+  useLeaveFamilyPlanMutation,
   useRemoveFamilySeatMutation,
 } from '../../src/services/familyApi';
-import { describeApiError } from '../../src/utils/apiError';
+import { refreshAuthUser } from '../../src/services/refreshAuthUser';
+import { useAppDispatch } from '../../src/store/hooks';
+import { apiErrorMessage } from '../../src/utils/apiError';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -32,9 +35,11 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
  * screen never shows anyone else's learning data.
  */
 export default function FamilyScreen() {
+  const dispatch = useAppDispatch();
   const { data, isLoading } = useFamilyOverviewQuery();
   const [invite, { isLoading: inviting }] = useInviteFamilyMemberMutation();
   const [removeSeat] = useRemoveFamilySeatMutation();
+  const [leavePlan, { isLoading: leaving }] = useLeaveFamilyPlanMutation();
   const [email, setEmail] = useState('');
 
   const seatsLeft = data ? data.maxSeats - data.usedSeats : 0;
@@ -50,8 +55,33 @@ export default function FamilyScreen() {
       setEmail('');
       Alert.alert('Invitation sent', `We've emailed ${value} an invitation to join your plan.`);
     } catch (err) {
-      Alert.alert('Could not invite', describeApiError(err));
+      Alert.alert('Could not invite', apiErrorMessage(err));
     }
+  }
+
+  function handleLeave() {
+    Alert.alert(
+      'Leave this family plan?',
+      'You keep your account, languages and progress, but Premium locks straight away. The plan owner can invite you again.',
+      [
+        { text: 'Stay', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await leavePlan().unwrap();
+              // Leaving is an entitlement change, so the auth user has to be
+              // re-read — gating reads `features` off the auth slice, which no
+              // cache invalidation writes to.
+              await refreshAuthUser(dispatch).catch(() => undefined);
+            } catch (err) {
+              Alert.alert('Could not leave', apiErrorMessage(err));
+            }
+          },
+        },
+      ],
+    );
   }
 
   function handleRemove(seat: FamilySeat) {
@@ -71,7 +101,7 @@ export default function FamilyScreen() {
             try {
               await removeSeat({ id: seat.id as string }).unwrap();
             } catch (err) {
-              Alert.alert('Could not remove', describeApiError(err));
+              Alert.alert('Could not remove', apiErrorMessage(err));
             }
           },
         },
@@ -93,6 +123,29 @@ export default function FamilyScreen() {
               other people — each with their own account, languages and progress.
             </Text>
           </View>
+        ) : !data.isOwner ? (
+          // A member, not the payer. They see whose plan they're on and how to
+          // leave it — not the seat list, which is the owner's to manage.
+          <>
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>
+                {data.ownerName ? `You're on ${data.ownerName}'s family plan` : "You're on a family plan"}
+              </Text>
+              <Text style={styles.emptyBody}>
+                Premium is unlocked on your account. Your languages, streak and progress are your
+                own — only the plan is shared.
+              </Text>
+              <Text style={styles.hint}>
+                {data.usedSeats} of {data.maxSeats} seats in use.
+              </Text>
+            </View>
+            <Button
+              label={leaving ? 'Leaving…' : 'Leave this plan'}
+              variant="outline"
+              disabled={leaving}
+              onPress={handleLeave}
+            />
+          </>
         ) : (
           <>
             <Text style={styles.intro}>

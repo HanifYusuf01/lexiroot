@@ -1,5 +1,6 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { Mail, User } from 'lucide-react';
+import { DEFAULT_COUNTRY as SHARED_DEFAULT_COUNTRY } from '@lexiroot/shared';
 import type { CountryCode } from '@lexiroot/shared';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Avatar } from '../components/ui/Avatar';
@@ -26,7 +27,7 @@ interface FormErrors {
   general?: string;
 }
 
-const DEFAULT_COUNTRY: CountryCode = 'NG';
+const DEFAULT_COUNTRY: CountryCode = SHARED_DEFAULT_COUNTRY;
 
 export function ManageAccountPage() {
   const toast = useToast();

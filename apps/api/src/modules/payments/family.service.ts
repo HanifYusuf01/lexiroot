@@ -79,7 +79,9 @@ export class FamilyService {
   async overview(userId: string): Promise<FamilyOverview> {
     const subscription = await this.ownedFamilySubscription(userId);
     if (!subscription) {
-      return { enabled: false, isOwner: false, maxSeats: FAMILY_MAX_SEATS, usedSeats: 0, seats: [] };
+      // Not an owner — but they may hold a seat on somebody else's plan, which
+      // is a different thing from having no family plan at all.
+      return this.memberOverview(userId);
     }
 
     const owner = await this.users.findOne({ where: { id: userId } });
@@ -116,6 +118,53 @@ export class FamilyService {
       maxSeats: FAMILY_MAX_SEATS,
       usedSeats: seats.length,
       seats,
+      ownerName: null,
+    };
+  }
+
+  /**
+   * The view for someone who holds a seat rather than paying for the plan.
+   *
+   * They get who it belongs to and how full it is — enough to understand where
+   * their access comes from and to leave — but not the seat list. The other
+   * members' email addresses are the owner's business, not a fellow member's.
+   */
+  private async memberOverview(userId: string): Promise<FamilyOverview> {
+    const empty: FamilyOverview = {
+      enabled: false,
+      isOwner: false,
+      maxSeats: FAMILY_MAX_SEATS,
+      usedSeats: 0,
+      seats: [],
+      ownerName: null,
+    };
+
+    const membership = await this.members.findOne({
+      where: { userId, acceptedAt: Not(IsNull()), revokedAt: IsNull() },
+    });
+    if (!membership) return empty;
+
+    const subscription = await this.subscriptions.findOne({
+      where: { id: membership.subscriptionId },
+    });
+    if (!subscription || !(LIVE_STATUSES as readonly string[]).includes(subscription.status)) {
+      return empty;
+    }
+    // A seat only means anything while the plan behind it still shares — the
+    // same rule EntitlementService applies before granting access.
+    const plan = await this.plans.findOne({ where: { id: subscription.planId } });
+    if (!plan?.features?.includes('family_sharing')) return empty;
+
+    const owner = await this.users.findOne({ where: { id: subscription.userId } });
+    const rows = await this.liveSeats(subscription.id);
+
+    return {
+      enabled: true,
+      isOwner: false,
+      maxSeats: FAMILY_MAX_SEATS,
+      usedSeats: rows.length + 1,
+      seats: [],
+      ownerName: owner?.displayName ?? null,
     };
   }
 

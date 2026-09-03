@@ -12,6 +12,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { RecognitionItemPayload } from '@lexiroot/shared';
 import { ExerciseTopBar } from '../../../../src/components/exercise/ExerciseTopBar';
+import { UpgradeGateScreen } from '../../../../src/components/lesson/UpgradeGateScreen';
+import { isPaywallError } from '../../../../src/utils/apiError';
 import {
   useGetLessonQuery,
   useListEntriesQuery,
@@ -35,6 +37,12 @@ export default function RecognitionLessonScreen() {
         <Text style={styles.fallbackText}>Lesson not found</Text>
       </SafeAreaView>
     );
+  }
+
+  // The API enforces the paywall too, so honour its answer even when the
+  // cached auth user still thinks this account is subscribed.
+  if (isPaywallError(entriesQuery.error)) {
+    return <UpgradeGateScreen onClose={() => router.back()} />;
   }
 
   if (lessonQuery.isLoading || entriesQuery.isLoading) {

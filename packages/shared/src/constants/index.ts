@@ -390,6 +390,16 @@ export const COUNTRIES: Record<CountryCode, CountryInfo> = Object.fromEntries(
   ]),
 ) as Record<CountryCode, CountryInfo>;
 
+/**
+ * The country to pre-select before a user has chosen one — onboarding, the
+ * admin account form, anywhere a picker needs a starting value.
+ *
+ * Sweden because that is the launch market. It is a default, never an
+ * assumption: nothing derives pricing, currency or a payment provider from it
+ * without the user actually confirming their country.
+ */
+export const DEFAULT_COUNTRY: CountryCode = 'SE';
+
 // --- Currency -------------------------------------------------------------
 
 /**
@@ -423,12 +433,15 @@ export const CURRENCIES: Record<CurrencyCode, CurrencyInfo> = {
 
 /**
  * A country's local currency, when we support charging in it. Only entries that
- * differ from the base and are chargeable belong here — everything else falls
- * back to USD via `currencyForCountry`.
+ * differ from the base and are **chargeable** belong here — everything else
+ * falls back to USD via `currencyForCountry`.
+ *
+ * Empty today. NGN lived here while Nigeria routed to Paystack; with Paystack
+ * held back, a Nigerian learner is charged by Stripe in USD, so listing NGN
+ * would show them a naira price we would not then charge — the one failure this
+ * table exists to prevent. Restore `NG: 'NGN'` when Paystack goes live again.
  */
-const COUNTRY_CURRENCY: Partial<Record<CountryCode, CurrencyCode>> = {
-  NG: 'NGN',
-};
+const COUNTRY_CURRENCY: Partial<Record<CountryCode, CurrencyCode>> = {};
 
 /**
  * The currency a user in `country` should see and be charged in. Falls back to

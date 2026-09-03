@@ -275,14 +275,30 @@ export interface FamilySeat {
 }
 
 export interface FamilyOverview {
-  /** False when the caller's plan carries no `family_sharing` feature. */
+  /**
+   * Whether family sharing applies to the caller at all — either they own a
+   * plan that includes it, or they hold a seat on somebody else's.
+   *
+   * Not the same as `isOwner`: a member has no family subscription of their own
+   * but is very much on one, and telling them otherwise is a lie they can
+   * disprove by looking at their unlocked lessons.
+   */
   enabled: boolean;
   /** True when the caller owns the subscription (only owners may invite). */
   isOwner: boolean;
   maxSeats: number;
   /** Owner + accepted members + still-pending invites. */
   usedSeats: number;
+  /**
+   * The people on the plan. Populated for the owner, who manages them; empty
+   * for a member, who has no business seeing the other members' addresses.
+   */
   seats: FamilySeat[];
+  /**
+   * Member view only: who owns the plan they're on, so the screen can say whose
+   * it is. Null for an owner (it's theirs) and when nothing applies.
+   */
+  ownerName: string | null;
 }
 
 export interface FamilyInvitePreview {

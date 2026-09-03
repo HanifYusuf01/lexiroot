@@ -10,6 +10,7 @@ import { BillingService } from './billing.service';
 import { EntitlementService } from './entitlement.service';
 import { FamilyController, PublicFamilyInviteController } from './family.controller';
 import { FamilyService } from './family.service';
+import { LessonAccessService } from './lesson-access.service';
 import { Invoice } from './entities/invoice.entity';
 import { Payment } from './entities/payment.entity';
 import { PaymentMethod } from './entities/payment-method.entity';
@@ -77,7 +78,8 @@ import { WebhooksService } from './webhooks.service';
     WebhooksService,
     PlanProviderSyncService,
     FamilyService,
+    LessonAccessService,
   ],
-  exports: [EntitlementService, BillingService, SubscriptionStateService],
+  exports: [EntitlementService, BillingService, SubscriptionStateService, LessonAccessService],
 })
 export class PaymentsModule {}

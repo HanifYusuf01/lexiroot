@@ -3,11 +3,7 @@ import { useCulturalContentStatsQuery } from '../../../services/culturalContentA
 import { StatCard } from '../../ui/StatCard';
 import { formatNumber } from '../../../utils/format';
 
-interface Props {
-  newLabel?: (n: number) => string;
-}
-
-export function CulturalContentStatsCards(_: Props = {}) {
+export function CulturalContentStatsCards() {
   const { data, isLoading } = useCulturalContentStatsQuery();
   const skel = isLoading ? '—' : null;
 

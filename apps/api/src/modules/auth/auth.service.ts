@@ -42,6 +42,8 @@ import { PendingSignup } from './entities/pending-signup.entity';
 import { PendingSignupsService } from './pending-signups.service';
 
 const BCRYPT_ROUNDS = 12;
+/** Wrong guesses allowed against one reset code before it is discarded. */
+const MAX_PASSWORD_RESET_ATTEMPTS = 5;
 const RESET_CODE_TTL_MS = 1000 * 60 * 60;
 const EMAIL_VERIFICATION_TTL_MS = 1000 * 60 * 15;
 const LOCKOUT_MS = 1000 * 60 * 15;
@@ -420,6 +422,8 @@ export class AuthService {
     await this.users.update(user.id, {
       passwordResetToken: code,
       passwordResetExpiresAt: expiresAt,
+      // A fresh code starts with a fresh allowance.
+      passwordResetAttempts: 0,
     });
     await this.email.sendPasswordResetEmail({
       email: user.email,
@@ -428,22 +432,52 @@ export class AuthService {
     });
   }
 
+  /**
+   * Consume a reset code and set a new password.
+   *
+   * The code is six digits and lives for an hour, so an unlimited number of
+   * guesses is an account takeover waiting to happen — a million combinations
+   * is nothing to a script, and login's lockout does not cover this path.
+   * Wrong guesses are counted and the code is burned once they run out, so a
+   * brute-force gets one short window per email that the *real* owner asked
+   * for, instead of an open-ended one. The counter is separate from the login
+   * lockout so attacking a reset can't lock the owner out of signing in.
+   */
   async resetPassword(dto: ResetPasswordDto): Promise<void> {
     const user = await this.users.findByEmail(dto.email);
-    if (
-      !user ||
-      !user.passwordResetToken ||
-      user.passwordResetToken !== dto.code ||
-      !user.passwordResetExpiresAt ||
-      user.passwordResetExpiresAt.getTime() < Date.now()
-    ) {
+    const live =
+      user &&
+      user.passwordResetToken &&
+      user.passwordResetExpiresAt &&
+      user.passwordResetExpiresAt.getTime() >= Date.now();
+
+    if (live && user.passwordResetToken !== dto.code) {
+      const attempts = (user.passwordResetAttempts ?? 0) + 1;
+      if (attempts >= MAX_PASSWORD_RESET_ATTEMPTS) {
+        // Burn the code rather than lock the account: the owner can simply ask
+        // for another one, and the attacker has to wait for them to do it.
+        await this.users.update(user.id, {
+          passwordResetToken: null,
+          passwordResetExpiresAt: null,
+          passwordResetAttempts: 0,
+        });
+      } else {
+        await this.users.update(user.id, { passwordResetAttempts: attempts });
+      }
+    }
+
+    // One message for every failure — never reveal whether the email exists,
+    // whether a reset is pending, or whether the code was merely stale.
+    if (!live || user.passwordResetToken !== dto.code) {
       throw new BadRequestException('Invalid or expired reset code');
     }
+
     const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
     await this.users.update(user.id, {
       passwordHash,
       passwordResetToken: null,
       passwordResetExpiresAt: null,
+      passwordResetAttempts: 0,
     });
   }
 

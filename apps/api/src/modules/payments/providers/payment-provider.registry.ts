@@ -43,13 +43,25 @@ export class PaymentProviderRegistry {
   }
 
   /**
-   * Resolve a provider: the requested key, else the configured default, else the
-   * first available provider. There is no hardcoded default — nothing here
-   * assumes Stripe.
+   * Resolve a provider for *new* work: the requested key, else the configured
+   * default, else the first available one. There is no hardcoded default —
+   * nothing here assumes Stripe.
+   *
+   * Availability is enforced even for an explicitly named provider, so a
+   * dormant one can't be reached through `PAYMENTS_DEFAULT_PROVIDER` or an admin
+   * "sync to this provider" call. Use `get()` instead when acting on a
+   * subscription that already bills through a provider — webhooks and
+   * reconciliation must keep working for rows created before it was held back.
    */
   resolve(key?: ProviderKey | null): PaymentProvider {
     const chosen = key ?? this.defaultProviderKey;
-    if (chosen) return this.get(chosen);
+    if (chosen) {
+      const provider = this.get(chosen);
+      if (!provider.available) {
+        throw new ServiceUnavailableException(`Payment provider ${chosen} is not available`);
+      }
+      return provider;
+    }
     const [first] = this.availableProviders();
     if (!first) throw new ServiceUnavailableException('No payment provider is available');
     return first;

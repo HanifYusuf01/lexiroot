@@ -82,6 +82,18 @@ export const FREE_FEATURE_KEYS: readonly PlanFeatureKey[] = [
   'achievements',
 ];
 
+/**
+ * The highest lesson level a learner reaches without `unlimited_lessons`.
+ * Levels are 1-indexed, so `1` means the first level is free and everything
+ * beyond it is paid.
+ *
+ * Shared because both sides must agree exactly: the app draws the padlock from
+ * it and the API refuses the content from it. When they disagree, one of two
+ * things happens — a paying learner is locked out, or a free one reads what
+ * they haven't bought.
+ */
+export const FREE_ACCESS_LEVEL = 1;
+
 const PLAN_FEATURE_LABELS: Record<string, string> = Object.fromEntries(
   PLAN_FEATURES.map((f) => [f.key, f.label]),
 );

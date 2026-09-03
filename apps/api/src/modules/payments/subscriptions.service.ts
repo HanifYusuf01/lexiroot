@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -13,6 +14,7 @@ import {
   type ClientPlatform,
   type CountryCode,
   type CreateCheckoutResponse,
+  type CurrencyCode,
   type PlanPeriod,
   planChangeDirection,
   type ProviderKey,
@@ -23,6 +25,7 @@ import {
 import type { PaymentsConfig } from '../../config/payments.config';
 import { SubscriptionPlan } from '../subscriptions/entities/subscription-plan.entity';
 import { BillingService } from './billing.service';
+import { planRecurring } from './plan-pricing';
 import { EntitlementService } from './entitlement.service';
 import { PlanProviderPrice } from './entities/plan-provider-price.entity';
 import { Subscription } from './entities/subscription.entity';
@@ -63,6 +66,8 @@ export interface CreateCheckoutOptions {
 
 @Injectable()
 export class SubscriptionsService {
+  private readonly logger = new Logger(SubscriptionsService.name);
+
   constructor(
     @InjectRepository(Subscription)
     private readonly subscriptions: Repository<Subscription>,
@@ -113,6 +118,13 @@ export class SubscriptionsService {
     }
     const provider = this.registry.get(price.provider);
     const key = provider.key;
+
+    // A plan's price can be edited in admin without re-syncing the provider, and
+    // checkout would then charge the *old* amount for as long as nobody notices
+    // — a price rise that silently never takes effect. We don't block the sale
+    // over it (that would turn a pricing slip into an outage), but it must not
+    // pass unrecorded. `PlanProviderSync` calls this state `out_of_date`.
+    await this.warnOnPriceDrift(planId, price);
 
     // Reuse a live/incomplete subscription; reject an already-active one.
     const existing = await this.subscriptions.find({
@@ -172,6 +184,27 @@ export class SubscriptionsService {
       appAccountToken: key === 'apple_iap' ? subscription.id : null,
       provider: key,
     };
+  }
+
+  /**
+   * Log loudly when the provider will charge something other than the catalog
+   * price. Never throws: the learner is mid-checkout and the amount they were
+   * shown still gets charged — this is for whoever reads the logs.
+   */
+  private async warnOnPriceDrift(planId: string, price: PlanProviderPrice): Promise<void> {
+    try {
+      const plan = await this.plans.findOne({ where: { id: planId } });
+      if (!plan) return;
+      const expected = planRecurring(plan, price.currency.toUpperCase() as CurrencyCode);
+      if (!expected || expected.amountMinor === price.amountMinor) return;
+      this.logger.error(
+        `Plan ${plan.id} ("${plan.name}") is out of date on ${price.provider}: charging ` +
+          `${price.amountMinor} ${price.currency} but the catalog says ${expected.amountMinor}. ` +
+          `Re-sync the plan in admin — every checkout until then bills the old amount.`,
+      );
+    } catch {
+      // Diagnostics must never break a checkout.
+    }
   }
 
   /** Poll target for the client after checkout (Rule 10a) + manage screen. */

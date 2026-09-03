@@ -52,7 +52,6 @@ export function MediaUploader({ kind, value, onChange, variant = 'card' }: Props
         className="relative flex h-24 w-24 items-center justify-center rounded-md border-2 border-dashed border-border bg-neutral-soft/40 text-neutral-variant transition hover:border-primary hover:text-primary"
       >
         {value ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={value}
             alt=""

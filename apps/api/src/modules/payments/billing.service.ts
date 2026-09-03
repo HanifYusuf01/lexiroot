@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import type { ProviderKey } from '@lexiroot/shared';
@@ -14,6 +14,9 @@ import type {
   ProviderSubSnapshot,
 } from './providers/payment-provider.interface';
 import { SubscriptionStateService } from './subscription-state.service';
+
+/** Apple returns appAccountToken as a lowercase UUID; ours are subscription ids. */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
  * The convergence point every path (checkout, webhook, reconciliation) funnels
@@ -77,23 +80,15 @@ export class BillingService {
    * .verifyAppleTransaction`). Once linked, ASSN v2 webhooks keep it in sync
    * via `syncSubscription`/`applyInvoicePaid`.
    *
-   * Scoped to `userId` (the authenticated caller) rather than trusting a
-   * subscription id from the client — the same "acts on your own row only"
-   * rule as `cancel()`.
+   * The transaction id is supplied by the client, so ownership has to be
+   * *proved*, not assumed — see `appleSubscriptionFor`.
    */
   async linkAppleTransaction(userId: string, transactionOrOriginalId: string): Promise<void> {
     const provider = this.registry.get('apple_iap');
     // "Any transactionId, originalTransactionId, or appTransactionId" resolves
     // via getAllSubscriptionStatuses — fetchSubscription accepts either.
     const snapshot = await provider.fetchSubscription(transactionOrOriginalId);
-
-    const sub = await this.dataSource.getRepository(Subscription).findOne({
-      where: { userId, provider: 'apple_iap', status: 'INCOMPLETE' },
-      order: { createdAt: 'DESC' },
-    });
-    if (!sub) {
-      throw new NotFoundException('No pending Apple checkout to link this purchase to.');
-    }
+    const sub = await this.appleSubscriptionFor(userId, snapshot);
 
     // The product Apple actually charged for is the authority on which plan
     // this is, not the one we staged at checkout: a plan change buys a
@@ -245,6 +240,55 @@ export class BillingService {
   }
 
   // --- helpers ---
+
+  /**
+   * The subscription an Apple purchase belongs to, proved rather than guessed.
+   *
+   * This is the only place a purchase becomes entitlement without a
+   * signature-verified webhook: the client hands us a transaction id and asks
+   * for access. Matching that to "the caller's newest INCOMPLETE row" would
+   * authenticate nothing — any two accounts could take turns claiming one
+   * person's purchase, and one paid subscription would unlock an unlimited
+   * number of accounts.
+   *
+   * So we go the other way. At checkout we hand Apple `appAccountToken` = the
+   * subscription id; Apple echoes it on every transaction in the chain,
+   * renewals included. Resolving the token back to a row and checking that row
+   * belongs to the caller is what makes the claim honest — and it links the
+   * exact row the purchase was made against, which is also what makes Restore
+   * work after a reinstall.
+   *
+   * A purchase carrying no token, or one belonging to somebody else, is
+   * refused. Support can attach it by hand; we do not guess.
+   */
+  private async appleSubscriptionFor(
+    userId: string,
+    snapshot: ProviderSubSnapshot,
+  ): Promise<Subscription> {
+    const token = snapshot.appAccountToken?.trim().toLowerCase() ?? null;
+    if (!token || !UUID_PATTERN.test(token)) {
+      this.logger.warn(
+        `Apple purchase ${snapshot.providerSubscriptionId} carries no usable appAccountToken; refusing to link it to ${userId}`,
+      );
+      throw new ForbiddenException(
+        'This purchase is not linked to a LexiRoot account. Contact support with your receipt.',
+      );
+    }
+
+    const staged = await this.dataSource
+      .getRepository(Subscription)
+      .findOne({ where: { id: token } });
+    if (!staged || staged.userId !== userId) {
+      this.logger.warn(
+        `Apple purchase ${snapshot.providerSubscriptionId} claimed by ${userId} but its appAccountToken ${token} ` +
+          `${staged ? `belongs to ${staged.userId}` : 'matches no subscription'}`,
+      );
+      throw new ForbiddenException(
+        'This purchase belongs to a different LexiRoot account. Sign in with that account to restore it.',
+      );
+    }
+    return staged;
+  }
 
   /**
    * Whether a scheduled downgrade has come due. No effective date means

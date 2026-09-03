@@ -9,6 +9,8 @@ import { LessonFullCenterScreen } from '../../../src/components/lesson/LessonFul
 import { Button } from '../../../src/components/ui/Button';
 import { PlayButton } from '../../../src/components/exercise/PlayButton';
 import { useAudioPlayback } from '../../../src/hooks/useAudioPlayback';
+import { UpgradeGateScreen } from '../../../src/components/lesson/UpgradeGateScreen';
+import { isPaywallError } from '../../../src/utils/apiError';
 import { useGetLessonQuery, useListEntriesQuery } from '../../../src/services/lessonsApi';
 import { colors, fonts, neutralExerciseTheme, spacing } from '../../../src/constants/theme';
 
@@ -91,6 +93,17 @@ export default function LessonReviewScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <Text style={styles.fallbackText}>Lesson not found</Text>
       </SafeAreaView>
+    );
+  }
+
+  // The API enforces the paywall too, so honour its answer even when the cached
+  // auth user still thinks this account is subscribed.
+  if (isPaywallError(entriesQuery.error)) {
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <UpgradeGateScreen onClose={close} />
+      </>
     );
   }
 

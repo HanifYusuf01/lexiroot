@@ -4,6 +4,10 @@ import { DataSource, Repository } from 'typeorm';
 import type { LessonEntryKind } from '@lexiroot/shared';
 import { LessonEntry } from './entities/lesson-entry.entity';
 import { Lesson } from '../lessons/entities/lesson.entity';
+import {
+  LessonAccessService,
+  type LessonViewer,
+} from '../payments/lesson-access.service';
 import { ReplaceLessonEntriesDto } from './dto/replace-lesson-entries.dto';
 
 export interface LessonEntryRow {
@@ -83,11 +87,14 @@ export class LessonEntriesService {
     private readonly lessons: Repository<Lesson>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
+    private readonly access: LessonAccessService,
   ) {}
 
-  async listByLesson(lessonId: string): Promise<LessonEntryRow[]> {
+  async listByLesson(lessonId: string, viewer: LessonViewer): Promise<LessonEntryRow[]> {
     const lesson = await this.lessons.findOne({ where: { id: lessonId } });
     if (!lesson) throw new NotFoundException('Lesson not found');
+    // This is the lesson's actual content — the thing being sold.
+    await this.access.assertCanRead(lesson, viewer);
     const rows = await this.entries.find({
       where: { lessonId },
       order: { kind: 'ASC', orderIndex: 'ASC', createdAt: 'ASC' },

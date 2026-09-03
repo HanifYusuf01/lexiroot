@@ -17,7 +17,8 @@ export class DevicesService {
   /**
    * Idempotent register/refresh. Keyed on (userId, installationId) so a device
    * that rotates its Expo token — or a user who signs in on a device previously
-   * used by someone else — updates the same row rather than piling up dupes.
+   * used by someone else — updates the same row rather than piling up dupes,
+   * and takes sole ownership of the token (see below).
    */
   async register(userId: string, dto: RegisterDeviceDto): Promise<PushDevice> {
     let device = await this.devices.findOne({
@@ -38,7 +39,23 @@ export class DevicesService {
     device.enabled = true;
     device.lastSeenAt = new Date();
 
-    return this.devices.save(device);
+    const saved = await this.devices.save(device);
+
+    // A push token addresses a *handset*, not an account. When someone signs in
+    // on a device another account used — a shared family phone, a handset passed
+    // on — the previous owner's row keeps the same token and stays enabled
+    // unless they signed out cleanly, and their notifications then land on
+    // somebody else's screen. Registering claims the token exclusively.
+    await this.devices
+      .createQueryBuilder()
+      .update()
+      .set({ enabled: false })
+      .where('expo_token = :token', { token: dto.expoToken })
+      .andWhere('id != :id', { id: saved.id })
+      .andWhere('enabled = true')
+      .execute();
+
+    return saved;
   }
 
   /** Soft-disable a device (user turned notifications off / signed out). */

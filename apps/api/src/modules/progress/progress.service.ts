@@ -189,7 +189,15 @@ export class ProgressService {
     correctCount: number,
     totalCount: number,
   ): Promise<{ completion: LessonCompletion; xpAwarded: number; streak: number; totalXp: number }> {
-    if (totalCount > 0 && correctCount > totalCount) {
+    // Both numbers come from the client and are stored on the completion, so
+    // they have to be coherent. The comparison used to be guarded by
+    // `totalCount > 0`, which let "0 of 0 correct, 50 right" through unchecked.
+    // Zero totals stay legal — a study-only sub-lesson has entries to read and
+    // no questions to answer, and it still completes.
+    if (totalCount < 0 || correctCount < 0) {
+      throw new BadRequestException('Counts cannot be negative');
+    }
+    if (correctCount > totalCount) {
       throw new BadRequestException('correctCount cannot exceed totalCount');
     }
     const lesson = await this.lessons.findOne({ where: { id: lessonId } });

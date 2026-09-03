@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { ChangePlanResponse } from '@lexiroot/shared';
 import { refreshAuthUser } from '../services/refreshAuthUser';
-import { describeApiError } from '../utils/apiError';
+import { apiErrorMessage, describeApiError } from '../utils/apiError';
 import {
   useChangePlanMutation,
   useVerifyAppleTransactionMutation,
@@ -70,7 +70,7 @@ export function usePlanChange() {
       } catch (err) {
         if (err instanceof AppleIapCancelledError) return { status: 'cancelled' };
         if (__DEV__) console.error('[plan-change] apple purchase failed —', describeApiError(err));
-        return { status: 'error', message: describeApiError(err) };
+        return { status: 'error', message: apiErrorMessage(err) };
       }
     },
     [appleIap, dispatch, verifyAppleTransaction],
@@ -102,7 +102,7 @@ export function usePlanChange() {
         // people on your family plan first") is the only thing that explains a
         // refusal — a generic message would leave the learner stuck.
         if (__DEV__) console.error('[plan-change] failed —', describeApiError(err));
-        return { status: 'error', message: describeApiError(err) };
+        return { status: 'error', message: apiErrorMessage(err) };
       } finally {
         setBusy(false);
       }

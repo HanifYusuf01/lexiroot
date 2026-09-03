@@ -18,7 +18,7 @@ export const FREE_FEATURES: readonly PlanFeatureKey[] = [
 
 /**
  * The single level a learner can access without an `unlimited_lessons` plan.
- * Levels are 1-indexed; finishing this level (or trying to enter a later one)
- * triggers the upgrade gate for free users.
+ * Re-exported rather than redeclared: the API enforces the same number, and a
+ * local copy that drifted would put the padlock and the 403 in different places.
  */
-export const FREE_ACCESS_LEVEL = 1;
+export { FREE_ACCESS_LEVEL } from '@lexiroot/shared';

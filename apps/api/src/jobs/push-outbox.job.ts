@@ -23,6 +23,16 @@ interface DeviceRow {
 
 const MAX_ATTEMPTS = 5;
 const BATCH_SIZE = 100;
+/**
+ * How long a row may sit in `processing` before another tick reclaims it.
+ *
+ * A claim moves rows out of `pending`, so anything in flight when the process
+ * dies — a crash, or far more often a redeploy — would otherwise stay
+ * `processing` forever: nothing selects that status, so the notification is
+ * never sent and never retried, silently. Well beyond any real send, so a
+ * healthy row is never stolen mid-flight.
+ */
+const STALE_PROCESSING_MINUTES = 10;
 /** Reminders/content are worthless if stale — let Expo drop them after a day. */
 const DEFAULT_TTL_SECONDS = 24 * 60 * 60;
 
@@ -60,9 +70,13 @@ export class PushOutboxJob {
   }
 
   /**
-   * Atomically move up to BATCH_SIZE due rows from `pending` to `processing`
-   * and return them. SKIP LOCKED lets concurrent workers make progress without
-   * blocking on each other's claimed rows.
+   * Atomically move up to BATCH_SIZE due rows to `processing` and return them.
+   * SKIP LOCKED lets concurrent workers make progress without blocking on each
+   * other's claimed rows.
+   *
+   * Picks up rows abandoned in `processing` as well as due `pending` ones — see
+   * STALE_PROCESSING_MINUTES. Redelivering a notification is a far smaller harm
+   * than never sending it and never saying so.
    */
   private async claimBatch(): Promise<ClaimedOutbox[]> {
     // TypeORM's postgres driver returns `[rows, rowCount]` for UPDATE/DELETE —
@@ -72,13 +86,15 @@ export class PushOutboxJob {
       `UPDATE "notification_outbox" SET "status" = 'processing', "updated_at" = now()
         WHERE "id" IN (
           SELECT "id" FROM "notification_outbox"
-           WHERE "status" = 'pending' AND "scheduled_at" <= now()
+           WHERE ("status" = 'pending' AND "scheduled_at" <= now())
+              OR ("status" = 'processing'
+                  AND "updated_at" < now() - ($2 || ' minutes')::interval)
            ORDER BY "scheduled_at"
            LIMIT $1
            FOR UPDATE SKIP LOCKED
         )
       RETURNING "id", "user_id", "title", "body", "data", "channel_id", "attempts"`,
-      [BATCH_SIZE],
+      [BATCH_SIZE, STALE_PROCESSING_MINUTES],
     );
     return rows;
   }

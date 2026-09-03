@@ -81,6 +81,8 @@ export interface AvatarSignaturePayload {
   signature: string;
   folder: string;
   uploadUrl: string;
+  /** Bytes. Signed by the server, so Cloudinary enforces it, not us. */
+  maxFileSize: number;
 }
 
 interface LoginBody {

@@ -11,8 +11,9 @@ import type { ClientPlatform, CountryCode, ProviderKey } from '@lexiroot/shared'
  *    app to be sold through In-App Purchase (App Store Review Guideline 3.1.1).
  *    So on iOS, Apple IAP outranks every card processor. This is not a user
  *    choice, which is why it isn't one.
- * 2. **Region.** Nigeria routes to Paystack, which charges in NGN via local
- *    acquiring; every other country routes to Stripe and is charged in USD.
+ * 2. **Region.** Every country routes to Stripe and is charged in USD today.
+ *    Nigeria would route to Paystack for local NGN acquiring, but Nigeria is
+ *    not a launch market yet, so that branch is held back (see below).
  *    Paystack serves other African markets too, but each needs its own Paystack
  *    account, local entity and per-currency prices — whereas Stripe already
  *    accepts cards from those countries in USD. So Paystack stays scoped to the
@@ -22,15 +23,24 @@ import type { ClientPlatform, CountryCode, ProviderKey } from '@lexiroot/shared'
  */
 
 /**
- * The only country billed through Paystack. Keep this in step with
- * `COUNTRY_CURRENCY` in shared constants: a country routes to Paystack only if
- * we also price it in that country's local currency.
+ * The country Paystack *would* serve, kept for the day Nigeria launches. It is
+ * not consulted today: Nigeria is not a live market, so no learner is routed to
+ * Paystack regardless of where they are. `PaystackProvider.available` enforces
+ * the same thing one layer down, so neither can be relaxed by accident alone.
+ *
+ * When Nigeria opens, restore the branch below and flip `PAYSTACK_ENABLED`.
+ * Keep this in step with `COUNTRY_CURRENCY` in shared constants: a country
+ * routes to Paystack only if we also price it in that country's currency.
  */
 const PAYSTACK_COUNTRY: CountryCode = 'NG';
+void PAYSTACK_COUNTRY;
 
-/** The card processor for a country. Paystack in Nigeria, Stripe everywhere else. */
-function cardProviders(country: CountryCode | null): ProviderKey[] {
-  return country === PAYSTACK_COUNTRY ? ['paystack'] : ['stripe'];
+/**
+ * The card processor for a country. Stripe everywhere while Paystack is held
+ * back — every market is charged in USD through Stripe today.
+ */
+function cardProviders(_country: CountryCode | null): ProviderKey[] {
+  return ['stripe'];
 }
 
 export interface ProviderPreferenceInput {

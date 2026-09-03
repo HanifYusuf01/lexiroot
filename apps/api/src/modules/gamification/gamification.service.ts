@@ -76,6 +76,10 @@ export class GamificationService {
         'u.currentStreakDays',
       ])
       .where('u.role != :role', { role: 'admin' })
+      // A deleted account keeps its row (payments and progress reference it) but
+      // must stop competing: its PII is scrubbed, so it would otherwise sit in
+      // the rankings as "Deleted User", holding a place nobody can take.
+      .andWhere('u.deletedAt IS NULL')
       .orderBy('u.xp', 'DESC')
       .addOrderBy('u.createdAt', 'ASC')
       .skip(offset)

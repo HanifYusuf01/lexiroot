@@ -85,6 +85,15 @@ export class User {
   @Column({ name: 'failed_login_attempts', type: 'int', default: 0 })
   failedLoginAttempts!: number;
 
+  /**
+   * Wrong guesses against the current password-reset code. Separate from
+   * `failedLoginAttempts` on purpose: brute-forcing somebody's reset code must
+   * not also lock them out of logging in.
+   */
+  @Exclude()
+  @Column({ name: 'password_reset_attempts', type: 'int', default: 0 })
+  passwordResetAttempts!: number;
+
   @Exclude()
   @Column({ name: 'locked_until', type: 'timestamptz', nullable: true })
   lockedUntil!: Date | null;

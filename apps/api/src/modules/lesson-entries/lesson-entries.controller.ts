@@ -9,7 +9,9 @@ import {
 } from '@nestjs/common';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { User } from '../users/entities/user.entity';
 import { LessonEntriesService } from './lesson-entries.service';
 import { ReplaceLessonEntriesDto } from './dto/replace-lesson-entries.dto';
 
@@ -19,8 +21,11 @@ export class LessonEntriesController {
   constructor(private readonly entries: LessonEntriesService) {}
 
   @Get()
-  list(@Param('lessonId', new ParseUUIDPipe()) lessonId: string) {
-    return this.entries.listByLesson(lessonId);
+  list(
+    @CurrentUser() user: User,
+    @Param('lessonId', new ParseUUIDPipe()) lessonId: string,
+  ) {
+    return this.entries.listByLesson(lessonId, { id: user.id, role: user.role });
   }
 
   @Put()

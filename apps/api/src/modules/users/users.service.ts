@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import {
   ACTIVE_WINDOW_DAYS,
   type CountryCode,
@@ -187,6 +187,9 @@ export class UsersService {
     // The Users page is the learner roster — staff (admin/instructor) are
     // managed separately, so never list them here.
     qb.where("user.role = 'user'");
+    // Deleted accounts keep their row for financial retention, but they are not
+    // learners any more — listing them makes the roster and its counts wrong.
+    qb.andWhere('user.deletedAt IS NULL');
     if (query.search) {
       qb.andWhere('(LOWER(user.email) LIKE :s OR LOWER(user.display_name) LIKE :s)', {
         s: `%${query.search.toLowerCase()}%`,
@@ -218,10 +221,11 @@ export class UsersService {
   async stats(): Promise<UserStats> {
     const cutoff = activeCutoff();
     const [total, active] = await Promise.all([
-      this.users.count({ where: { role: 'user' } }),
+      this.users.count({ where: { role: 'user', deletedAt: IsNull() } }),
       this.users
         .createQueryBuilder('user')
         .where("user.role = 'user'")
+        .andWhere('user.deletedAt IS NULL')
         .andWhere('user.last_active_at IS NOT NULL AND user.last_active_at >= :cutoff', { cutoff })
         .getCount(),
     ]);

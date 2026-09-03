@@ -57,6 +57,14 @@ export interface ProviderSubSnapshot {
   providerSubscriptionId: string;
   providerCustomerId: string | null;
   /**
+   * The opaque account token we attached when the purchase was opened, echoed
+   * back by the provider. Apple carries it on every transaction in the chain
+   * (including renewals); it is how a purchase is proved to belong to the
+   * account that started it. Null for providers whose checkout is already bound
+   * to our subscription server-side.
+   */
+  appAccountToken?: string | null;
+  /**
    * The product the subscription currently bills for, when the provider says so
    * cheaply. Apple fills it (a plan change inside a subscription group keeps the
    * same subscription and swaps the product id, which is the only signal that

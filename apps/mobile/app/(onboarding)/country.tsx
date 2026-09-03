@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { COUNTRIES, type CountryCode } from '@lexiroot/shared';
+import { COUNTRIES, DEFAULT_COUNTRY, type CountryCode } from '@lexiroot/shared';
 import { Button } from '../../src/components/ui/Button';
 import { CountryPickerModal } from '../../src/components/ui/CountryPickerModal';
 import { QuestionBubble } from '../../src/components/ui/QuestionBubble';
@@ -15,7 +15,9 @@ export default function CountryScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const country = useAppSelector((s) => s.onboarding.country);
-  const selected: CountryCode = country ?? 'NG';
+  // Sweden is the launch market, so it's the sensible pre-selection before the
+  // learner picks — not a guess about who they are, just the likeliest answer.
+  const selected: CountryCode = country ?? DEFAULT_COUNTRY;
   const info = COUNTRIES[selected];
   const [pickerOpen, setPickerOpen] = useState(false);
 
