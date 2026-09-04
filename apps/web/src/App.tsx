@@ -4,6 +4,7 @@ import { ExploreExperience } from './components/sections/ExploreExperience';
 import { Faq } from './components/sections/Faq';
 import { Footer } from './components/sections/Footer';
 import { FamilyInvite } from './pages/FamilyInvite';
+import { FriendInvite } from './pages/FriendInvite';
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { SubscriptionReturn } from './pages/SubscriptionReturn';
 import { TermsOfUse } from './pages/TermsOfUse';
@@ -15,6 +16,7 @@ export function App() {
   if (path.startsWith('/subscription/success')) return <SubscriptionReturn variant="success" />;
   if (path.startsWith('/subscription/cancel')) return <SubscriptionReturn variant="cancel" />;
   if (path.startsWith('/family-invite')) return <FamilyInvite />;
+  if (path.startsWith('/friend-invite')) return <FriendInvite />;
   if (path.startsWith('/privacy')) return <PrivacyPolicy />;
   if (path.startsWith('/terms')) return <TermsOfUse />;
 

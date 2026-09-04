@@ -25,8 +25,8 @@ export class LessonsController {
   constructor(private readonly lessons: LessonsService) {}
 
   @Get()
-  list(@Query() query: ListLessonsQueryDto) {
-    return this.lessons.paginate(query);
+  list(@CurrentUser() user: User, @Query() query: ListLessonsQueryDto) {
+    return this.lessons.paginate(query, user.role);
   }
 
   @Get('stats')
@@ -37,8 +37,8 @@ export class LessonsController {
   }
 
   @Get(':id')
-  get(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.lessons.getById(id);
+  get(@CurrentUser() user: User, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.lessons.getById(id, user.role);
   }
 
   @Post()

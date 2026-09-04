@@ -35,7 +35,12 @@ export class ProgressController {
     @Param('lessonId', new ParseUUIDPipe()) lessonId: string,
     @Body() dto: CompleteLessonDto,
   ) {
-    return this.progress.completeLesson(user.id, lessonId, dto.correctCount, dto.totalCount);
+    return this.progress.completeLesson(
+      { id: user.id, role: user.role },
+      lessonId,
+      dto.correctCount,
+      dto.totalCount,
+    );
   }
 
   @Get('lesson-progress')

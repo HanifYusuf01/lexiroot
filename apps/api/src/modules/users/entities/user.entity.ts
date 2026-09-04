@@ -4,6 +4,7 @@ import type {
   LanguageCode,
   LearningLevel,
   LearningReason,
+  League,
 } from '@lexiroot/shared';
 import {
   Column,
@@ -93,6 +94,17 @@ export class User {
   @Exclude()
   @Column({ name: 'password_reset_attempts', type: 'int', default: 0 })
   passwordResetAttempts!: number;
+
+  /** Which league they compete in. Moves only at the weekly rollover. */
+  @Column({ type: 'varchar', length: 20, default: 'bronze' })
+  league!: League;
+
+  /**
+   * Opted out of public rankings. They keep earning RP and keep their own
+   * progress view — they simply don't appear in anyone else's list.
+   */
+  @Column({ name: 'leaderboard_opt_out', type: 'boolean', default: false })
+  leaderboardOptOut!: boolean;
 
   @Exclude()
   @Column({ name: 'locked_until', type: 'timestamptz', nullable: true })

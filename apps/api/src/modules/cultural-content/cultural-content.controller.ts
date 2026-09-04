@@ -25,8 +25,8 @@ export class CulturalContentController {
   constructor(private readonly service: CulturalContentService) {}
 
   @Get()
-  list(@Query() query: ListCulturalContentQueryDto) {
-    return this.service.paginate(query);
+  list(@CurrentUser() user: User, @Query() query: ListCulturalContentQueryDto) {
+    return this.service.paginate(query, user.role);
   }
 
   @Get('stats')
@@ -37,8 +37,8 @@ export class CulturalContentController {
   }
 
   @Get(':id')
-  get(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.service.getById(id);
+  get(@CurrentUser() user: User, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.service.getById(id, user.role);
   }
 
   @Post()

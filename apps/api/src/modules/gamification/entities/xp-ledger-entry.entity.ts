@@ -1,3 +1,4 @@
+import type { RpActivity } from '@lexiroot/shared';
 import {
   Column,
   CreateDateColumn,
@@ -6,10 +7,16 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
-// XP is only awarded for completing questions in a level. Achievements and
-// streaks are recognition only — they never produce ledger rows. The
-// admin_adjustment reason is a manual escape hatch for support cases.
-export type XpReason = 'lesson_completion' | 'admin_adjustment';
+/**
+ * Why points were awarded. This ledger is the record of Root Points: the
+ * weekly leaderboard is a sum over it, and `users.xp` is its lifetime total —
+ * the same currency under two names, so renaming XP to RP costs nobody their
+ * history.
+ *
+ * Achievements and streaks stay recognition-only; they never write rows.
+ * `admin_adjustment` is the manual escape hatch for support.
+ */
+export type XpReason = RpActivity;
 
 export type XpSourceType = 'lesson' | null;
 

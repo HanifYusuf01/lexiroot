@@ -1,5 +1,11 @@
 import { Check, Column, Entity, PrimaryColumn, UpdateDateColumn } from 'typeorm';
-import type { AdminSessionTimeout, CurrencyCode, ReminderTimeZone } from '@lexiroot/shared';
+import type {
+  AdminSessionTimeout,
+  CurrencyCode,
+  LeagueConfig,
+  ReminderTimeZone,
+  RootPointRates,
+} from '@lexiroot/shared';
 
 /**
  * Singleton row holding platform-wide admin configuration. Enforced to a single
@@ -83,6 +89,35 @@ export class PlatformSettings {
    */
   @Column({ name: 'fx_rates_to_usd', type: 'jsonb', default: () => `'{"NGN": 1500}'::jsonb` })
   fxRatesToUsd!: Partial<Record<CurrencyCode, number>>;
+
+  /**
+   * Root Points per activity. Empty means "use the defaults" — an admin only
+   * stores the values they actually changed, so a new activity added in code
+   * starts at its default rather than silently at zero.
+   */
+  @Column({ name: 'rp_rates', type: 'jsonb', default: () => `'{}'::jsonb` })
+  rpRates!: RootPointRates;
+
+  /**
+   * What a repeat of the same lesson is worth, as a fraction of full RP,
+   * indexed by prior completions. Past the end of the list a repeat earns
+   * nothing — the anti-farming rule, expressed as data so it can be tuned
+   * without a release.
+   */
+  @Column({
+    name: 'rp_repeat_multipliers',
+    type: 'jsonb',
+    default: () => `'[1, 0.4, 0.2, 0.1, 0]'::jsonb`,
+  })
+  rpRepeatMultipliers!: number[];
+
+  /** Promotion/demotion boundaries applied at the weekly rollover. */
+  @Column({
+    name: 'league_config',
+    type: 'jsonb',
+    default: () => `'{"promoteTop": 5, "demoteBottom": 5, "minWeeklyRp": 1}'::jsonb`,
+  })
+  leagueConfig!: LeagueConfig;
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt!: Date;

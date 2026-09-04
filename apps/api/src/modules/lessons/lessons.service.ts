@@ -7,6 +7,7 @@ import { Lesson } from './entities/lesson.entity';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { ListLessonsQueryDto } from './dto/list-lessons-query.dto';
+import type { UserRole } from '../users/entities/user.entity';
 
 export interface LessonRow {
   id: string;
@@ -82,7 +83,7 @@ export class LessonsService {
     private readonly lessons: Repository<Lesson>,
   ) {}
 
-  async paginate(query: ListLessonsQueryDto): Promise<PaginatedLessons> {
+  async paginate(query: ListLessonsQueryDto, role: UserRole): Promise<PaginatedLessons> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const qb = this.lessons.createQueryBuilder('lesson');
@@ -96,7 +97,16 @@ export class LessonsService {
     if (query.language) qb.andWhere('lesson.language = :language', { language: query.language });
     if (query.tier) qb.andWhere('lesson.tier = :tier', { tier: query.tier });
     if (query.level) qb.andWhere('lesson.level = :level', { level: query.level });
-    if (query.status) qb.andWhere('lesson.status = :status', { status: query.status });
+    // Learners only ever see published material. The status filter used to
+    // apply solely when a caller supplied one, so a request that simply omitted
+    // it came back with drafts and archived rows — unreleased content, readable
+    // by any signed-in account. Staff still need drafts for the editor, so the
+    // clamp is by role rather than by trusting the query.
+    if (role === 'admin' || role === 'instructor') {
+      if (query.status) qb.andWhere('lesson.status = :status', { status: query.status });
+    } else {
+      qb.andWhere('lesson.status = :status', { status: 'published' });
+    }
     if (query.type) qb.andWhere('lesson.type = :type', { type: query.type });
 
     const [rows, total] = await qb
@@ -122,9 +132,13 @@ export class LessonsService {
     return { total, published, drafts, archived, newThisMonth };
   }
 
-  async getById(id: string): Promise<LessonRow> {
+  async getById(id: string, role: UserRole): Promise<LessonRow> {
     const lesson = await this.lessons.findOne({ where: { id } });
     if (!lesson) throw new NotFoundException('Lesson not found');
+    // Same rule as the list: a learner reaches published material only.
+    if (role !== 'admin' && role !== 'instructor' && lesson.status !== 'published') {
+      throw new NotFoundException('Lesson not found');
+    }
     return toRow(lesson);
   }
 
@@ -149,7 +163,9 @@ export class LessonsService {
       createdById,
     });
     const saved = await this.lessons.save(lesson);
-    return this.getById(saved.id);
+    // Reached only from the staff-guarded create/update routes, which must
+    // see the row they just wrote even while it is still a draft.
+    return this.getById(saved.id, 'admin');
   }
 
   async update(id: string, dto: UpdateLessonDto): Promise<LessonRow> {
@@ -191,7 +207,7 @@ export class LessonsService {
     if (dto.meta !== undefined) lesson.meta = dto.meta;
 
     await this.lessons.save(lesson);
-    return this.getById(lesson.id);
+    return this.getById(lesson.id, 'admin');
   }
 
   async archive(id: string): Promise<LessonRow> {

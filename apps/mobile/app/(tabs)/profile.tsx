@@ -8,12 +8,17 @@ import { DeleteAccountModal } from '../../src/components/ui/DeleteAccountModal';
 import { LogoutModal } from '../../src/components/ui/LogoutModal';
 import { PlanStatusCard } from '../../src/components/subscription/PlanStatusCard';
 import { SettingsRow } from '../../src/components/ui/SettingsRow';
+import { Toggle } from '../../src/components/ui/Toggle';
 import { UserAvatar } from '../../src/components/ui/UserAvatar';
 import { colors, fonts, radius, spacing } from '../../src/constants/theme';
 import { PRIVACY_URL, TERMS_URL } from '../../src/constants/legal';
 import { authStorage } from '../../src/services/secureStorage';
 import { useDeleteAccountMutation } from '../../src/services/authApi';
 import { useUnregisterDeviceMutation } from '../../src/services/devicesApi';
+import {
+  useLeaderboardQuery,
+  useSetLeaderboardOptOutMutation,
+} from '../../src/services/leaderboardApi';
 import { currentInstallationId } from '../../src/services/notifications';
 import { useTabBarClearance } from '../../src/hooks/useTabBarClearance';
 import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
@@ -29,6 +34,10 @@ export default function ProfileTab() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [unregisterDevice] = useUnregisterDeviceMutation();
   const [deleteAccount, { isLoading: deleting }] = useDeleteAccountMutation();
+  // Read from the leaderboard rather than a separate settings call — it already
+  // reports the caller's own standing, opt-out included.
+  const { data: leaderboard } = useLeaderboardQuery({ limit: 1 });
+  const [setOptOut] = useSetLeaderboardOptOutMutation();
 
   async function handleLogout() {
     setLogoutOpen(false);
@@ -111,6 +120,20 @@ export default function ProfileTab() {
               title="Notification"
               subtitle="Set your reminders and alerts"
               onPress={() => router.push('/notification')}
+            />
+            {/* Privacy control for the weekly board. Opting out never stops
+                Root Points, streaks or progress — it only removes the learner
+                from other people's rankings, which is why it lives here rather
+                than behind the leaderboard itself. */}
+            <SettingsRow
+              title="Show me on leaderboards"
+              subtitle="Appear in public weekly rankings. Your progress is unaffected either way."
+              right={
+                <Toggle
+                  value={!(leaderboard?.me.optedOut ?? false)}
+                  onChange={(visible) => setOptOut({ optedOut: !visible })}
+                />
+              }
               last
             />
           </View>

@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import type { LearningLevel, LessonType } from '@lexiroot/shared';
 import { LessonCardActive } from '../../src/components/dashboard/LessonCardActive';
 import { StreakBadge } from '../../src/components/dashboard/StreakBadge';
+import { LeaderboardCard } from '../../src/components/dashboard/LeaderboardCard';
 import { UpgradePromoCard } from '../../src/components/dashboard/UpgradePromoCard';
 import { WeekDots } from '../../src/components/dashboard/WeekDots';
 import { RootNuggetCard } from '../../src/components/culture/RootNuggetCard';
@@ -171,6 +172,10 @@ export default function Home() {
             onViewAllPress={() => router.push('/(tabs)/culture' as never)}
           />
         ) : null}
+
+        {/* Above the upgrade pitch: a learner's own standing is worth more of
+            their attention than an advert, and it disappears for nobody. */}
+        <LeaderboardCard />
 
         <UpgradePromoCard onPress={() => router.push('/upgrade' as never)} />
       </ScrollView>

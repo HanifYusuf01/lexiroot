@@ -1,4 +1,5 @@
 import type { CurrencyCode } from '../constants';
+import type { LeagueConfig, RootPointRates } from './leaderboard.types';
 
 export const REMINDER_TIME_ZONES = ['learner-local', 'wat', 'utc'] as const;
 export type ReminderTimeZone = (typeof REMINDER_TIME_ZONES)[number];
@@ -50,6 +51,20 @@ export interface PlatformSettings {
    * admin periodically. Keyed by CurrencyCode; USD is never a key.
    */
   fxRatesToUsd: Partial<Record<CurrencyCode, number>>;
+  /**
+   * Root Points per activity, for the leaderboard. Sparse — only the values an
+   * admin actually changed are stored, so an activity added in code keeps its
+   * shipped default instead of dropping to zero.
+   */
+  rpRates: RootPointRates;
+  /**
+   * What a repeat of the same lesson is worth, as a fraction of full RP,
+   * indexed by prior completions. The anti-farming ladder, kept as data so it
+   * can be tuned without a release.
+   */
+  rpRepeatMultipliers: number[];
+  /** Promotion and demotion boundaries applied at the weekly rollover. */
+  leagueConfig: LeagueConfig;
   updatedAt: string;
 }
 

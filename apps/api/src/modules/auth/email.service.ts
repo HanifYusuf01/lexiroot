@@ -29,6 +29,13 @@ interface SendFamilyInvitationEmailInput {
   expiresInDays: number;
 }
 
+interface SendFriendInvitationEmailInput {
+  email: string;
+  inviterName: string;
+  inviteUrl: string;
+  expiresInDays: number;
+}
+
 interface SendFamilySeatRemovedEmailInput {
   email: string;
   displayName: string;
@@ -121,6 +128,25 @@ export class EmailService {
           <strong>${escapeHtml(input.planName)}</strong> plan.</p>
           <p>You'll get your own account with your own languages, streak and progress — the
           plan is shared, your learning isn't.</p>
+          ${this.button('Accept invitation', input.inviteUrl)}
+          <p style="font-size:13px;color:${MUTED_COLOR};">This invitation expires in ${input.expiresInDays} days and can only be accepted from this email address. If you weren't expecting it, you can ignore this email.</p>
+        `,
+      }),
+    });
+  }
+
+  async sendFriendInvitationEmail(input: SendFriendInvitationEmailInput): Promise<void> {
+    await this.send({
+      to: input.email,
+      subject: `${input.inviterName} wants to learn with you on LexiRoot`,
+      devHint: `friend invite url: ${input.inviteUrl}`,
+      html: await this.layout({
+        heading: 'Learn together',
+        bodyHtml: `
+          <p><strong>${escapeHtml(input.inviterName)}</strong> would like to add you as a friend on
+          LexiRoot, so you can see each other on the weekly leaderboard.</p>
+          <p>Nothing is shared but your display name, streak and Root Points — never your email,
+          your lessons or anything else on your account.</p>
           ${this.button('Accept invitation', input.inviteUrl)}
           <p style="font-size:13px;color:${MUTED_COLOR};">This invitation expires in ${input.expiresInDays} days and can only be accepted from this email address. If you weren't expecting it, you can ignore this email.</p>
         `,

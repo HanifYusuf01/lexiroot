@@ -143,6 +143,7 @@ export const api = createApi({
     'LessonProgress',
     'CulturalContent',
     'Leaderboard',
+    'Friends',
     'Achievements',
     'Family',
   ],

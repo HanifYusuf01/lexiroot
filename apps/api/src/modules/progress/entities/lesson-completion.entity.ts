@@ -28,6 +28,14 @@ export class LessonCompletion {
   @Column({ name: 'total_count', type: 'int', default: 0 })
   totalCount!: number;
 
+  /**
+   * How many times this lesson has been finished. Drives the diminishing RP on
+   * reviews — the completion row is updated rather than duplicated on a repeat,
+   * so without a counter a second pass is indistinguishable from the first.
+   */
+  @Column({ type: 'int', default: 1 })
+  attempts!: number;
+
   @CreateDateColumn({ name: 'completed_at', type: 'timestamptz' })
   completedAt!: Date;
 }

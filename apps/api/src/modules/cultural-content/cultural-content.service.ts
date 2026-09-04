@@ -7,6 +7,7 @@ import { CulturalContent } from './entities/cultural-content.entity';
 import { CreateCulturalContentDto } from './dto/create-cultural-content.dto';
 import { UpdateCulturalContentDto } from './dto/update-cultural-content.dto';
 import { ListCulturalContentQueryDto } from './dto/list-cultural-content-query.dto';
+import type { UserRole } from '../users/entities/user.entity';
 
 export interface CulturalContentRow {
   id: string;
@@ -80,7 +81,10 @@ export class CulturalContentService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  async paginate(query: ListCulturalContentQueryDto): Promise<PaginatedCulturalContent> {
+  async paginate(
+    query: ListCulturalContentQueryDto,
+    role: UserRole,
+  ): Promise<PaginatedCulturalContent> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const qb = this.repo.createQueryBuilder('c');
@@ -94,7 +98,16 @@ export class CulturalContentService {
     if (query.type) qb.andWhere('c.type = :type', { type: query.type });
     if (query.language) qb.andWhere('c.language = :language', { language: query.language });
     if (query.tier) qb.andWhere('c.tier = :tier', { tier: query.tier });
-    if (query.status) qb.andWhere('c.status = :status', { status: query.status });
+    // Learners only ever see published material. The status filter used to
+    // apply solely when a caller supplied one, so a request that simply omitted
+    // it came back with drafts and archived rows — unreleased content, readable
+    // by any signed-in account. Staff still need drafts for the editor, so the
+    // clamp is by role rather than by trusting the query.
+    if (role === 'admin' || role === 'instructor') {
+      if (query.status) qb.andWhere('c.status = :status', { status: query.status });
+    } else {
+      qb.andWhere('c.status = :status', { status: 'published' });
+    }
 
     const [rows, total] = await qb
       .orderBy('c.created_at', 'DESC')
@@ -164,9 +177,13 @@ export class CulturalContentService {
     };
   }
 
-  async getById(id: string): Promise<CulturalContentRow> {
+  async getById(id: string, role: UserRole): Promise<CulturalContentRow> {
     const c = await this.repo.findOne({ where: { id } });
     if (!c) throw new NotFoundException('Cultural content not found');
+    // Same rule as the list: a learner reaches published material only.
+    if (role !== 'admin' && role !== 'instructor' && c.status !== 'published') {
+      throw new NotFoundException('Not found');
+    }
     return toRow(c);
   }
 
@@ -193,7 +210,9 @@ export class CulturalContentService {
     });
     const saved = await this.repo.save(entity);
     if (saved.status === 'published') this.announcePublished(saved);
-    return this.getById(saved.id);
+    // Reached only from the staff-guarded create/update routes, which must
+    // see the row they just wrote even while it is still a draft.
+    return this.getById(saved.id, 'admin');
   }
 
   async update(id: string, dto: UpdateCulturalContentDto): Promise<CulturalContentRow> {
@@ -222,7 +241,7 @@ export class CulturalContentService {
 
     await this.repo.save(c);
     if (becamePublished) this.announcePublished(c);
-    return this.getById(c.id);
+    return this.getById(c.id, 'admin');
   }
 
   async archive(id: string): Promise<CulturalContentRow> {

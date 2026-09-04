@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { paymentsConfig } from './config/payments.config';
@@ -14,6 +15,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { CulturalContentModule } from './modules/cultural-content/cultural-content.module';
 import { ExercisesModule } from './modules/exercises/exercises.module';
 import { FeedbackModule } from './modules/feedback/feedback.module';
+import { FriendsModule } from './modules/friends/friends.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
 import { JobsModule } from './jobs/jobs.module';
 import { LanguagesModule } from './modules/languages/languages.module';
@@ -32,6 +34,13 @@ import { UsersModule } from './modules/users/users.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [paymentsConfig] }),
     ScheduleModule.forRoot(),
+    // A blanket ceiling per client IP. Deliberately generous — the mobile app is
+    // chatty, and a limit that trips during normal study would be worse than no
+    // limit at all. It exists to stop scripted abuse: brute-forcing six-digit
+    // codes, and looping the endpoints that send email, every one of which is
+    // billed to us. Individual routes tighten it further (see AuthController),
+    // and provider webhooks skip it entirely so retries are never refused.
+    ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 300 }]),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({
@@ -57,6 +66,7 @@ import { UsersModule } from './modules/users/users.module';
     FeedbackModule,
     UploadsModule,
     AnalyticsModule,
+    FriendsModule,
     GamificationModule,
     LanguagesModule,
     PlatformSettingsModule,
@@ -65,6 +75,12 @@ import { UsersModule } from './modules/users/users.module';
     JobsModule,
   ],
   providers: [
+    // Global rate limit. A guard rather than an interceptor so abusive traffic
+    // is refused before any handler — and before any email is sent.
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     // Maintenance gate runs first so blocked traffic short-circuits early.
     {
       provide: APP_INTERCEPTOR,

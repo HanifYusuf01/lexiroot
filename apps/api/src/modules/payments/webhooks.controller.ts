@@ -7,6 +7,7 @@ import {
   Req,
 } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { WebhooksService } from './webhooks.service';
 
@@ -17,6 +18,11 @@ import { WebhooksService } from './webhooks.service';
  * must be enabled in main.ts.
  */
 @Controller('payments/webhooks')
+// Never rate limited. Providers retry on any non-2xx, so a throttled webhook
+// would be re-sent — and refused again — until the provider gives up, silently
+// stranding a subscription. Authentication here is the signature check, which
+// is a far stronger gate than a request count.
+@SkipThrottle()
 export class WebhooksController {
   constructor(private readonly webhooks: WebhooksService) {}
 

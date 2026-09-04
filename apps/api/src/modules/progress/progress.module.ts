@@ -8,12 +8,14 @@ import { LessonCompletion } from './entities/lesson-completion.entity';
 import { LessonProgress } from './entities/lesson-progress.entity';
 import { ProgressController } from './progress.controller';
 import { ProgressService } from './progress.service';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([LessonCompletion, LessonProgress, Lesson, User]),
     GamificationModule,
     NotificationsModule,
+    PaymentsModule,
   ],
   controllers: [ProgressController],
   providers: [ProgressService],

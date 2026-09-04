@@ -348,7 +348,7 @@ export class AnalyticsService {
       .limit(limit)
       .getRawMany();
 
-    const totalUsers = await this.users.count();
+    const totalUsers = await this.learners().getCount();
     return rows.map((r, i) => {
       const completions = Number(r.completions);
       const progress = totalUsers > 0 ? Math.round((completions / totalUsers) * 100) : 0;
@@ -533,15 +533,66 @@ export class AnalyticsService {
     return { total, items };
   }
 
+  /**
+   * The population every user-facing metric is measured against.
+   *
+   * Analytics had three different answers to "how many users": `count()` over
+   * the whole table (admins, instructors and deleted accounts included),
+   * `role != 'admin'` (instructors and deleted accounts included), and the
+   * admin roster's own `role = 'user'` — so the same number differed by screen,
+   * and every deletion quietly inflated it. Deleted rows survive for financial
+   * retention; they are not learners, and neither is staff.
+   */
+  private learners() {
+    return this.users
+      .createQueryBuilder('user')
+      .where("user.role = 'user'")
+      .andWhere('user.deletedAt IS NULL');
+  }
+
+  /**
+   * Users with premium access right now — not subscriptions sold.
+   *
+   * This chart splits *users* into free and premium, so it has to count people
+   * who can use premium features. Counting distinct `subscriptions.user_id`
+   * missed every family member, since a seat holder owns no subscription of
+   * their own: a full six-seat plan read as one premium user and five free
+   * ones, understating reach by five sixths of every family sold.
+   *
+   * Mirrors the two ways `EntitlementService` grants access — you own a live
+   * subscription, or you hold an accepted seat on someone else's live plan that
+   * still carries `family_sharing` — and applies the same period check, so a
+   * row still marked ACTIVE past its paid period isn't counted as access the
+   * app would already refuse.
+   */
+  private async entitledUserCount(): Promise<number> {
+    const [row] = (await this.users.manager.query(
+      `SELECT COUNT(DISTINCT "user_id")::int AS c FROM (
+         SELECT s."user_id"
+           FROM "subscriptions" s
+          WHERE s."status" = ANY($1)
+            AND (s."current_period_end" IS NULL OR s."current_period_end" > now())
+         UNION
+         SELECT m."user_id"
+           FROM "subscription_members" m
+           JOIN "subscriptions" s2 ON s2."id" = m."subscription_id"
+           JOIN "subscription_plans" p ON p."id" = s2."plan_id"
+          WHERE m."accepted_at" IS NOT NULL
+            AND m."revoked_at" IS NULL
+            AND m."user_id" IS NOT NULL
+            AND p."features" @> '["family_sharing"]'::jsonb
+            AND s2."status" = ANY($1)
+            AND (s2."current_period_end" IS NULL OR s2."current_period_end" > now())
+       ) AS entitled`,
+      [[...ENTITLED_STATUSES]],
+    )) as Array<{ c: number }>;
+    return row?.c ?? 0;
+  }
+
   private async subscriptionBreakdown(): Promise<AnalyticsSubscriptionBreakdown> {
     const [total, premium] = await Promise.all([
-      this.users.createQueryBuilder('user').where("user.role != 'admin'").getCount(),
-      this.subscriptions
-        .createQueryBuilder('sub')
-        .select('COUNT(DISTINCT sub.user_id)', 'c')
-        .where('sub.status IN (:...statuses)', { statuses: [...ENTITLED_STATUSES] })
-        .getRawOne<{ c: string }>()
-        .then((r) => Number(r?.c ?? 0)),
+      this.learners().getCount(),
+      this.entitledUserCount(),
     ]);
     const free = total - premium;
     const denom = Math.max(1, total);
@@ -686,19 +737,27 @@ export class AnalyticsService {
   }
 
   private async dailyActivityBetween(from: Date, to: Date): Promise<AnalyticsDailyActivityPoint[]> {
+    // `user_active_days` has a row per account per day, staff included — the
+    // admin dashboard's own traffic was counting itself as daily active users,
+    // and deleted accounts kept contributing their history forever. Join to the
+    // same learner definition the rest of the page uses.
     const active: { day: string; active: string }[] = await this.activeDays
       .createQueryBuilder('a')
+      .innerJoin(
+        'users',
+        'u',
+        "u.id = a.user_id AND u.role = 'user' AND u.deleted_at IS NULL",
+      )
       .select(`to_char(a.day, 'YYYY-MM-DD')`, 'day')
       .addSelect('COUNT(DISTINCT a.user_id)', 'active')
       .where('a.day BETWEEN :from AND :to', { from: ymd(from), to: ymd(to) })
       .groupBy('a.day')
       .getRawMany();
 
-    const created: { day: string; new_users: string }[] = await this.users
-      .createQueryBuilder('user')
+    const created: { day: string; new_users: string }[] = await this.learners()
       .select(`to_char(date_trunc('day', user.created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`, 'day')
       .addSelect('COUNT(*)', 'new_users')
-      .where('user.created_at >= :start AND user.created_at < :end', {
+      .andWhere('user.created_at >= :start AND user.created_at < :end', {
         start: from,
         end: addDaysUtc(to, 1),
       })
@@ -790,10 +849,9 @@ export class AnalyticsService {
   // module exists; this covers signup → first real learning.
   private async funnel(): Promise<AnalyticsFunnelStep[]> {
     const [signedUp, onboarded, startedLesson, completedLesson, earnedXp] = await Promise.all([
-      this.users.count(),
-      this.users
-        .createQueryBuilder('user')
-        .where('user.language IS NOT NULL AND user.level IS NOT NULL')
+      this.learners().getCount(),
+      this.learners()
+        .andWhere('user.language IS NOT NULL AND user.level IS NOT NULL')
         .getCount(),
       this.progress
         .createQueryBuilder('p')
@@ -805,7 +863,7 @@ export class AnalyticsService {
         .select('COUNT(DISTINCT c.user_id)', 'c')
         .getRawOne<{ c: string }>()
         .then((r) => Number(r?.c ?? 0)),
-      this.users.createQueryBuilder('user').where('user.xp > 0').getCount(),
+      this.learners().andWhere('user.xp > 0').getCount(),
     ]);
 
     const raw: { key: string; label: string; users: number }[] = [
@@ -849,7 +907,7 @@ export class AnalyticsService {
     const endExcl = addDaysUtc(to, 1);
 
     const [totalUsers, ctx, settings] = await Promise.all([
-      this.users.createQueryBuilder('user').where("user.role != 'admin'").getCount(),
+      this.learners().getCount(),
       this.loadRevenueContext(),
       this.platformSettings.getCached(),
     ]);
@@ -896,9 +954,7 @@ export class AnalyticsService {
         const premium = ctx.subscriptions.filter((s) =>
           isEntitledAt(s, ctx.eventsBySubscription.get(s.id) ?? [], w.endExcl),
         ).length;
-        const usersAtWeekEnd = await this.users
-          .createQueryBuilder('user')
-          .where("user.role != 'admin'")
+        const usersAtWeekEnd = await this.learners()
           .andWhere('user.created_at < :end', { end: w.endExcl })
           .getCount();
         return { label: w.label, free: Math.max(usersAtWeekEnd - premium, 0), premium };
@@ -1180,10 +1236,8 @@ export class AnalyticsService {
   private async subscriptionFunnel(): Promise<AnalyticsFunnelStep[]> {
     const [accountCreated, onboarded, startedLesson, completedLesson, subscribed] =
       await Promise.all([
-        this.users.createQueryBuilder('user').where("user.role != 'admin'").getCount(),
-        this.users
-          .createQueryBuilder('user')
-          .where("user.role != 'admin'")
+        this.learners().getCount(),
+        this.learners()
           .andWhere('user.language IS NOT NULL AND user.level IS NOT NULL')
           .getCount(),
         this.progress

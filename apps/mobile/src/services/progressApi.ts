@@ -39,7 +39,9 @@ export const progressApi = api.injectEndpoints({
         method: 'POST',
         body: { correctCount, totalCount },
       }),
-      invalidatesTags: ['Progress', 'Lesson'],
+      // Finishing a lesson awards Root Points, so the weekly standing moves
+      // with it — otherwise the board would sit stale until a manual refresh.
+      invalidatesTags: ['Progress', 'Lesson', 'Leaderboard'],
     }),
     getLessonProgress: build.query<LessonProgressState | null, void>({
       query: () => '/me/lesson-progress',

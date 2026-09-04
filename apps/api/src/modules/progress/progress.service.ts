@@ -4,13 +4,19 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import {
   LEARNING_LEVELS,
   nextLearningLevel,
+  type RpActivity,
   type LanguageCode,
   type LearningLevel,
   type LessonProgressState,
 } from '@lexiroot/shared';
 import { GamificationService } from '../gamification/gamification.service';
+import { LeaderboardService } from '../gamification/leaderboard.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Lesson } from '../lessons/entities/lesson.entity';
+import {
+  LessonAccessService,
+  type LessonViewer,
+} from '../payments/lesson-access.service';
 import { User } from '../users/entities/user.entity';
 import { UpsertLessonProgressDto } from './dto/upsert-lesson-progress.dto';
 import { LessonCompletion } from './entities/lesson-completion.entity';
@@ -22,6 +28,20 @@ export interface ProgressSummary {
   lessonsCompleted: number;
   completedLessonIds: string[];
 }
+
+/**
+ * Distinct lessons one account may complete for the first time in 24 hours.
+ *
+ * The server cannot prove a lesson was actually played: `correctCount` is the
+ * learner's own claim, and the practice flow records no intermediate progress
+ * to check it against. What it can do is bound the damage. A person studying
+ * hard finishes a handful of lessons a day — someone returning from a day
+ * offline flushes maybe a dozen queued completions at once — while a script
+ * farming the whole catalogue for XP, achievements and tier promotions needs
+ * hundreds in a burst. Set far above real use, so it can only ever catch the
+ * second kind.
+ */
+const MAX_NEW_COMPLETIONS_PER_DAY = 60;
 
 function isSameUtcDay(a: Date, b: Date): boolean {
   return (
@@ -92,6 +112,8 @@ export class ProgressService {
     private readonly dataSource: DataSource,
     private readonly gamification: GamificationService,
     private readonly notifications: NotificationsService,
+    private readonly access: LessonAccessService,
+    private readonly leaderboard: LeaderboardService,
   ) {}
 
   async getActiveProgress(userId: string): Promise<LessonProgressState | null> {
@@ -184,11 +206,12 @@ export class ProgressService {
   }
 
   async completeLesson(
-    userId: string,
+    viewer: LessonViewer,
     lessonId: string,
     correctCount: number,
     totalCount: number,
   ): Promise<{ completion: LessonCompletion; xpAwarded: number; streak: number; totalXp: number }> {
+    const userId = viewer.id;
     // Both numbers come from the client and are stored on the completion, so
     // they have to be coherent. The comparison used to be guarded by
     // `totalCount > 0`, which let "0 of 0 correct, 50 right" through unchecked.
@@ -203,23 +226,84 @@ export class ProgressService {
     const lesson = await this.lessons.findOne({ where: { id: lessonId } });
     if (!lesson) throw new NotFoundException('Lesson not found');
 
+    // Reading a paid lesson is gated; banking its XP has to be too. Gating only
+    // the content left a free account able to complete every premium lesson it
+    // could not open — collecting the XP, the achievements and the tier
+    // promotion that come with them.
+    await this.access.assertCanRead(lesson, viewer);
+
+    // `totalCount` is the learner's own claim about how many questions they
+    // answered. It cannot be trusted as proof of work, but it can at least be
+    // held to the lesson that actually exists — a claim of more answers than
+    // there are exercises is incoherent on its face.
+    const [counted] = (await this.dataSource.query(
+      `SELECT COUNT(*)::int AS total FROM "exercises" WHERE "lesson_id" = $1`,
+      [lessonId],
+    )) as Array<{ total: number }>;
+    if (totalCount > (counted?.total ?? 0)) {
+      throw new BadRequestException('totalCount exceeds the number of exercises in this lesson');
+    }
+
     const result = await this.dataSource.transaction(async (manager) => {
       const existing = await manager
         .getRepository(LessonCompletion)
         .findOne({ where: { userId, lessonId } });
 
-      const xpAwarded = existing ? 0 : lesson.xpReward ?? 0;
+      // The day they last *learned*, read before this completion is written.
+      //
+      // `lastActiveAt` cannot answer this: LastActiveInterceptor bumps it on
+      // every authenticated request, so by the time a lesson is completed it
+      // already says today, and a streak measured against it can never
+      // increment. Completions are the only durable record of study.
+      const [previous] = (await manager.query(
+        `SELECT MAX("completed_at") AS last FROM "lesson_completions" WHERE "user_id" = $1`,
+        [userId],
+      )) as Array<{ last: Date | string | null }>;
+      const lastLearned = previous?.last ? new Date(previous.last) : null;
+
+      // Only first-time completions are capped. Replaying one — which the
+      // offline outbox does on reconnect — must stay idempotent and is never
+      // refused, since it banks nothing new.
+      if (!existing) {
+        const [burst] = (await manager.query(
+          `SELECT COUNT(*)::int AS recent FROM "lesson_completions"
+            WHERE "user_id" = $1 AND "completed_at" >= now() - interval '24 hours'`,
+          [userId],
+        )) as Array<{ recent: number }>;
+        if ((burst?.recent ?? 0) >= MAX_NEW_COMPLETIONS_PER_DAY) {
+          throw new BadRequestException(
+            'You have completed an unusual number of lessons today. Try again tomorrow.',
+          );
+        }
+      }
+
+      // Root Points, decided here and never by the client.
+      //
+      // A first pass earns the configured rate in full; a review earns a
+      // fraction of it, shrinking with each repeat until it earns nothing. That
+      // is the anti-farming rule: revisiting a lesson is worth encouraging,
+      // replaying the easiest one for rank is not. Rates and the ladder are
+      // admin-configurable, so the balance can be tuned without a release.
+      const priorCompletions = existing?.attempts ?? 0;
+      const activity: RpActivity = existing ? 'lesson_review' : 'lesson_completion';
+      const baseRate = await this.leaderboard.rateFor(activity);
+      const multiplier = await this.leaderboard.repeatMultiplier(priorCompletions);
+      const xpAwarded = Math.round(baseRate * multiplier);
+
       const completion = existing
         ? await manager.getRepository(LessonCompletion).save({
             ...existing,
             correctCount,
             totalCount,
+            attempts: priorCompletions + 1,
+            xpEarned: existing.xpEarned + xpAwarded,
           })
         : await manager.getRepository(LessonCompletion).save({
             userId,
             lessonId,
             correctCount,
             totalCount,
+            attempts: 1,
             xpEarned: xpAwarded,
           });
 
@@ -227,15 +311,18 @@ export class ProgressService {
       if (!user) throw new NotFoundException('User not found');
 
       const now = new Date();
-      const last = user.lastActiveAt ? new Date(user.lastActiveAt) : null;
       let streak = user.currentStreakDays ?? 0;
-      if (!last) {
+      if (!lastLearned) {
+        // First lesson ever — day one.
         streak = 1;
-      } else if (isSameUtcDay(last, now)) {
-        // same day — no change
-      } else if (isPrevUtcDay(last, now)) {
+      } else if (isSameUtcDay(lastLearned, now)) {
+        // Already studied today; the streak is banked. A second lesson does not
+        // count twice, and a learner who has never had a streak still gets one.
+        if (streak === 0) streak = 1;
+      } else if (isPrevUtcDay(lastLearned, now)) {
         streak = streak + 1;
       } else {
+        // A day was missed — start again at today.
         streak = 1;
       }
 
@@ -250,10 +337,12 @@ export class ProgressService {
         await this.gamification.recordXp(manager, {
           userId,
           amount: xpAwarded,
-          reason: 'lesson_completion',
+          reason: activity,
           sourceType: 'lesson',
           sourceId: lessonId,
-          metadata: { correctCount, totalCount },
+          // Kept so a standing can always be explained after the fact — which
+          // rate applied, and how much a repeat discounted it.
+          metadata: { correctCount, totalCount, attempt: priorCompletions + 1, baseRate, multiplier },
         });
       }
 

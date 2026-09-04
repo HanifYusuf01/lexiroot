@@ -1,446 +1,606 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
-  type StyleProp,
   Text,
+  TextInput,
   View,
-  type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import type { LeaderboardEntry } from '@lexiroot/shared';
-import { useGetLeaderboardQuery } from '../src/services/gamificationApi';
-import { useAppSelector } from '../src/store/hooks';
+import {
+  LANGUAGE_LABELS,
+  LEAGUES,
+  LEAGUE_LABELS,
+  LEARNING_LEVELS,
+  LEARNING_LEVEL_LABELS,
+} from '@lexiroot/shared';
+import type {
+  LanguageCode,
+  LeaderboardRow,
+  League,
+  LearningLevel,
+} from '@lexiroot/shared';
 import { UserAvatar } from '../src/components/ui/UserAvatar';
 import { colors, fonts, radius, spacing } from '../src/constants/theme';
-import { formatNumber } from '../src/utils/format';
+import {
+  useFriendsLeaderboardQuery,
+  useInviteFriendMutation,
+} from '../src/services/friendsApi';
+import {
+  useFamilyLeaderboardQuery,
+  useLeaderboardQuery,
+} from '../src/services/leaderboardApi';
+import { apiErrorMessage } from '../src/utils/apiError';
+import { useAppSelector } from '../src/store/hooks';
 
-const { width: screenWidth } = Dimensions.get('window');
-const podiumWidth = Math.min(screenWidth, 430);
+type Board = 'weekly' | 'friends' | 'family';
 
-export default function LeaderboardScreen() {
-  const router = useRouter();
-  const me = useAppSelector((s) => s.auth.user);
-  const { data, isLoading } = useGetLeaderboardQuery({ page: 1, limit: 50 });
+/** Medal colour for the top three; everyone else gets a plain number. */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-  const podium = useMemo(() => {
-    const items = data?.items ?? [];
-    // Podium order: #2 left, #1 center, #3 right, matching the screenshot.
+const MEDALS: Record<number, string> = {
+  1: colors.tertiary,
+  2: '#B9BEC4',
+  3: colors.secondary,
+};
+
+/** "4d 12h 34m" from milliseconds. Drops empty leading units. */
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return 'resetting…';
+  const totalMinutes = Math.floor(ms / 60_000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+/** "May 11 – May 17" from two ISO dates. */
+function formatRange(startsOn: string, endsOn: string): string {
+  const opts = { month: 'short', day: 'numeric', timeZone: 'UTC' } as const;
+  const start = new Date(`${startsOn}T00:00:00Z`).toLocaleDateString('en-US', opts);
+  const end = new Date(`${endsOn}T00:00:00Z`).toLocaleDateString('en-US', opts);
+  return `${start} – ${end}`;
+}
+
+export default function LeaderboardTab() {
+  const user = useAppSelector((s) => s.auth.user);
+  const [board, setBoard] = useState<Board>('weekly');
+  const [language, setLanguage] = useState<LanguageCode | undefined>();
+  const [level, setLevel] = useState<LearningLevel | undefined>();
+  const [league, setLeague] = useState<League | undefined>();
+
+  const weekly = useLeaderboardQuery({ language, level, league });
+  // Only fetched once the family board is actually being looked at — most
+  // learners aren't on a family plan and would never use the response.
+  const family = useFamilyLeaderboardQuery(undefined, { skip: board !== 'family' });
+  const friends = useFriendsLeaderboardQuery(undefined, { skip: board !== 'friends' });
+  const [inviteFriend, { isLoading: inviting }] = useInviteFriendMutation();
+
+  const period = weekly.data?.period ?? friends.data?.period ?? family.data?.period ?? null;
+
+  // Ticks locally so the countdown moves between refetches, rather than sitting
+  // frozen on whatever the last response happened to say.
+  const [now, setNow] = useState(() => Date.now());
+  const [anchor, setAnchor] = useState(() => Date.now());
+  useEffect(() => {
+    setAnchor(Date.now());
+    setNow(Date.now());
+  }, [period?.resetsInMs]);
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const resetsIn = period ? Math.max(0, period.resetsInMs - (now - anchor)) : 0;
+
+  const rows =
+    board === 'weekly'
+      ? (weekly.data?.rows ?? [])
+      : board === 'friends'
+        ? (friends.data?.rows ?? [])
+        : (family.data?.rows ?? []);
+  const me = weekly.data?.me ?? null;
+  const loading =
+    board === 'weekly'
+      ? weekly.isLoading
+      : board === 'friends'
+        ? friends.isLoading
+        : family.isLoading;
+
+  /**
+   * Invite someone by email.
+   *
+   * An inline field rather than `Alert.prompt`, which exists only on iOS — that
+   * would have left every Android learner unable to invite anyone, silently.
+   */
+  const [inviteEmail, setInviteEmail] = useState('');
+  async function handleInviteFriend() {
+    const value = inviteEmail.trim().toLowerCase();
+    if (!EMAIL_PATTERN.test(value)) {
+      Alert.alert('Check the email', 'Enter a valid email address to send an invitation.');
+      return;
+    }
+    try {
+      await inviteFriend({ email: value }).unwrap();
+      setInviteEmail('');
+      Alert.alert('Invitation sent', `We've emailed ${value} an invitation.`);
+    } catch (err) {
+      Alert.alert('Could not invite', apiErrorMessage(err));
+    }
+  }
+
+  // The learner's own row, pinned below the list when they placed outside it —
+  // the one rank a person always wants to see is their own.
+  const myRowInList = rows.some((r) => r.isMe);
+  const myPinnedRow: LeaderboardRow | null = useMemo(() => {
+    if (myRowInList || !me || me.rank === null || !user) return null;
     return {
-      first: items[0],
-      second: items[1],
-      third: items[2],
+      rank: me.rank,
+      userId: user.id,
+      displayName: 'You',
+      avatarUrl: user.avatarUrl ?? null,
+      rootPoints: me.rootPoints,
+      currentStreakDays: me.currentStreakDays,
+      isMe: true,
     };
-  }, [data?.items]);
-  const rest = useMemo(() => data?.items.slice(3) ?? [], [data?.items]);
+  }, [myRowInList, me, user]);
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.closeBtn}>
-          <Ionicons name="close" size={26} color={colors.neutral} />
-        </Pressable>
-        <Text style={styles.title}>leaderboard</Text>
-        <View style={styles.closeBtn} />
-      </View>
-
-      {isLoading ? (
-        <View style={styles.loadingBlock}>
-          <ActivityIndicator color={colors.primary} />
-        </View>
-      ) : (
-        <ScrollView
-          style={styles.scroller}
-          contentContainerStyle={styles.scroll}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.podiumStage}>
-            <Podium first={podium.first} second={podium.second} third={podium.third} />
+    <SafeAreaView style={styles.root} edges={['top']}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.headerRow}>
+          <View style={styles.titleRow}>
+            <Pressable onPress={() => router.back()} hitSlop={12}>
+              <Ionicons name="chevron-back" size={22} color={colors.primary} />
+            </Pressable>
+            <Text style={styles.title}>Leaderboard</Text>
           </View>
-
-          <View style={styles.sheet}>
-            <Text style={styles.sectionTitle}>Top Rankings</Text>
-            <Text style={styles.sectionSubtitle}>
-              The highest-ranking learners based on XP earned.
-            </Text>
-
-            <View style={styles.list}>
-              {rest.map((entry) => (
-                <LeaderboardRow
-                  key={entry.userId}
-                  entry={entry}
-                  isMe={entry.userId === me?.id}
-                />
-              ))}
+          {period ? (
+            <View style={styles.weekChip}>
+              <Text style={styles.weekNumber}>Week {period.weekNumber}</Text>
+              <Text style={styles.weekRange}>{formatRange(period.startsOn, period.endsOn)}</Text>
             </View>
+          ) : null}
+        </View>
+
+        <View style={styles.hero}>
+          <Text style={styles.heroTitle}>Compete. Learn. Grow Together.</Text>
+          <Text style={styles.heroBody}>
+            Earn Root Points by learning and mastering your language every day.
+          </Text>
+        </View>
+
+        <View style={styles.segment}>
+          <SegmentButton
+            label="Weekly"
+            active={board === 'weekly'}
+            onPress={() => setBoard('weekly')}
+          />
+          <SegmentButton
+            label="Friends"
+            active={board === 'friends'}
+            onPress={() => setBoard('friends')}
+          />
+          <SegmentButton
+            label="Family"
+            active={board === 'family'}
+            onPress={() => setBoard('family')}
+          />
+        </View>
+
+        {board === 'weekly' ? (
+          <>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filters}
+            >
+              <FilterChip
+                label={language ? LANGUAGE_LABELS[language] : 'All languages'}
+                onPress={() =>
+                  setLanguage((current) => cycle(current, [...LANGUAGE_CODES_IN_USE]))
+                }
+              />
+              <FilterChip
+                label={level ? LEARNING_LEVEL_LABELS[level] : 'All levels'}
+                onPress={() => setLevel((current) => cycle(current, [...LEARNING_LEVELS]))}
+              />
+              <FilterChip
+                label={LEAGUE_LABELS[league ?? weekly.data?.league ?? 'bronze']}
+                tone="primary"
+                onPress={() => setLeague((current) => cycle(current, [...LEAGUES]))}
+              />
+            </ScrollView>
+            {period ? (
+              <Text style={styles.countdown}>League resets in {formatCountdown(resetsIn)}</Text>
+            ) : null}
+          </>
+        ) : null}
+
+        {loading ? (
+          <ActivityIndicator color={colors.primary} style={styles.state} />
+        ) : board === 'friends' && friends.data && !friends.data.enabled ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>No friends yet</Text>
+            <Text style={styles.emptyBody}>
+              Invite someone to compare Root Points each week. They only ever see your display name,
+              streak and points.
+            </Text>
+            <InviteField
+              value={inviteEmail}
+              onChange={setInviteEmail}
+              busy={inviting}
+              onSubmit={handleInviteFriend}
+            />
           </View>
-        </ScrollView>
-      )}
+        ) : board === 'family' && family.data && !family.data.enabled ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>No family plan</Text>
+            <Text style={styles.emptyBody}>
+              A family plan puts everyone in your household on one board, whatever language they're
+              learning.
+            </Text>
+          </View>
+        ) : rows.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>Nobody has scored yet</Text>
+            <Text style={styles.emptyBody}>
+              Finish a lesson to earn your first Root Points and open this week's board.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.list}>
+            {rows.map((row) => (
+              <Row key={row.userId} row={row} />
+            ))}
+            {board === 'friends' ? (
+              <InviteField
+                value={inviteEmail}
+                onChange={setInviteEmail}
+                busy={inviting}
+                onSubmit={handleInviteFriend}
+              />
+            ) : null}
+            {myPinnedRow ? (
+              <>
+                <Text style={styles.pinnedHint}>Your position</Text>
+                <Row row={myPinnedRow} delta={me?.rankDelta ?? null} />
+              </>
+            ) : null}
+          </View>
+        )}
+
+        {board === 'weekly' && me ? (
+          <View style={styles.progressCard}>
+            <Text style={styles.progressTitle}>Your Progress This Week</Text>
+            <View style={styles.progressRow}>
+              <Stat value={me.rootPoints.toLocaleString('en-US')} label="Root Points" />
+              <Stat value={String(me.lessonsCompleted)} label="Lessons" />
+              <Stat value={`${me.masteryScore}%`} label="Mastery" />
+              <Stat value={`${me.currentStreakDays}`} label="Day streak" />
+            </View>
+            {me.nextMilestone !== null ? (
+              <View style={styles.milestone}>
+                <Text style={styles.milestoneValue}>
+                  {me.nextMilestone.toLocaleString('en-US')} RP
+                </Text>
+                <Text style={styles.milestoneLabel}>
+                  {me.rpToNextMilestone} RP to your next milestone
+                </Text>
+              </View>
+            ) : null}
+            {me.optedOut ? (
+              <Text style={styles.optedOut}>
+                You're hidden from public boards. Your points and streak still count — turn this off
+                in Profile to appear again.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-interface PodiumProps {
-  first?: LeaderboardEntry;
-  second?: LeaderboardEntry;
-  third?: LeaderboardEntry;
+/** Languages offered in the filter. Kept local — the picker is cosmetic. */
+const LANGUAGE_CODES_IN_USE: LanguageCode[] = ['yo', 'ig', 'ha'];
+
+/** Steps a filter through undefined → each option → undefined again. */
+function cycle<T>(current: T | undefined, options: T[]): T | undefined {
+  if (current === undefined) return options[0];
+  const next = options.indexOf(current) + 1;
+  return next >= options.length ? undefined : options[next];
 }
 
-function Podium({ first, second, third }: PodiumProps) {
+function Row({ row, delta }: { row: LeaderboardRow; delta?: number | null }) {
+  const medal = MEDALS[row.rank];
   return (
-    <View style={styles.podium}>
-      <PodiumColumn entry={second} place={2} variant="left" />
-      <PodiumColumn entry={first} place={1} variant="center" />
-      <PodiumColumn entry={third} place={3} variant="right" />
-    </View>
-  );
-}
-
-function PodiumColumn({
-  entry,
-  place,
-  variant,
-}: {
-  entry?: LeaderboardEntry;
-  place: number;
-  variant: 'left' | 'center' | 'right';
-}) {
-  const isCenter = variant === 'center';
-  const columnStyle =
-    variant === 'left'
-      ? styles.colLeft
-      : variant === 'right'
-        ? styles.colRight
-        : styles.colCenter;
-  const bodyStyle =
-    variant === 'left'
-      ? styles.bodyLeft
-      : variant === 'right'
-        ? styles.bodyRight
-        : styles.bodyCenter;
-
-  return (
-    <View style={[styles.podiumColumn, columnStyle]}>
-      {entry ? (
-        <View style={styles.avatarWrap}>
-          <View style={styles.avatarRing}>
-            <UserAvatar
-              name={entry.displayName}
-              avatarUrl={entry.avatarUrl}
-              size={isCenter ? 54 : 48}
-            />
-          </View>
-          <RankBadge rank={place} size={isCenter ? 26 : 24} style={styles.avatarRankBadge} />
-        </View>
-      ) : null}
-      <View style={[styles.body, bodyStyle]}>
-        <View style={styles.bodyLip} />
-        <Text
-          style={styles.bodyXp}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.7}
-        >
-          {entry ? formatNumber(entry.xp) : '0'} XP
-        </Text>
-        <Text
-          style={styles.bodyName}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.6}
-        >
-          {entry?.displayName ?? 'Learner'}
-        </Text>
+    <View style={[styles.row, row.isMe && styles.rowMe]}>
+      <View style={[styles.rankBadge, medal ? { backgroundColor: medal } : null]}>
+        <Text style={[styles.rankText, medal ? styles.rankTextMedal : null]}>{row.rank}</Text>
       </View>
-    </View>
-  );
-}
-
-function LeaderboardRow({ entry, isMe }: { entry: LeaderboardEntry; isMe: boolean }) {
-  return (
-    <View style={[styles.row, isMe && styles.rowMe]}>
-      <View style={styles.rowAvatar}>
-        <UserAvatar name={entry.displayName} avatarUrl={entry.avatarUrl} size={40} />
-        <RankBadge rank={entry.rank} size={22} style={styles.rowRankBadge} />
-      </View>
-      <View style={styles.rowMain}>
+      <UserAvatar name={row.displayName} avatarUrl={row.avatarUrl} size={40} />
+      <View style={styles.rowText}>
         <Text style={styles.rowName} numberOfLines={1}>
-          {entry.displayName}
-          {isMe ? <Text style={styles.rowMeTag}>  (you)</Text> : null}
+          {row.displayName}
         </Text>
-        {entry.country ? <Text style={styles.rowMeta}>{entry.country}</Text> : null}
+        <Text style={styles.rowStreak}>🔥 {row.currentStreakDays}-day streak</Text>
       </View>
-      <View style={styles.rowXp}>
-        <Text style={styles.rowXpValue}>{formatNumber(entry.xp)}</Text>
-        <Text style={styles.rowXpLabel}>XP</Text>
+      <View style={styles.rowScore}>
+        <Text style={styles.rowPoints}>{row.rootPoints.toLocaleString('en-US')}</Text>
+        {delta ? (
+          <Text style={[styles.rowDelta, delta > 0 ? styles.deltaUp : styles.deltaDown]}>
+            {delta > 0 ? `↑ ${delta}` : `↓ ${Math.abs(delta)}`}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
 }
 
-function RankBadge({
-  rank,
-  size,
-  style,
+function InviteField({
+  value,
+  onChange,
+  busy,
+  onSubmit,
 }: {
-  rank: number;
-  size: number;
-  style?: StyleProp<ViewStyle>;
+  value: string;
+  onChange: (next: string) => void;
+  busy: boolean;
+  onSubmit: () => void;
 }) {
-  const badgeColor =
-    rank === 1
-      ? '#FFB400'
-      : rank === 2
-        ? '#20B958'
-        : rank === 3
-          ? '#6C3FC5'
-          : colors.primary;
   return (
-    <View
-      style={[
-        styles.rankBadge,
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: badgeColor,
-        },
-        style,
-      ]}
-    >
-      <Text style={[styles.rankBadgeText, { fontSize: Math.max(11, Math.round(size * 0.5)) }]}>
-        {rank}
-      </Text>
+    <View style={styles.inviteBlock}>
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        placeholder="their@email.com"
+        placeholderTextColor={colors.neutralVariant}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
+        returnKeyType="send"
+        onSubmitEditing={onSubmit}
+        style={styles.inviteInput}
+      />
+      <Pressable
+        disabled={busy || value.trim().length === 0}
+        onPress={onSubmit}
+        style={({ pressed }) => [
+          styles.inviteBtn,
+          (busy || value.trim().length === 0) && styles.inviteBtnDisabled,
+          pressed && { opacity: 0.85 },
+        ]}
+      >
+        <Ionicons name="person-add-outline" size={16} color={colors.white} />
+        <Text style={styles.inviteBtnLabel}>{busy ? 'Sending…' : 'Invite'}</Text>
+      </Pressable>
     </View>
+  );
+}
+
+function Stat({ value, label }: { value: string; label: string }) {
+  return (
+    <View style={styles.stat}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function SegmentButton({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={[styles.segmentBtn, active && styles.segmentBtnActive]}>
+      <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function FilterChip({
+  label,
+  onPress,
+  tone,
+}: {
+  label: string;
+  onPress: () => void;
+  tone?: 'primary';
+}) {
+  return (
+    <Pressable onPress={onPress} style={[styles.chip, tone === 'primary' && styles.chipPrimary]}>
+      <Text style={[styles.chipLabel, tone === 'primary' && styles.chipLabelPrimary]}>{label}</Text>
+      <Ionicons
+        name="chevron-down"
+        size={14}
+        color={tone === 'primary' ? colors.primary : colors.neutralVariant}
+      />
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#FCE4E0',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 28,
-    paddingTop: 14,
-    paddingBottom: 12,
-  },
-  closeBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontFamily: fonts.black,
-    fontSize: 30,
-    color: colors.primary,
-  },
-  loadingBlock: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scroller: {
-    flex: 1,
-  },
+  root: { flex: 1, backgroundColor: colors.background },
   scroll: {
-    flexGrow: 1,
-  },
-  podiumStage: {
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingTop: 10,
-  },
-  podium: {
-    width: podiumWidth,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  podiumColumn: {
-    alignItems: 'center',
-  },
-  colLeft: {
-    width: 112,
-    zIndex: 1,
-  },
-  colRight: {
-    width: 112,
-    zIndex: 1,
-  },
-  colCenter: {
-    width: 126,
-    marginHorizontal: -10,
-    zIndex: 3,
-  },
-  avatarWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: -16,
-    zIndex: 5,
-  },
-  avatarRing: {
-    padding: 3,
-    borderRadius: radius.full,
-    backgroundColor: colors.white,
-    borderWidth: 3,
-    borderColor: '#2C8CCB',
-  },
-  avatarRankBadge: {
-    position: 'absolute',
-    left: -6,
-    top: -6,
-    borderWidth: 2,
-    borderColor: colors.white,
-    zIndex: 6,
-  },
-  body: {
-    width: '100%',
-    backgroundColor: colors.primary,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    alignItems: 'center',
-    paddingTop: 32,
-    paddingHorizontal: 8,
-    overflow: 'hidden',
-  },
-  bodyCenter: {
-    height: 158,
-  },
-  bodyLeft: {
-    height: 122,
-  },
-  bodyRight: {
-    height: 106,
-  },
-  bodyLip: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 20,
-    backgroundColor: '#B23A22',
-  },
-  bodyXp: {
-    fontFamily: fonts.black,
-    fontSize: 16,
-    color: '#FFD43B',
-    textAlign: 'center',
-  },
-  bodyName: {
-    fontFamily: fonts.black,
-    fontSize: 15,
-    color: '#FFD43B',
-    textAlign: 'center',
-    marginTop: 2,
-    maxWidth: 112,
-  },
-  sheet: {
-    flex: 1,
-    minHeight: 620,
-    marginTop: -20,
-    backgroundColor: colors.white,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    paddingTop: 24,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
     paddingBottom: spacing.xl,
+    gap: spacing.md,
   },
-  sectionTitle: {
-    fontFamily: fonts.extrabold,
-    fontSize: 22,
-    color: '#0E1F2A',
-    paddingHorizontal: 22,
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  title: { fontFamily: fonts.extrabold, fontSize: 24, color: colors.neutral },
+  weekChip: {
+    alignItems: 'flex-end',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
   },
-  sectionSubtitle: {
-    fontFamily: fonts.medium,
-    fontSize: 16,
-    color: colors.neutralVariant,
-    paddingHorizontal: 22,
-    marginTop: 4,
-    marginBottom: 18,
+  weekNumber: { fontFamily: fonts.bold, fontSize: 12, color: colors.neutral },
+  weekRange: { fontFamily: fonts.regular, fontSize: 11, color: colors.neutralVariant },
+  hero: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: 4,
   },
-  list: {
-    paddingHorizontal: 22,
+  heroTitle: { fontFamily: fonts.extrabold, fontSize: 16, color: colors.white },
+  heroBody: { fontFamily: fonts.regular, fontSize: 12, color: 'rgba(255,255,255,0.92)' },
+  segment: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.full,
+    padding: 4,
+    alignSelf: 'flex-start',
   },
+  segmentBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.full,
+  },
+  segmentBtnActive: { backgroundColor: colors.primary },
+  segmentLabel: { fontFamily: fonts.bold, fontSize: 13, color: colors.primary },
+  segmentLabelActive: { color: colors.white },
+  filters: { gap: spacing.sm, paddingRight: spacing.lg },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.white,
+  },
+  chipPrimary: { borderColor: colors.primaryBorder, backgroundColor: colors.primarySofter },
+  chipLabel: { fontFamily: fonts.semibold, fontSize: 13, color: colors.neutral },
+  chipLabelPrimary: { color: colors.primary },
+  countdown: {
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    color: colors.success,
+    textAlign: 'right',
+  },
+  state: { marginTop: spacing.xl },
+  list: { gap: spacing.sm },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    gap: 14,
-  },
-  rowMe: {
-    backgroundColor: colors.primarySofter,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.sm,
-    marginHorizontal: -spacing.sm,
-  },
-  rowAvatar: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-  },
-  rowRankBadge: {
-    position: 'absolute',
-    left: -3,
-    top: -2,
+    gap: spacing.sm,
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
-  rowMain: {
-    flex: 1,
-    minWidth: 0,
-  },
-  rowName: {
-    fontFamily: fonts.extrabold,
-    fontSize: 17,
-    color: '#10212B',
-  },
-  rowMeTag: {
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    color: colors.primary,
-  },
-  rowMeta: {
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    color: '#A3A0A0',
-    marginTop: 2,
-  },
-  rowXp: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 4,
-    backgroundColor: '#FCE9E6',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 7,
-  },
-  rowXpValue: {
-    fontFamily: fonts.extrabold,
-    fontSize: 13,
-    color: colors.primary,
-  },
-  rowXpLabel: {
-    fontFamily: fonts.black,
-    fontSize: 13,
-    color: colors.primary,
-  },
+  rowMe: { borderColor: colors.primaryBorder, backgroundColor: colors.primarySofter },
   rankBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.background,
   },
-  rankBadgeText: {
-    fontFamily: fonts.extrabold,
-    color: colors.white,
-    lineHeight: 18,
+  rankText: { fontFamily: fonts.bold, fontSize: 13, color: colors.neutral },
+  rankTextMedal: { color: colors.white },
+  rowText: { flex: 1, minWidth: 0 },
+  rowName: { fontFamily: fonts.bold, fontSize: 14, color: colors.neutral },
+  rowStreak: { fontFamily: fonts.regular, fontSize: 11, color: colors.neutralVariant, marginTop: 2 },
+  rowScore: { alignItems: 'flex-end' },
+  rowPoints: { fontFamily: fonts.extrabold, fontSize: 15, color: colors.success },
+  rowDelta: { fontFamily: fonts.semibold, fontSize: 11, marginTop: 2 },
+  deltaUp: { color: colors.success },
+  deltaDown: { color: colors.error },
+  pinnedHint: {
+    fontFamily: fonts.semibold,
+    fontSize: 11,
+    color: colors.neutralVariant,
+    marginTop: spacing.sm,
+  },
+  emptyCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.xs,
+    backgroundColor: colors.white,
+  },
+  emptyTitle: { fontFamily: fonts.extrabold, fontSize: 16, color: colors.neutral },
+  emptyBody: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    color: colors.neutralVariant,
+    lineHeight: 19,
+  },
+  inviteBlock: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
+  inviteInput: {
+    flex: 1,
+    height: 42,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    color: colors.neutral,
+    backgroundColor: colors.white,
+  },
+  inviteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    height: 42,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+  },
+  inviteBtnDisabled: { opacity: 0.5 },
+  inviteBtnLabel: { fontFamily: fonts.bold, fontSize: 13, color: colors.white },
+  progressCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: spacing.sm,
+    backgroundColor: colors.white,
+  },
+  progressTitle: { fontFamily: fonts.extrabold, fontSize: 15, color: colors.neutral },
+  progressRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  stat: { alignItems: 'flex-start', flex: 1 },
+  statValue: { fontFamily: fonts.extrabold, fontSize: 18, color: colors.success },
+  statLabel: { fontFamily: fonts.regular, fontSize: 11, color: colors.neutralVariant },
+  milestone: {
+    backgroundColor: colors.successSurface,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+  },
+  milestoneValue: { fontFamily: fonts.extrabold, fontSize: 14, color: colors.success },
+  milestoneLabel: { fontFamily: fonts.regular, fontSize: 11, color: colors.neutralVariant },
+  optedOut: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.neutralVariant,
+    lineHeight: 16,
   },
 });

@@ -31,6 +31,7 @@ const ALLOWED_ROUTE_PREFIXES = [
   // Account notices (a family seat ending) land on the subscription screen,
   // which is where the learner can do something about it.
   '/subscription',
+  '/leaderboard',
 ];
 
 /** Foreground presentation: show the banner + play sound even while in-app. */
