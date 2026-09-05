@@ -279,14 +279,20 @@ export class ProgressService {
 
       // Root Points, decided here and never by the client.
       //
-      // A first pass earns the configured rate in full; a review earns a
-      // fraction of it, shrinking with each repeat until it earns nothing. That
-      // is the anti-farming rule: revisiting a lesson is worth encouraging,
-      // replaying the easiest one for rank is not. Rates and the ladder are
-      // admin-configurable, so the balance can be tuned without a release.
+      // The base is what this lesson is worth: its own `xpReward` when an author
+      // set one, otherwise the platform rate. Per-lesson values are editable in
+      // admin and long predate Root Points — ignoring them would silently
+      // reprice every lesson in the catalogue to a single flat number.
+      //
+      // The ladder then does the anti-farming work: a first pass earns the base
+      // in full, a review a fraction of it, shrinking with each repeat until it
+      // earns nothing. Revisiting a lesson is worth encouraging; replaying the
+      // easiest one for rank is not. Both the rate and the ladder are
+      // admin-configurable, so the balance is tunable without a release.
       const priorCompletions = existing?.attempts ?? 0;
       const activity: RpActivity = existing ? 'lesson_review' : 'lesson_completion';
-      const baseRate = await this.leaderboard.rateFor(activity);
+      const baseRate =
+        lesson.xpReward > 0 ? lesson.xpReward : await this.leaderboard.rateFor('lesson_completion');
       const multiplier = await this.leaderboard.repeatMultiplier(priorCompletions);
       const xpAwarded = Math.round(baseRate * multiplier);
 

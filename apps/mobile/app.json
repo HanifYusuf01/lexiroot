@@ -3,7 +3,7 @@
     "name": "LexiRoot",
     "slug": "lexiroot",
     "scheme": "lexiroot",
-    "version": "0.0.4",
+    "version": "0.0.5",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -11,13 +11,14 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.lexiroot.mobile",
-      "buildNumber": "5",
+      "buildNumber": "6",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.lexiroot.mobile",
+      "versionCode": 2,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",

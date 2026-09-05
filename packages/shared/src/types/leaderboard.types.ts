@@ -54,7 +54,16 @@ export const RP_ACTIVITY_LABELS: Record<RpActivity, string> = {
   admin_adjustment: 'Manual adjustment',
 };
 
-/** RP awarded per activity. Admin-editable; missing keys fall back to the defaults. */
+/**
+ * RP awarded per activity. Admin-editable; missing keys fall back to the
+ * defaults below.
+ *
+ * `lesson_completion` is the *fallback* for a lesson with no `xpReward` of its
+ * own — a lesson that carries one is worth that instead, so authors keep
+ * control of individual lessons. Repeats of a lesson are priced by
+ * `DEFAULT_RP_REPEAT_MULTIPLIERS` against the same base rather than by the
+ * `lesson_review` rate, which is reserved for standalone review activities.
+ */
 export type RootPointRates = Partial<Record<RpActivity, number>>;
 
 export const DEFAULT_RP_RATES: Record<RpActivity, number> = {

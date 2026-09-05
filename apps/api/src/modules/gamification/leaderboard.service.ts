@@ -55,6 +55,19 @@ function ymd(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * The week boundary as an absolute instant.
+ *
+ * Comparing a `timestamptz` against a bare `'YYYY-MM-DD'::date` makes Postgres
+ * resolve the date in the *session* timezone, so on a server that isn't UTC the
+ * week would silently start hours early or late — and the countdown, computed
+ * in UTC here, would disagree with the cut. Passing a full ISO instant removes
+ * the question.
+ */
+function instant(d: Date): string {
+  return d.toISOString();
+}
+
 interface RankedRow {
   userId: string;
   displayName: string;
@@ -150,7 +163,7 @@ export class LeaderboardService {
     start: Date,
     group: { language: LanguageCode | null; level: LearningLevel | null; league: League },
   ): Promise<RankedRow[]> {
-    const params: unknown[] = [ymd(start), group.league];
+    const params: unknown[] = [instant(start), group.league];
     let filters = '';
     if (group.language) {
       params.push(group.language);
@@ -169,7 +182,7 @@ export class LeaderboardService {
               COALESCE(SUM(x."amount"), 0)::int AS "rootPoints"
          FROM "users" u
          JOIN "xp_ledger" x
-           ON x."user_id" = u."id" AND x."created_at" >= $1::date
+           ON x."user_id" = u."id" AND x."created_at" >= $1::timestamptz
         WHERE u."role" = 'user'
           AND u."deleted_at" IS NULL
           AND u."leaderboard_opt_out" = false
@@ -207,8 +220,8 @@ export class LeaderboardService {
     const [totals] = (await this.users.manager.query(
       `SELECT COALESCE(SUM(x."amount"), 0)::int AS "rootPoints"
          FROM "xp_ledger" x
-        WHERE x."user_id" = $1 AND x."created_at" >= $2::date`,
-      [userId, ymd(start)],
+        WHERE x."user_id" = $1 AND x."created_at" >= $2::timestamptz`,
+      [userId, instant(start)],
     )) as Array<{ rootPoints: number }>;
 
     const [work] = (await this.users.manager.query(
@@ -216,8 +229,8 @@ export class LeaderboardService {
               COALESCE(SUM(c."correct_count"), 0)::int AS "correct",
               COALESCE(SUM(c."total_count"), 0)::int AS "answered"
          FROM "lesson_completions" c
-        WHERE c."user_id" = $1 AND c."completed_at" >= $2::date`,
-      [userId, ymd(start)],
+        WHERE c."user_id" = $1 AND c."completed_at" >= $2::timestamptz`,
+      [userId, instant(start)],
     )) as Array<{ lessons: number; correct: number; answered: number }>;
 
     const previous = await this.previousRank(userId, start);
@@ -297,14 +310,14 @@ export class LeaderboardService {
               u."display_name" AS "displayName",
               u."avatar_url" AS "avatarUrl",
               u."current_streak_days" AS "currentStreakDays",
-              COALESCE(SUM(x."amount") FILTER (WHERE x."created_at" >= $2::date), 0)::int
+              COALESCE(SUM(x."amount") FILTER (WHERE x."created_at" >= $2::timestamptz), 0)::int
                 AS "rootPoints"
          FROM people
          JOIN "users" u ON u."id" = people."user_id" AND u."deleted_at" IS NULL
          LEFT JOIN "xp_ledger" x ON x."user_id" = u."id"
         GROUP BY u."id"
         ORDER BY "rootPoints" DESC, u."created_at" ASC`,
-      [userId, ymd(start)],
+      [userId, instant(start)],
     )) as RankedRow[];
 
     return {
@@ -336,7 +349,7 @@ export class LeaderboardService {
               u."display_name" AS "displayName",
               u."avatar_url" AS "avatarUrl",
               u."current_streak_days" AS "currentStreakDays",
-              COALESCE(SUM(x."amount") FILTER (WHERE x."created_at" >= $2::date), 0)::int
+              COALESCE(SUM(x."amount") FILTER (WHERE x."created_at" >= $2::timestamptz), 0)::int
                 AS "rootPoints"
          FROM people
          JOIN "users" u
@@ -346,7 +359,7 @@ export class LeaderboardService {
          LEFT JOIN "xp_ledger" x ON x."user_id" = u."id"
         GROUP BY u."id"
         ORDER BY "rootPoints" DESC, u."created_at" ASC`,
-      [userId, ymd(start)],
+      [userId, instant(start)],
     )) as RankedRow[];
 
     return {
@@ -381,13 +394,13 @@ export class LeaderboardService {
          FROM "users" u
          JOIN "xp_ledger" x
            ON x."user_id" = u."id"
-          AND x."created_at" >= $1::date
-          AND x."created_at" < $2::date
+          AND x."created_at" >= $1::timestamptz
+          AND x."created_at" < $2::timestamptz
         WHERE u."role" = 'user' AND u."deleted_at" IS NULL
         GROUP BY u."id"
        HAVING COALESCE(SUM(x."amount"), 0) >= $3
         ORDER BY u."league", u."language", u."level", "rootPoints" DESC`,
-      [ymd(closedStart), ymd(currentStart), config.minWeeklyRp],
+      [instant(closedStart), instant(currentStart), config.minWeeklyRp],
     )) as Array<{
       userId: string;
       language: LanguageCode | null;
@@ -431,6 +444,17 @@ export class LeaderboardService {
     return { settled };
   }
 
+  /**
+   * Where a learner lands next week.
+   *
+   * The size guard is the important part. With a promote-top of 5, a group of
+   * three would see all three promoted *and* all three demoted every week —
+   * promotion winning only because it is tested first. At launch scale that
+   * marches everybody to Platinum in a fortnight and the leagues stop meaning
+   * anything before anyone has competed. So a group has to be bigger than the
+   * band before that band applies: you cannot win a league you are alone in,
+   * and nobody is relegated out of a group too small to have a bottom.
+   */
   private leagueAfter(
     league: League,
     rank: number,
@@ -439,8 +463,15 @@ export class LeaderboardService {
   ): League {
     const order: League[] = ['bronze', 'silver', 'gold', 'platinum'];
     const index = order.indexOf(league);
-    if (rank <= config.promoteTop && index < order.length - 1) return order[index + 1];
-    if (rank > groupSize - config.demoteBottom && index > 0) return order[index - 1];
+
+    const canPromote = groupSize > config.promoteTop && index < order.length - 1;
+    if (canPromote && rank <= config.promoteTop) return order[index + 1];
+
+    // Demotion needs room for both bands, or the same learner qualifies twice.
+    const canDemote =
+      groupSize > config.promoteTop + config.demoteBottom && index > 0;
+    if (canDemote && rank > groupSize - config.demoteBottom) return order[index - 1];
+
     return league;
   }
 }
