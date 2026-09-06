@@ -39,6 +39,19 @@ export class FriendsController {
     return this.friends.accept(user.id, dto.token);
   }
 
+  /** Accept an invitation listed in the app, rather than from its emailed link. */
+  @Post('invites/:id/accept')
+  @HttpCode(200)
+  acceptById(@CurrentUser() user: User, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.friends.acceptById(user.id, id);
+  }
+
+  @Post('invites/:id/decline')
+  @HttpCode(200)
+  decline(@CurrentUser() user: User, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.friends.decline(user.id, id);
+  }
+
   /** Removes a friend, or withdraws an invitation the caller sent. */
   @Delete(':id')
   @HttpCode(200)

@@ -37,32 +37,75 @@ export function LeaderboardCard() {
       onPress={() => router.push('/leaderboard')}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
-      <View style={styles.icon}>
-        <Ionicons name="trophy" size={22} color={colors.tertiary} />
-      </View>
+      {/* A soft corner wash so the card reads as a feature rather than a row. */}
+      <View style={styles.corner} />
 
-      <View style={styles.text}>
-        <Text style={styles.title}>
-          {hasRank ? `You're #${me.rank} this week` : 'Join this week’s leaderboard'}
-        </Text>
-        <Text style={styles.meta} numberOfLines={1}>
-          {hasRank
-            ? `${me.rootPoints.toLocaleString('en-US')} RP · ${LEAGUE_LABELS[me.league]}`
-            : 'Finish a lesson to earn your first Root Points'}
-        </Text>
-      </View>
-
-      <View style={styles.right}>
+      <View style={styles.header}>
+        <View style={styles.badge}>
+          <Ionicons name="trophy" size={14} color={colors.tertiary} />
+          <Text style={styles.badgeText}>{LEAGUE_LABELS[me.league].toUpperCase()}</Text>
+        </View>
         {data?.period ? (
           <Text style={styles.countdown}>{shortCountdown(data.period.resetsInMs)}</Text>
         ) : null}
+      </View>
+
+      <View style={styles.main}>
+        <View style={styles.rankBlock}>
+          <Text style={styles.rankValue}>{hasRank ? `#${me.rank}` : '—'}</Text>
+          <Text style={styles.rankLabel}>this week</Text>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.pointsBlock}>
+          <Text style={styles.pointsValue}>{me.rootPoints.toLocaleString('en-US')}</Text>
+          <Text style={styles.pointsLabel}>Root Points</Text>
+        </View>
+
         {me.rankDelta ? (
-          <Text style={[styles.delta, me.rankDelta > 0 ? styles.up : styles.down]}>
-            {me.rankDelta > 0 ? `↑ ${me.rankDelta}` : `↓ ${Math.abs(me.rankDelta)}`}
+          <View
+            style={[styles.deltaPill, me.rankDelta > 0 ? styles.deltaPillUp : styles.deltaPillDown]}
+          >
+            <Ionicons
+              name={me.rankDelta > 0 ? 'arrow-up' : 'arrow-down'}
+              size={12}
+              color={me.rankDelta > 0 ? colors.success : colors.error}
+            />
+            <Text style={[styles.deltaText, me.rankDelta > 0 ? styles.up : styles.down]}>
+              {Math.abs(me.rankDelta)}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* Progress to the next milestone — the reason to come back today. */}
+      {me.nextMilestone !== null && me.rpToNextMilestone !== null ? (
+        <View style={styles.progressWrap}>
+          <View style={styles.track}>
+            <View
+              style={[
+                styles.fill,
+                {
+                  width: `${Math.min(
+                    100,
+                    Math.max(4, Math.round((me.rootPoints / me.nextMilestone) * 100)),
+                  )}%`,
+                },
+              ]}
+            />
+          </View>
+          <Text style={styles.progressLabel}>
+            {hasRank
+              ? `${me.rpToNextMilestone} RP to ${me.nextMilestone.toLocaleString('en-US')}`
+              : 'Finish a lesson to get on the board'}
           </Text>
-        ) : (
-          <Ionicons name="chevron-forward" size={18} color={colors.neutralVariant} />
-        )}
+        </View>
+      ) : null}
+
+      <View style={styles.footer}>
+        <Text style={styles.footerLink}>View leaderboard</Text>
+        <Ionicons name="chevron-forward" size={16} color={colors.primary} />
       </View>
     </Pressable>
   );
@@ -70,36 +113,77 @@ export function LeaderboardCard() {
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.primaryBorder,
     backgroundColor: colors.white,
+    padding: spacing.md,
+    gap: spacing.sm,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  pressed: { opacity: 0.85 },
-  icon: {
-    width: 40,
-    height: 40,
+  pressed: { opacity: 0.9 },
+  corner: {
+    position: 'absolute',
+    top: -40,
+    right: -30,
+    width: 120,
+    height: 120,
     borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: colors.primarySofter,
   },
-  text: { flex: 1, minWidth: 0 },
-  title: { fontFamily: fonts.extrabold, fontSize: 15, color: colors.neutral },
-  meta: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    color: colors.neutralVariant,
-    marginTop: 2,
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+    backgroundColor: colors.primarySoft,
   },
-  right: { alignItems: 'flex-end', gap: 2 },
+  badgeText: {
+    fontFamily: fonts.extrabold,
+    fontSize: 10,
+    letterSpacing: 0.6,
+    color: colors.primary,
+  },
   countdown: { fontFamily: fonts.semibold, fontSize: 11, color: colors.neutralVariant },
-  delta: { fontFamily: fonts.bold, fontSize: 12 },
+  main: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  rankBlock: { alignItems: 'flex-start' },
+  rankValue: { fontFamily: fonts.extrabold, fontSize: 30, color: colors.primary, lineHeight: 34 },
+  rankLabel: { fontFamily: fonts.regular, fontSize: 11, color: colors.neutralVariant },
+  divider: { width: 1, alignSelf: 'stretch', backgroundColor: colors.border, marginVertical: 4 },
+  pointsBlock: { flex: 1 },
+  pointsValue: { fontFamily: fonts.extrabold, fontSize: 22, color: colors.success },
+  pointsLabel: { fontFamily: fonts.regular, fontSize: 11, color: colors.neutralVariant },
+  deltaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+  },
+  deltaPillUp: { backgroundColor: colors.successSurface },
+  deltaPillDown: { backgroundColor: colors.errorSurface },
+  deltaText: { fontFamily: fonts.extrabold, fontSize: 12 },
   up: { color: colors.success },
   down: { color: colors.error },
+  progressWrap: { gap: 4 },
+  track: {
+    height: 6,
+    borderRadius: radius.full,
+    backgroundColor: colors.primarySoft,
+    overflow: 'hidden',
+  },
+  fill: { height: 6, borderRadius: radius.full, backgroundColor: colors.primary },
+  progressLabel: { fontFamily: fonts.regular, fontSize: 11, color: colors.neutralVariant },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 2,
+  },
+  footerLink: { fontFamily: fonts.bold, fontSize: 12, color: colors.primary },
 });

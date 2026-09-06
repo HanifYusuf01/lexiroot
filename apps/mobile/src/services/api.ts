@@ -126,12 +126,45 @@ export const api = createApi({
   baseQuery: offlineAwareBaseQuery,
   // Absorb the persisted RTK Query cache when redux-persist rehydrates, so
   // previously-fetched lessons are immediately available offline on cold start.
+  /**
+   * Absorb the persisted RTK Query cache on rehydrate, so previously-fetched
+   * lessons are available offline on a cold start.
+   *
+   * Entries are filtered to endpoints this build actually has. A persisted
+   * cache outlives the code that wrote it: an endpoint renamed or removed in a
+   * new release leaves rows behind, and RTK then reads
+   * `"serializeQueryArgs" in endpointDefinition` against an `undefined`
+   * definition — which throws `right operand of 'in' is not an object` and, in
+   * a release build, takes the screen down. It surfaces at whatever moment
+   * rehydration touches the stale row, which is why it looked random.
+   */
   extractRehydrationInfo(action, { reducerPath }) {
-    if (action.type === REHYDRATE) {
-      const payload = (action as { payload?: Record<string, unknown> }).payload;
-      return payload?.[reducerPath] as never;
-    }
-    return undefined;
+    if (action.type !== REHYDRATE) return undefined;
+    const payload = (action as { payload?: Record<string, unknown> }).payload;
+    const slice = payload?.[reducerPath] as
+      | {
+          queries?: Record<string, { endpointName?: string } | undefined>;
+          mutations?: Record<string, { endpointName?: string } | undefined>;
+        }
+      | undefined;
+    if (!slice) return undefined;
+
+    // `api` is initialised by the time this callback runs.
+    const known = new Set(Object.keys(api.endpoints ?? {}));
+    const keepKnown = <T extends { endpointName?: string } | undefined>(
+      entries: Record<string, T> | undefined,
+    ): Record<string, T> =>
+      Object.fromEntries(
+        Object.entries(entries ?? {}).filter(
+          ([, entry]) => !!entry?.endpointName && known.has(entry.endpointName),
+        ),
+      ) as Record<string, T>;
+
+    return {
+      ...slice,
+      queries: keepKnown(slice.queries),
+      mutations: keepKnown(slice.mutations),
+    } as never;
   },
   tagTypes: [
     'User',

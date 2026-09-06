@@ -9,6 +9,7 @@ import {
   useFriendInvitePreviewQuery,
 } from '../src/services/friendsApi';
 import { apiErrorMessage } from '../src/utils/apiError';
+import { pendingInviteStorage } from '../src/services/secureStorage';
 import { useAppSelector } from '../src/store/hooks';
 
 /**
@@ -99,9 +100,18 @@ export default function FriendInviteScreen() {
             />
           ) : (
             <>
-              <Button label="Sign in to accept" onPress={() => router.push('/login')} />
+              <Button
+                label="Sign in or sign up to accept"
+                onPress={async () => {
+                  // Parked before leaving: signing in ends at Home, so without
+                  // this the invitation is gone the moment they navigate away.
+                  if (token) await pendingInviteStorage.set('friend', token);
+                  router.push('/login');
+                }}
+              />
               <Text style={styles.meta}>
-                Sign in (or create an account) with {data.email}, then open this link again.
+                Use {data.email}. We'll bring you straight back here afterwards — signing up for a
+                new account works too.
               </Text>
             </>
           )}

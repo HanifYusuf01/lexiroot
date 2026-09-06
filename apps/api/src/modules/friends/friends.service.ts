@@ -191,9 +191,32 @@ export class FriendsService {
     return invite;
   }
 
-  /** Accept an invitation as the authenticated caller. */
+  /** Accept an invitation from its emailed link. */
   async accept(userId: string, token: string): Promise<FriendsOverview> {
-    const invite = await this.pendingByToken(token);
+    return this.acceptInvite(userId, await this.pendingByToken(token));
+  }
+
+  /**
+   * Accept an invitation the app already listed for this user.
+   *
+   * The emailed link is not the only way in. A deep link that fails to open —
+   * no app installed yet, a mail client that strips the scheme, a tap on a
+   * desktop — used to leave the invitation reachable nowhere at all, since
+   * nothing in the app showed it. Accepting by id needs no token because the
+   * email check below is what actually authorises it: the invitation is
+   * addressed to a person, not to whoever holds a secret.
+   */
+  async acceptById(userId: string, inviteId: string): Promise<FriendsOverview> {
+    const invite = await this.invites.findOne({ where: { id: inviteId } });
+    if (!invite || invite.revokedAt) throw new NotFoundException('Invitation not found.');
+    if (invite.acceptedAt) throw new BadRequestException('This invitation has already been used.');
+    if (invite.expiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('This invitation has expired.');
+    }
+    return this.acceptInvite(userId, invite);
+  }
+
+  private async acceptInvite(userId: string, invite: FriendInvite): Promise<FriendsOverview> {
     const user = await this.users.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found.');
 
@@ -208,6 +231,21 @@ export class FriendsService {
     invite.acceptedAt = new Date();
     await this.invites.save(invite);
     await this.link(invite.inviterId, userId);
+    return this.overview(userId);
+  }
+
+  /** Turn down an invitation addressed to the caller. */
+  async decline(userId: string, inviteId: string): Promise<FriendsOverview> {
+    const user = await this.users.findOne({ where: { id: userId } });
+    const invite = await this.invites.findOne({ where: { id: inviteId } });
+    if (!user || !invite || invite.revokedAt || invite.acceptedAt) {
+      throw new NotFoundException('Invitation not found.');
+    }
+    if (user.email.toLowerCase() !== invite.invitedEmail) {
+      throw new ForbiddenException('This invitation was sent to a different email address.');
+    }
+    invite.revokedAt = new Date();
+    await this.invites.save(invite);
     return this.overview(userId);
   }
 

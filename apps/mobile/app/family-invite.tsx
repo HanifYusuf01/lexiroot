@@ -10,6 +10,7 @@ import {
 } from '../src/services/familyApi';
 import { apiErrorMessage } from '../src/utils/apiError';
 import { refreshAuthUser } from '../src/services/refreshAuthUser';
+import { pendingInviteStorage } from '../src/services/secureStorage';
 import { useAppDispatch, useAppSelector } from '../src/store/hooks';
 
 /**
@@ -126,11 +127,17 @@ export default function FamilyInviteScreen() {
           ) : (
             <>
               <Button
-                label="Sign in to accept"
-                onPress={() => router.push('/login')}
+                label="Sign in or sign up to accept"
+                onPress={async () => {
+                  // Parked before leaving: signing in ends at Home, so without
+                  // this the invitation is gone the moment they navigate away.
+                  if (token) await pendingInviteStorage.set('family', token);
+                  router.push('/login');
+                }}
               />
               <Text style={styles.meta}>
-                Sign in (or create an account) with {data.email}, then open this link again.
+                Use {data.email}. We'll bring you straight back here afterwards — signing up for a
+                new account works too.
               </Text>
             </>
           )}

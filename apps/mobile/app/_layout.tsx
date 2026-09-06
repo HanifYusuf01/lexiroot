@@ -18,6 +18,7 @@ import {
 import { persistor, store } from '../src/store';
 import { useAppSelector } from '../src/store/hooks';
 import { useAuthBootstrap } from '../src/hooks/useAuthBootstrap';
+import { useResumePendingInvite } from '../src/hooks/useResumePendingInvite';
 import { usePushNotificationsBootstrap } from '../src/hooks/usePushNotifications';
 import { startConnectivityMonitor } from '../src/services/connectivity';
 import { flushOutbox } from '../src/store/outboxFlush';
@@ -38,6 +39,7 @@ const navTheme = {
 
 function Bootstrap({ children }: { children: ReactNode }) {
   useAuthBootstrap();
+  useResumePendingInvite();
   usePushNotificationsBootstrap();
   const hydrated = useAppSelector((s) => s.auth.hydrated);
 

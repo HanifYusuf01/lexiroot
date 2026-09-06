@@ -34,6 +34,17 @@ export const friendsApi = api.injectEndpoints({
       query: (body) => ({ url: '/friends/invites/accept', method: 'POST', body }),
       invalidatesTags: ['Friends', 'Leaderboard'],
     }),
+    // Accepting from the in-app list rather than the emailed link. Needed
+    // because a deep link that never opens used to leave an invitation
+    // reachable nowhere.
+    acceptFriendInviteById: build.mutation<FriendsOverview, { id: string }>({
+      query: ({ id }) => ({ url: `/friends/invites/${id}/accept`, method: 'POST' }),
+      invalidatesTags: ['Friends', 'Leaderboard'],
+    }),
+    declineFriendInvite: build.mutation<FriendsOverview, { id: string }>({
+      query: ({ id }) => ({ url: `/friends/invites/${id}/decline`, method: 'POST' }),
+      invalidatesTags: ['Friends'],
+    }),
     removeFriend: build.mutation<FriendsOverview, { id: string }>({
       query: ({ id }) => ({ url: `/friends/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Friends', 'Leaderboard'],
@@ -47,5 +58,7 @@ export const {
   useInviteFriendMutation,
   useFriendInvitePreviewQuery,
   useAcceptFriendInviteMutation,
+  useAcceptFriendInviteByIdMutation,
+  useDeclineFriendInviteMutation,
   useRemoveFriendMutation,
 } = friendsApi;

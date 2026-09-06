@@ -11,6 +11,8 @@ import {
   REHYDRATE,
 } from 'redux-persist';
 import { api } from '../services/api';
+// Registers every endpoint before rehydration — see registerEndpoints.
+import '../services/registerEndpoints';
 import authReducer from './slices/authSlice';
 import onboardingReducer from './slices/onboardingSlice';
 import networkReducer from './slices/networkSlice';

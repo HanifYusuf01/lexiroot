@@ -5,6 +5,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Modal,
   Text,
   TextInput,
   View,
@@ -28,8 +29,12 @@ import type {
 import { UserAvatar } from '../src/components/ui/UserAvatar';
 import { colors, fonts, radius, spacing } from '../src/constants/theme';
 import {
+  useAcceptFriendInviteByIdMutation,
+  useDeclineFriendInviteMutation,
   useFriendsLeaderboardQuery,
+  useFriendsQuery,
   useInviteFriendMutation,
+  useRemoveFriendMutation,
 } from '../src/services/friendsApi';
 import {
   useFamilyLeaderboardQuery,
@@ -75,6 +80,10 @@ export default function LeaderboardTab() {
   const [language, setLanguage] = useState<LanguageCode | undefined>();
   const [level, setLevel] = useState<LearningLevel | undefined>();
   const [league, setLeague] = useState<League | undefined>();
+  // Which filter's option sheet is open. Tapping a chip used to advance the
+  // value blind — you had to cycle the whole list to see what was available,
+  // and a mis-tap silently changed the board you were reading.
+  const [picker, setPicker] = useState<'language' | 'level' | 'league' | null>(null);
 
   const weekly = useLeaderboardQuery({ language, level, league });
   // Only fetched once the family board is actually being looked at — most
@@ -82,6 +91,11 @@ export default function LeaderboardTab() {
   const family = useFamilyLeaderboardQuery(undefined, { skip: board !== 'family' });
   const friends = useFriendsLeaderboardQuery(undefined, { skip: board !== 'friends' });
   const [inviteFriend, { isLoading: inviting }] = useInviteFriendMutation();
+  // Invitations, so the flow is visible in the app and not only in an email.
+  const friendsList = useFriendsQuery(undefined, { skip: board !== 'friends' });
+  const [acceptInvite] = useAcceptFriendInviteByIdMutation();
+  const [removeFriend] = useRemoveFriendMutation();
+  const [declineInvite] = useDeclineFriendInviteMutation();
 
   const period = weekly.data?.period ?? friends.data?.period ?? family.data?.period ?? null;
 
@@ -206,22 +220,76 @@ export default function LeaderboardTab() {
             >
               <FilterChip
                 label={language ? LANGUAGE_LABELS[language] : 'All languages'}
-                onPress={() =>
-                  setLanguage((current) => cycle(current, [...LANGUAGE_CODES_IN_USE]))
-                }
+                onPress={() => setPicker('language')}
               />
               <FilterChip
                 label={level ? LEARNING_LEVEL_LABELS[level] : 'All levels'}
-                onPress={() => setLevel((current) => cycle(current, [...LEARNING_LEVELS]))}
+                onPress={() => setPicker('level')}
               />
               <FilterChip
                 label={LEAGUE_LABELS[league ?? weekly.data?.league ?? 'bronze']}
                 tone="primary"
-                onPress={() => setLeague((current) => cycle(current, [...LEAGUES]))}
+                onPress={() => setPicker('league')}
               />
             </ScrollView>
             {period ? (
               <Text style={styles.countdown}>League resets in {formatCountdown(resetsIn)}</Text>
+            ) : null}
+          </>
+        ) : null}
+
+        {board === 'friends' && friendsList.data ? (
+          <>
+            {friendsList.data.incoming.length > 0 ? (
+              <View style={styles.inviteCard}>
+                <Text style={styles.inviteCardTitle}>Invitations for you</Text>
+                {friendsList.data.incoming.map((invite) => (
+                  <View key={invite.id} style={styles.inviteItem}>
+                    <View style={styles.inviteItemText}>
+                      <Text style={styles.inviteItemName} numberOfLines={1}>
+                        {invite.displayName ?? invite.email}
+                      </Text>
+                      <Text style={styles.inviteItemMeta}>wants to be friends</Text>
+                    </View>
+                    <Pressable
+                      onPress={() => acceptInvite({ id: invite.id })}
+                      style={styles.acceptBtn}
+                    >
+                      <Text style={styles.acceptBtnLabel}>Accept</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => declineInvite({ id: invite.id })}
+                      hitSlop={8}
+                      style={styles.declineBtn}
+                    >
+                      <Ionicons name="close" size={18} color={colors.neutralVariant} />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {friendsList.data.pending.length > 0 ? (
+              <View style={styles.inviteCard}>
+                <Text style={styles.inviteCardTitle}>Waiting to accept</Text>
+                {friendsList.data.pending.map((invite) => (
+                  <View key={invite.id} style={styles.inviteItem}>
+                    <View style={styles.inviteItemText}>
+                      <Text style={styles.inviteItemName} numberOfLines={1}>
+                        {invite.email}
+                      </Text>
+                      <Text style={styles.inviteItemMeta}>Invitation sent</Text>
+                    </View>
+                    <Pressable
+                      onPress={() => removeFriend({ id: invite.id })}
+                      hitSlop={8}
+                      style={styles.declineBtn}
+                    >
+                      <Ionicons name="close" size={18} color={colors.neutralVariant} />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
             ) : null}
           </>
         ) : null}
@@ -307,19 +375,103 @@ export default function LeaderboardTab() {
           </View>
         ) : null}
       </ScrollView>
+
+      <OptionSheet
+        title="Language"
+        visible={picker === 'language'}
+        onClose={() => setPicker(null)}
+        selected={language}
+        options={[
+          { value: undefined, label: 'All languages' },
+          ...LANGUAGE_CODES_IN_USE.map((code) => ({
+            value: code,
+            label: LANGUAGE_LABELS[code],
+          })),
+        ]}
+        onSelect={(value) => setLanguage(value)}
+      />
+      <OptionSheet
+        title="Level"
+        visible={picker === 'level'}
+        onClose={() => setPicker(null)}
+        selected={level}
+        options={[
+          { value: undefined, label: 'All levels' },
+          ...LEARNING_LEVELS.map((value) => ({
+            value,
+            label: LEARNING_LEVEL_LABELS[value],
+          })),
+        ]}
+        onSelect={(value) => setLevel(value)}
+      />
+      <OptionSheet
+        title="League"
+        visible={picker === 'league'}
+        onClose={() => setPicker(null)}
+        selected={league ?? weekly.data?.league}
+        options={LEAGUES.map((value) => ({ value, label: LEAGUE_LABELS[value] }))}
+        onSelect={(value) => setLeague(value)}
+      />
     </SafeAreaView>
+  );
+}
+
+/**
+ * A list of the actual options, as a sheet.
+ *
+ * Generic over the value so the same component serves all three filters and a
+ * caller can offer an "All …" row by passing `undefined` as a value — the thing
+ * a cycling chip could never show: what you are choosing between.
+ */
+function OptionSheet<T extends string>({
+  title,
+  visible,
+  onClose,
+  options,
+  selected,
+  onSelect,
+}: {
+  title: string;
+  visible: boolean;
+  onClose: () => void;
+  options: { value: T | undefined; label: string }[];
+  selected: T | undefined;
+  onSelect: (value: T | undefined) => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.sheetBackdrop} onPress={onClose}>
+        {/* Stops a tap inside the sheet from closing it. */}
+        <Pressable style={styles.sheet} onPress={() => undefined}>
+          <Text style={styles.sheetTitle}>{title}</Text>
+          {options.map((option) => {
+            const active = option.value === selected;
+            return (
+              <Pressable
+                key={option.label}
+                onPress={() => {
+                  onSelect(option.value);
+                  onClose();
+                }}
+                style={({ pressed }) => [styles.sheetRow, pressed && styles.sheetRowPressed]}
+              >
+                <Text style={[styles.sheetLabel, active && styles.sheetLabelActive]}>
+                  {option.label}
+                </Text>
+                {active ? (
+                  <Ionicons name="checkmark" size={18} color={colors.primary} />
+                ) : null}
+              </Pressable>
+            );
+          })}
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
 /** Languages offered in the filter. Kept local — the picker is cosmetic. */
 const LANGUAGE_CODES_IN_USE: LanguageCode[] = ['yo', 'ig', 'ha'];
-
-/** Steps a filter through undefined → each option → undefined again. */
-function cycle<T>(current: T | undefined, options: T[]): T | undefined {
-  if (current === undefined) return options[0];
-  const next = options.indexOf(current) + 1;
-  return next >= options.length ? undefined : options[next];
-}
 
 function Row({ row, delta }: { row: LeaderboardRow; delta?: number | null }) {
   const medal = MEDALS[row.rank];
@@ -553,6 +705,56 @@ const styles = StyleSheet.create({
     color: colors.neutralVariant,
     lineHeight: 19,
   },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xl,
+    gap: 2,
+  },
+  sheetTitle: {
+    fontFamily: fonts.extrabold,
+    fontSize: 16,
+    color: colors.neutral,
+    marginBottom: spacing.sm,
+  },
+  sheetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.md,
+  },
+  sheetRowPressed: { opacity: 0.6 },
+  sheetLabel: { fontFamily: fonts.semibold, fontSize: 15, color: colors.neutral },
+  sheetLabelActive: { color: colors.primary },
+  inviteCard: {
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primarySofter,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  inviteCardTitle: { fontFamily: fonts.extrabold, fontSize: 13, color: colors.neutral },
+  inviteItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  inviteItemText: { flex: 1, minWidth: 0 },
+  inviteItemName: { fontFamily: fonts.bold, fontSize: 13, color: colors.neutral },
+  inviteItemMeta: { fontFamily: fonts.regular, fontSize: 11, color: colors.neutralVariant },
+  acceptBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    backgroundColor: colors.primary,
+  },
+  acceptBtnLabel: { fontFamily: fonts.bold, fontSize: 12, color: colors.white },
+  declineBtn: { padding: 2 },
   inviteBlock: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
   inviteInput: {
     flex: 1,
