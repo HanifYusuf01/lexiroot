@@ -4,7 +4,7 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import type { ClientPlatform, CreateCheckoutResponse } from '@lexiroot/shared';
 import { refreshAuthUser } from '../services/refreshAuthUser';
-import { apiErrorStatus, describeApiError } from '../utils/apiError';
+import { apiErrorMessage, apiErrorStatus, describeApiError } from '../utils/apiError';
 import {
   useCreateCheckoutMutation,
   useLazyMySubscriptionQuery,
@@ -19,6 +19,19 @@ export type CheckoutOutcome =
   | 'cancelled'
   | 'pending'
   | 'error';
+
+/**
+ * Why a checkout failed, when the server said something worth repeating.
+ *
+ * A refusal here is usually specific and actionable — "this Apple ID already
+ * has a subscription on another account" — and showing "Please try again"
+ * instead sends the learner round a loop that cannot succeed. Set on the last
+ * failure; read by the screen when the outcome is `error`.
+ */
+let lastFailureMessage: string | null = null;
+export function lastCheckoutFailure(): string | null {
+  return lastFailureMessage;
+}
 
 export type RestoreOutcome = 'restored' | 'nothing_to_restore' | 'error';
 
@@ -90,6 +103,7 @@ export function useCheckout() {
         const transactionId = transactionIdOf(purchase);
         if (!transactionId) throw new Error('Apple purchase did not return a transaction id');
 
+        lastFailureMessage = null;
         const result = await verifyAppleTransaction({ transactionId }).unwrap();
         // Only finish the transaction once it's durably recorded on our side —
         // finishing early risks losing it silently on a crash mid-verify, since
@@ -100,6 +114,7 @@ export function useCheckout() {
       } catch (err) {
         if (err instanceof AppleIapCancelledError) return 'cancelled';
         if (__DEV__) console.error('[checkout] apple_iap purchase failed —', describeApiError(err));
+        lastFailureMessage = apiErrorMessage(err, '');
         return 'error';
       }
     },
@@ -165,6 +180,7 @@ export function useCheckout() {
   const start = useCallback(
     async (planId: string): Promise<CheckoutOutcome> => {
       setBusy(true);
+      lastFailureMessage = null;
       try {
         const returnUrl = Linking.createURL('subscription-return');
         // No `provider` — the server resolves it from platform + the user's country.
@@ -216,6 +232,7 @@ export function useCheckout() {
         // 409 isn't a failure: the learner already has a live subscription, so
         // the server refused to open a second one. The app's cached user is just
         // behind — resync it rather than showing them an error for having paid.
+        lastFailureMessage = apiErrorMessage(err, '');
         if (apiErrorStatus(err) === HTTP_CONFLICT) {
           try {
             await refreshAuthUser(dispatch);

@@ -7,7 +7,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../src/components/ui/Button';
 import { colors, fonts, radius, spacing } from '../../src/constants/theme';
-import { useCheckout } from '../../src/hooks/useCheckout';
+import { lastCheckoutFailure, useCheckout } from '../../src/hooks/useCheckout';
 import { useSubscriptionPlansQuery } from '../../src/services/subscriptionPlansApi';
 import { formatPrice } from '../../src/utils/format';
 
@@ -123,7 +123,14 @@ export default function UpgradePricing() {
         "We're confirming your payment — your access will unlock in a moment.",
       );
     } else if (outcome === 'error') {
-      Alert.alert('Checkout failed', 'We couldn’t start your subscription. Please try again.');
+      // Prefer the server's own reason — a refusal is usually specific and
+      // actionable, and "try again" sends the learner round a loop that cannot
+      // succeed.
+      const reason = lastCheckoutFailure();
+      Alert.alert(
+        'Checkout failed',
+        reason || 'We couldn’t start your subscription. Please try again.',
+      );
     }
     // 'cancelled' → the learner backed out; stay on the screen.
   };

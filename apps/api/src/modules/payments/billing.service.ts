@@ -1,7 +1,12 @@
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
-import type { ProviderKey } from '@lexiroot/shared';
+import { ENTITLED_SUBSCRIPTION_STATUSES, type ProviderKey } from '@lexiroot/shared';
 import { EntitlementService } from './entitlement.service';
 import { FamilyService } from './family.service';
 import { Invoice } from './entities/invoice.entity';
@@ -265,29 +270,73 @@ export class BillingService {
     userId: string,
     snapshot: ProviderSubSnapshot,
   ): Promise<Subscription> {
-    const token = snapshot.appAccountToken?.trim().toLowerCase() ?? null;
-    if (!token || !UUID_PATTERN.test(token)) {
-      this.logger.warn(
-        `Apple purchase ${snapshot.providerSubscriptionId} carries no usable appAccountToken; refusing to link it to ${userId}`,
-      );
-      throw new ForbiddenException(
-        'This purchase is not linked to a LexiRoot account. Contact support with your receipt.',
-      );
+    const repo = this.dataSource.getRepository(Subscription);
+    const chainId = snapshot.providerSubscriptionId;
+    // Apple's own verdict on the chain, not ours — our row can be stale.
+    const chainIsLive = ENTITLED_SUBSCRIPTION_STATUSES.includes(snapshot.status);
+
+    // 1. Does a row already hold this chain? `provider_subscription_id` is
+    //    unique per provider, so writing it onto a second row is a constraint
+    //    violation — which used to escape as an unhandled 500 mid-purchase.
+    const linked = await repo.findOne({
+      where: { provider: 'apple_iap', providerSubscriptionId: chainId },
+    });
+    if (linked) {
+      // Already ours: this is the canonical row for the chain, whatever the
+      // token says. Re-purchasing after a lapse lands here.
+      if (linked.userId === userId) return linked;
+
+      if (chainIsLive) {
+        this.logger.warn(
+          `Apple chain ${chainId} is live on subscription ${linked.id} (user ${linked.userId}); ` +
+            `refusing to move it to ${userId}`,
+        );
+        throw new ForbiddenException(
+          'This Apple ID already has an active LexiRoot subscription on another account. ' +
+            'Sign in with that account, or use a different Apple ID.',
+        );
+      }
+
+      // The chain is dead and the old owner keeps their history, but the Apple
+      // ID is free to be used again — by whoever is holding the phone now.
+      // Releasing the id is what lets a resold device, or a learner who started
+      // a new account, subscribe at all.
+      linked.providerSubscriptionId = null;
+      await repo.save(linked);
     }
 
-    const staged = await this.dataSource
-      .getRepository(Subscription)
-      .findOne({ where: { id: token } });
-    if (!staged || staged.userId !== userId) {
+    // 2. The token the purchase carries. Apple keeps the *original* token for
+    //    the life of a chain, so on a re-subscribe it still points at the row
+    //    that first bought it.
+    const token = snapshot.appAccountToken?.trim().toLowerCase() ?? null;
+    const staged =
+      token && UUID_PATTERN.test(token) ? await repo.findOne({ where: { id: token } }) : null;
+    if (staged && staged.userId === userId) return staged;
+
+    if (staged && chainIsLive) {
       this.logger.warn(
-        `Apple purchase ${snapshot.providerSubscriptionId} claimed by ${userId} but its appAccountToken ${token} ` +
-          `${staged ? `belongs to ${staged.userId}` : 'matches no subscription'}`,
+        `Apple purchase ${chainId} claimed by ${userId} but its appAccountToken ${token} ` +
+          `belongs to ${staged.userId}`,
       );
       throw new ForbiddenException(
         'This purchase belongs to a different LexiRoot account. Sign in with that account to restore it.',
       );
     }
-    return staged;
+
+    // 3. Nothing live claims this chain, so the caller's own pending checkout
+    //    takes it. Safe precisely because steps 1 and 2 refused every case
+    //    where somebody else still has access riding on it — and claiming a
+    //    dead chain grants nothing, since entitlement reads Apple's status.
+    const pending = await repo.findOne({
+      where: { userId, provider: 'apple_iap', status: 'INCOMPLETE' },
+      order: { createdAt: 'DESC' },
+    });
+    if (pending) return pending;
+
+    this.logger.warn(
+      `Apple purchase ${chainId} claimed by ${userId} with no pending checkout to attach it to`,
+    );
+    throw new NotFoundException('No pending Apple checkout to link this purchase to.');
   }
 
   /**
