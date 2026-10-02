@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, Eye } from 'lucide-react';
 import {
+  CREATABLE_LESSON_TYPES,
   DURATION_BUCKETS,
   LANGUAGE_LABELS,
   LEARNING_LEVELS,
   LEARNING_LEVEL_LABELS,
   LESSON_STATUSES,
   LESSON_STATUS_LABELS,
-  LESSON_TYPES,
   LESSON_TYPE_LABELS,
   type DurationBucket,
   type ExerciseCategory,
@@ -36,6 +36,7 @@ import { SentenceEditor } from '../components/features/lessons/contentEditors/Se
 import { LettersNumbersEditor } from '../components/features/lessons/contentEditors/LettersNumbersEditor';
 import { RecognitionItemsEditor } from '../components/features/lessons/contentEditors/RecognitionItemsEditor';
 import { useToast } from '../components/ui/Toast';
+import { useLessonSlots } from '../hooks/useLessonSlots';
 
 const EMPTY_RECOGNITION_PROMPT: RecognitionPromptMeta = { audioUrl: '', instruction: '' };
 
@@ -92,7 +93,9 @@ export function LessonEditorPage() {
   const [searchParams] = useSearchParams();
   const presetType = useMemo<LessonType | null>(() => {
     const raw = searchParams.get('type');
-    return raw && (LESSON_TYPES as readonly string[]).includes(raw) ? (raw as LessonType) : null;
+    return raw && (CREATABLE_LESSON_TYPES as readonly string[]).includes(raw)
+      ? (raw as LessonType)
+      : null;
   }, [searchParams]);
   const { data: existing, isLoading: loadingLesson } = useGetLessonQuery(id!, { skip: !id });
   const { data: existingExercises } = useListExercisesQuery(id!, { skip: !id });
@@ -118,6 +121,21 @@ export function LessonEditorPage() {
     useState<RecognitionPromptMeta>(EMPTY_RECOGNITION_PROMPT);
   const [meta, setMeta] = useState<LessonMeta>({});
   const [errors, setErrors] = useState<FieldErrors>({});
+  const slots = useLessonSlots(form.language, form.tier, form.level, form.type, id);
+  const slotClashMessage = slots.isTaken
+    ? `A ${LESSON_TYPE_LABELS[form.type]} lesson already exists for ` +
+      `${LEARNING_LEVEL_LABELS[form.tier]} level ${form.level}. Pick another level.`
+    : undefined;
+
+  // New lessons start on the first free level for the chosen tier and type,
+  // once the occupied slots have loaded. Later changes go through
+  // changeTierOrType so the author's own level edits are left alone.
+  const levelSuggested = useRef(false);
+  useEffect(() => {
+    if (isEditing || slots.isLoading || levelSuggested.current) return;
+    levelSuggested.current = true;
+    setForm((s) => ({ ...s, level: slots.nextFreeLevel(s.tier, s.type) }));
+  }, [isEditing, slots]);
 
   useEffect(() => {
     if (!existingExercises) return;
@@ -206,10 +224,19 @@ export function LessonEditorPage() {
     setForm((s) => ({ ...s, [key]: value }));
   }
 
+  function changeTierOrType(patch: Partial<Pick<FormState, 'tier' | 'type'>>) {
+    setForm((s) => {
+      const next = { ...s, ...patch };
+      if (!isEditing) next.level = slots.nextFreeLevel(next.tier, next.type);
+      return next;
+    });
+  }
+
   function validate(): FieldErrors {
     const next: FieldErrors = {};
     if (form.title.trim().length < 2) next.title = 'Title is required';
     if (!Number.isFinite(form.level) || form.level < 1) next.level = 'Level must be at least 1';
+    else if (slotClashMessage) next.level = slotClashMessage;
     if (form.shortDescription.length > DESCRIPTION_MAX) {
       next.shortDescription = `Keep it under ${DESCRIPTION_MAX} characters`;
     }
@@ -356,14 +383,14 @@ export function LessonEditorPage() {
               <Field label="Tier" required>
                 <NativeSelect
                   value={form.tier}
-                  onChange={(v) => update('tier', v as LearningLevel)}
+                  onChange={(v) => changeTierOrType({ tier: v as LearningLevel })}
                   options={LEARNING_LEVELS.map((l) => ({
                     value: l,
                     label: LEARNING_LEVEL_LABELS[l],
                   }))}
                 />
               </Field>
-              <Field label="Level" required error={errors.level}>
+              <Field label="Level" required error={errors.level ?? slotClashMessage}>
                 <input
                   type="number"
                   min={1}
@@ -452,8 +479,17 @@ export function LessonEditorPage() {
                 ) : (
                   <NativeSelect
                     value={form.type}
-                    onChange={(v) => update('type', v as LessonType)}
-                    options={LESSON_TYPES.map((t) => ({ value: t, label: LESSON_TYPE_LABELS[t] }))}
+                    onChange={(v) => changeTierOrType({ type: v as LessonType })}
+                    options={CREATABLE_LESSON_TYPES.map((t) => {
+                      const taken = slots.takenTypes.has(t) && t !== form.type;
+                      return {
+                        value: t,
+                        label: taken
+                          ? `${LESSON_TYPE_LABELS[t]} (already created for this level)`
+                          : LESSON_TYPE_LABELS[t],
+                        disabled: taken,
+                      };
+                    })}
                   />
                 )}
               </Field>
@@ -626,7 +662,7 @@ function NativeSelect({
 }: {
   value: string;
   onChange: (next: string) => void;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; disabled?: boolean }[];
   placeholder?: string;
 }) {
   return (
@@ -638,7 +674,7 @@ function NativeSelect({
       >
         {placeholder && !value ? <option value="">{placeholder}</option> : null}
         {options.map((o) => (
-          <option key={o.value} value={o.value}>
+          <option key={o.value} value={o.value} disabled={o.disabled}>
             {o.label}
           </option>
         ))}

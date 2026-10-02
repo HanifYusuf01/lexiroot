@@ -4,6 +4,7 @@ import type {
   LanguageCode,
   LearningLevel,
   LessonMeta,
+  LessonSlot,
   LessonStatus,
   LessonType,
 } from '@lexiroot/shared';
@@ -82,6 +83,12 @@ export const lessonsApi = api.injectEndpoints({
       query: () => '/lessons/stats',
       providesTags: ['LessonStats'],
     }),
+    // Occupied curriculum slots. Tagged 'Lesson' so any create, update or
+    // archive refetches it and the editor never works from a stale list.
+    lessonSlots: build.query<LessonSlot[], LanguageCode | void>({
+      query: (language) => ({ url: '/lessons/slots', params: language ? { language } : {} }),
+      providesTags: ['Lesson'],
+    }),
     getLesson: build.query<LessonRow, string>({
       query: (id) => `/lessons/${id}`,
       providesTags: (_r, _e, id) => [{ type: 'Lesson', id }],
@@ -104,6 +111,7 @@ export const lessonsApi = api.injectEndpoints({
 export const {
   useListLessonsQuery,
   useLessonStatsQuery,
+  useLessonSlotsQuery,
   useGetLessonQuery,
   useCreateLessonMutation,
   useUpdateLessonMutation,

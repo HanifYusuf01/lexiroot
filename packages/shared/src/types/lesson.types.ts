@@ -9,6 +9,26 @@ export const LESSON_TYPES = [
 ] as const;
 export type LessonType = (typeof LESSON_TYPES)[number];
 
+// Types a new lesson can be created as. 'exercise' stays in LESSON_TYPES so
+// legacy rows still load, but every other type now carries its own practice
+// exercises, so a standalone exercise lesson is no longer created.
+export const CREATABLE_LESSON_TYPES = [
+  'letters-numbers',
+  'vocabulary',
+  'recognition',
+  'sentence',
+] as const satisfies readonly LessonType[];
+export type CreatableLessonType = (typeof CREATABLE_LESSON_TYPES)[number];
+
+/** One occupied (language, tier, level, type) curriculum slot. */
+export interface LessonSlot {
+  id: string;
+  language: LanguageCode;
+  tier: LearningLevel;
+  level: number;
+  type: LessonType;
+}
+
 export const LESSON_TYPE_LABELS: Record<LessonType, string> = {
   'letters-numbers': 'Letters & Numbers',
   vocabulary: 'Vocabulary',

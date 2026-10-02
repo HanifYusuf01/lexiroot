@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import type { LessonMeta, LessonStatus } from '@lexiroot/shared';
+import { QueryFailedError, Repository } from 'typeorm';
+import type { LessonMeta, LessonSlot, LessonStatus } from '@lexiroot/shared';
 import { LESSON_TYPE_LABELS } from '@lexiroot/shared';
 import { Lesson } from './entities/lesson.entity';
 import { CreateLessonDto } from './dto/create-lesson.dto';
@@ -89,10 +89,9 @@ export class LessonsService {
     const qb = this.lessons.createQueryBuilder('lesson');
 
     if (query.search) {
-      qb.andWhere(
-        '(LOWER(lesson.title) LIKE :s OR LOWER(lesson.short_description) LIKE :s)',
-        { s: `%${query.search.toLowerCase()}%` },
-      );
+      qb.andWhere('(LOWER(lesson.title) LIKE :s OR LOWER(lesson.short_description) LIKE :s)', {
+        s: `%${query.search.toLowerCase()}%`,
+      });
     }
     if (query.language) qb.andWhere('lesson.language = :language', { language: query.language });
     if (query.tier) qb.andWhere('lesson.tier = :tier', { tier: query.tier });
@@ -132,6 +131,18 @@ export class LessonsService {
     return { total, published, drafts, archived, newThisMonth };
   }
 
+  // Every occupied (language, tier, level, type) slot, so the admin editor can
+  // suggest the next free level and disable types already taken. Archived rows
+  // are included because assertNoTypeClash still counts them.
+  async slots(language?: Lesson['language']): Promise<LessonSlot[]> {
+    const rows = await this.lessons.find({
+      select: { id: true, language: true, tier: true, level: true, type: true },
+      where: language ? { language } : {},
+      order: { tier: 'ASC', level: 'ASC' },
+    });
+    return rows.map(({ id, language, tier, level, type }) => ({ id, language, tier, level, type }));
+  }
+
   async getById(id: string, role: UserRole): Promise<LessonRow> {
     const lesson = await this.lessons.findOne({ where: { id } });
     if (!lesson) throw new NotFoundException('Lesson not found');
@@ -162,7 +173,7 @@ export class LessonsService {
       meta: dto.meta ?? {},
       createdById,
     });
-    const saved = await this.lessons.save(lesson);
+    const saved = await this.saveGuardingSlot(lesson);
     // Reached only from the staff-guarded create/update routes, which must
     // see the row they just wrote even while it is still a draft.
     return this.getById(saved.id, 'admin');
@@ -206,7 +217,7 @@ export class LessonsService {
     if (dto.status !== undefined) lesson.status = dto.status;
     if (dto.meta !== undefined) lesson.meta = dto.meta;
 
-    await this.lessons.save(lesson);
+    await this.saveGuardingSlot(lesson);
     return this.getById(lesson.id, 'admin');
   }
 
@@ -232,6 +243,30 @@ export class LessonsService {
         `A ${LESSON_TYPE_LABELS[type]} lesson already exists for ${tier} level ${level}. ` +
           'Each tier and level can only have one lesson per type.',
       );
+    }
+  }
+
+  // assertNoTypeClash is a read-then-write check, so two concurrent saves can
+  // both pass it; UQ_lessons_slot then rejects the second. Surface that as the
+  // same 409 the pre-check gives rather than a 500.
+  private async saveGuardingSlot(lesson: Lesson): Promise<Lesson> {
+    try {
+      return await this.lessons.save(lesson);
+    } catch (err) {
+      const driverError = (
+        err as QueryFailedError & { driverError?: { code?: string; constraint?: string } }
+      ).driverError;
+      if (
+        err instanceof QueryFailedError &&
+        driverError?.code === '23505' &&
+        driverError.constraint === 'UQ_lessons_slot'
+      ) {
+        throw new ConflictException(
+          `A ${LESSON_TYPE_LABELS[lesson.type]} lesson already exists for ${lesson.tier} level ${lesson.level}. ` +
+            'Each tier and level can only have one lesson per type.',
+        );
+      }
+      throw err;
     }
   }
 

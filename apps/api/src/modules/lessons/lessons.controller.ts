@@ -18,6 +18,7 @@ import { LessonsService } from './lessons.service';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { ListLessonsQueryDto } from './dto/list-lessons-query.dto';
+import { LessonSlotsQueryDto } from './dto/lesson-slots-query.dto';
 
 @Controller('lessons')
 @UseGuards(JwtAuthGuard)
@@ -34,6 +35,13 @@ export class LessonsController {
   @Roles('admin', 'instructor')
   stats() {
     return this.lessons.stats();
+  }
+
+  @Get('slots')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'instructor')
+  slots(@Query() query: LessonSlotsQueryDto) {
+    return this.lessons.slots(query.language);
   }
 
   @Get(':id')

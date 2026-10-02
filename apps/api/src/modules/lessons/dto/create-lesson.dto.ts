@@ -12,17 +12,17 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import {
+  CREATABLE_LESSON_TYPES,
   DURATION_BUCKETS,
   LANGUAGE_CODES,
   LEARNING_LEVELS,
   LESSON_STATUSES,
-  LESSON_TYPES,
+  type CreatableLessonType,
   type DurationBucket,
   type LanguageCode,
   type LearningLevel,
   type LessonMeta,
   type LessonStatus,
-  type LessonType,
 } from '@lexiroot/shared';
 
 export class CreateLessonDto {
@@ -64,8 +64,10 @@ export class CreateLessonDto {
   @Max(10000)
   orderInUnit?: number;
 
-  @IsIn(LESSON_TYPES as readonly string[])
-  type!: LessonType;
+  @IsIn(CREATABLE_LESSON_TYPES as readonly string[], {
+    message: `type must be one of: ${CREATABLE_LESSON_TYPES.join(', ')}`,
+  })
+  type!: CreatableLessonType;
 
   @IsOptional()
   @IsBoolean()

@@ -8,16 +8,13 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import type {
-  DurationBucket,
-  LessonMeta,
-  LessonStatus,
-  LessonType,
-} from '@lexiroot/shared';
+import type { DurationBucket, LessonMeta, LessonStatus, LessonType } from '@lexiroot/shared';
 import type { LanguageCode, LearningLevel } from '@lexiroot/shared';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('lessons')
+// One lesson per curriculum slot — see the AddLessonSlotUniqueIndex migration.
+@Index('UQ_lessons_slot', ['language', 'tier', 'level', 'type'], { unique: true })
 export class Lesson {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
