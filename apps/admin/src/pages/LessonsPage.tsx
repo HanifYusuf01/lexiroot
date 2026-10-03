@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
+  LEARNING_LEVELS,
   LEARNING_LEVEL_LABELS,
+  LESSON_STATUSES,
   LESSON_STATUS_LABELS,
+  LESSON_TYPES,
   LESSON_TYPE_LABELS,
   type LanguageCode,
   type LearningLevel,
@@ -21,11 +24,13 @@ import {
   TableHeaderCell,
   TableRow,
 } from '../components/ui/Table';
+import { ColumnFilter } from '../components/ui/ColumnFilter';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 import { useDebounce } from '../hooks/useDebounce';
 import {
   useArchiveLessonMutation,
+  useLessonSlotsQuery,
   useListLessonsQuery,
   type LessonRow,
 } from '../services/lessonsApi';
@@ -38,10 +43,8 @@ import { Pagination } from '../components/features/users/Pagination';
 
 const PAGE_SIZE = 12;
 
-type Tab = 'all' | 'published' | 'draft';
-
-const TABS: { value: Tab; label: string }[] = [
-  { value: 'all', label: 'All Lessons' },
+const TABS: { value: LessonStatus | undefined; label: string }[] = [
+  { value: undefined, label: 'All Lessons' },
   { value: 'published', label: 'Published' },
   { value: 'draft', label: 'Drafts' },
 ];
@@ -63,26 +66,37 @@ function statusBadge(status: LessonStatus) {
 }
 
 export function LessonsPage() {
-  const [tab, setTab] = useState<Tab>('all');
+  // The status tabs and the Status column filter share this value; 'archived'
+  // is reachable only from the column filter.
+  const [status, setStatus] = useState<LessonStatus | undefined>(undefined);
   const [skillTab, setSkillTab] = useState<SkillTab>('all');
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState('');
   const debouncedSearch = useDebounce(searchInput.trim(), 400);
   const [language, setLanguage] = useState<LanguageCode | undefined>(undefined);
   const [tier, setTier] = useState<LearningLevel | undefined>(undefined);
+  const [level, setLevel] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, language, tier, tab, skillTab]);
-
-  const status = useMemo<LessonStatus | undefined>(() => {
-    if (tab === 'all') return undefined;
-    return tab;
-  }, [tab]);
+  }, [debouncedSearch, language, tier, level, status, skillTab]);
 
   const typeFilter = useMemo<LessonType | undefined>(() => {
     return skillTab === 'all' ? undefined : skillTab;
   }, [skillTab]);
+
+  // Level options are the levels that actually have lessons, narrowed by the
+  // tier and type filters so the list only offers choices that return rows.
+  const { data: slots } = useLessonSlotsQuery(language);
+  const levelOptions = useMemo(() => {
+    const levels = new Set(
+      (slots ?? [])
+        .filter((s) => (!tier || s.tier === tier) && (!typeFilter || s.type === typeFilter))
+        .map((s) => s.level),
+    );
+    if (level !== undefined) levels.add(level);
+    return [...levels].sort((a, b) => a - b).map((l) => ({ value: l, label: `Level ${l}` }));
+  }, [slots, tier, typeFilter, level]);
 
   const createHref = skillTab === 'all' ? '/lessons/new' : `/lessons/new?type=${skillTab}`;
 
@@ -95,6 +109,18 @@ export function LessonsPage() {
     status,
     type: typeFilter,
   });
+
+  const hasFilters =
+    !!debouncedSearch || !!language || !!tier || level !== undefined || !!status || !!typeFilter;
+
+  function clearFilters() {
+    setSearchInput('');
+    setLanguage(undefined);
+    setTier(undefined);
+    setLevel(undefined);
+    setStatus(undefined);
+    setSkillTab('all');
+  }
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
 
@@ -148,12 +174,12 @@ export function LessonsPage() {
       <div className="border-b border-border">
         <div className="flex gap-6">
           {TABS.map((t) => {
-            const active = tab === t.value;
+            const active = status === t.value;
             return (
               <button
-                key={t.value}
+                key={t.label}
                 type="button"
-                onClick={() => setTab(t.value)}
+                onClick={() => setStatus(t.value)}
                 className={`relative pb-3 text-sm font-semibold transition ${
                   active ? 'text-primary' : 'text-neutral-variant hover:text-neutral'
                 }`}
@@ -173,10 +199,48 @@ export function LessonsPage() {
           <TableHead>
             <tr>
               <TableHeaderCell>Lesson</TableHeaderCell>
-              <TableHeaderCell>Tier</TableHeaderCell>
-              <TableHeaderCell>Level</TableHeaderCell>
-              <TableHeaderCell>Type</TableHeaderCell>
-              <TableHeaderCell>Status</TableHeaderCell>
+              <TableHeaderCell>
+                <ColumnFilter
+                  label="Tier"
+                  allLabel="All tiers"
+                  value={tier}
+                  options={LEARNING_LEVELS.map((t) => ({
+                    value: t,
+                    label: LEARNING_LEVEL_LABELS[t],
+                  }))}
+                  onChange={setTier}
+                />
+              </TableHeaderCell>
+              <TableHeaderCell>
+                <ColumnFilter
+                  label="Level"
+                  allLabel="All levels"
+                  value={level}
+                  options={levelOptions}
+                  onChange={setLevel}
+                />
+              </TableHeaderCell>
+              <TableHeaderCell>
+                <ColumnFilter
+                  label="Type"
+                  allLabel="All types"
+                  value={typeFilter}
+                  options={LESSON_TYPES.map((t) => ({ value: t, label: LESSON_TYPE_LABELS[t] }))}
+                  onChange={(next) => setSkillTab(next ?? 'all')}
+                />
+              </TableHeaderCell>
+              <TableHeaderCell>
+                <ColumnFilter
+                  label="Status"
+                  allLabel="All statuses"
+                  value={status}
+                  options={LESSON_STATUSES.map((s) => ({
+                    value: s,
+                    label: LESSON_STATUS_LABELS[s],
+                  }))}
+                  onChange={setStatus}
+                />
+              </TableHeaderCell>
               <TableHeaderCell>XP Reward</TableHeaderCell>
               <TableHeaderCell>Created At</TableHeaderCell>
               <TableHeaderCell>Actions</TableHeaderCell>
@@ -194,7 +258,23 @@ export function LessonsPage() {
             ) : (
               <tr>
                 <TableCell colSpan={8} className="py-10 text-center text-neutral-variant">
-                  No lessons yet. Click <span className="font-semibold">Create Lesson</span> to add one.
+                  {hasFilters ? (
+                    <>
+                      No lessons match these filters.{' '}
+                      <button
+                        type="button"
+                        onClick={clearFilters}
+                        className="font-semibold text-primary hover:underline"
+                      >
+                        Clear filters
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      No lessons yet. Click <span className="font-semibold">Create Lesson</span> to
+                      add one.
+                    </>
+                  )}
                 </TableCell>
               </tr>
             )}
